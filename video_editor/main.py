@@ -22,7 +22,7 @@ from .captioner import Captioner
 console = Console()
 
 
-def _adjust_tokens_for_cuts(tokens: list[Token], keep_ranges: list[TimeRange]) -> list[Token]:
+def _adjust_tokens_for_cuts(tokens: list[Token], keep_ranges: list[TimeRange], segment_gap: float = 0.2) -> list[Token]:
     """
     Adjust token timestamps for the cut video timeline.
 
@@ -33,6 +33,7 @@ def _adjust_tokens_for_cuts(tokens: list[Token], keep_ranges: list[TimeRange]) -
     Args:
         tokens: Original tokens with timestamps from the full video
         keep_ranges: List of time ranges that are being kept
+        segment_gap: Gap duration between segments (default: 0.2s)
 
     Returns:
         List of tokens with adjusted timestamps for the cut video
@@ -45,12 +46,15 @@ def _adjust_tokens_for_cuts(tokens: list[Token], keep_ranges: list[TimeRange]) -
     sorted_ranges = sorted(keep_ranges, key=lambda r: r.start)
 
     # Precompute cumulative offsets for each range
-    # offsets[i] = total duration of all ranges before range i
+    # offsets[i] = total duration of all ranges before range i + gaps between them
     offsets = []
     cumulative = 0.0
-    for range_ in sorted_ranges:
+    for i, range_ in enumerate(sorted_ranges):
         offsets.append(cumulative)
         cumulative += range_.duration
+        # Add gap after each segment except the last
+        if i < len(sorted_ranges) - 1:
+            cumulative += segment_gap
 
     adjusted_tokens = []
     range_idx = 0
@@ -235,8 +239,8 @@ def main(
 
             if streaming_captions:
                 # Use word-by-word streaming captions
-                # Adjust token times for the cut video
-                adjusted_tokens = _adjust_tokens_for_cuts(tokens, keep_ranges)
+                # Adjust token times for the cut video (accounting for gaps between segments)
+                adjusted_tokens = _adjust_tokens_for_cuts(tokens, keep_ranges, Cutter.SEGMENT_GAP)
 
                 captioner.burn_streaming_captions(
                     temp_cut,

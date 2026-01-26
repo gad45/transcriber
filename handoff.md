@@ -212,6 +212,88 @@ python -m video_editor test/test.mp4 -o output.mp4 --streaming-captions --keep-t
 
 ---
 
+### 3. Black Gaps Between Segments
+
+**Symptom:** Video went black/dark during transitions between cut segments.
+
+**Root Cause:** Original implementation used `create_gap_segment()` which generated black frames with silence between segments.
+
+**Solution:** Replaced black gaps with frozen last frame using FFmpeg's `tpad` filter:
+```python
+# In cut_segment() - freeze the last frame for SEGMENT_GAP duration
+cmd = [
+    "ffmpeg", "-y", "-i", str(temp_segment),
+    "-vf", f"tpad=stop_mode=clone:stop_duration={self.SEGMENT_GAP}",
+    ...
+]
+```
+
+**Note:** `tpad` doesn't work well when combined with `-ss` seeking, so a two-pass approach is used:
+1. Pass 1: Extract segment to temp file
+2. Pass 2: Apply tpad to the extracted segment
+
+---
+
+### 4. Audio Gaps Between Segments
+
+**Symptom:** Weird audio gaps/pops between segments after implementing frozen frame feature.
+
+**Root Cause:** `apad=pad_dur=0.2` didn't produce audio that exactly matched video duration after `tpad` extended it. AAC encoding frame sizes caused slight mismatches (e.g., audio 1.885s vs video 1.9s).
+
+**Solution:** Use generous audio padding with `-shortest` flag:
+```python
+cmd = [
+    "ffmpeg", "-y", "-i", str(temp_segment),
+    "-vf", f"tpad=stop_mode=clone:stop_duration={self.SEGMENT_GAP}",
+    "-af", f"apad=pad_dur={self.SEGMENT_GAP + 0.5}",  # Generous padding
+    "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+    "-c:a", "aac", "-b:a", "192k",
+    "-shortest",  # Trim both streams to match
+    str(output_path)
+]
+```
+
+This ensures audio is padded more than needed, then FFmpeg trims both streams to match.
+
+---
+
+### 5. Token Adjustment for Segment Gaps
+
+**Location:** `video_editor/main.py` - `_adjust_tokens_for_cuts()`
+
+**Change:** Updated to account for frozen frame gaps between segments when computing caption timestamps:
+```python
+# Precompute cumulative offsets including gaps
+for i, range_ in enumerate(sorted_ranges):
+    offsets.append(cumulative)
+    cumulative += range_.duration
+    # Add gap after each segment except the last
+    if i < len(sorted_ranges) - 1:
+        cumulative += segment_gap  # 0.2s gap
+```
+
+---
+
+## Files Modified This Session (Updated)
+
+1. **`video_editor/cutter.py`**
+   - Added `SEGMENT_GAP = 0.2` class constant
+   - Changed `cut_segment()` to two-pass approach with frozen last frame
+   - Added `freeze_last_frame` parameter (disabled for final segment)
+   - Fixed audio gap issue with generous padding + `-shortest`
+   - Simplified `concatenate_segments()` (no separate gap segments needed)
+
+2. **`video_editor/main.py`**
+   - Updated `_adjust_tokens_for_cuts()` to account for segment gaps
+
+3. **`video_editor/transcriber.py`**
+   - Added `_merge_tokens_to_words()` method
+
+4. **`video_editor/captioner.py`**
+   - Updated to use two separate drawtext filters for 2-line caption layout
+
+---
+
 ## Known Trade-offs
 
 1. **Re-encoding vs Speed**: Frame-accurate cuts require re-encoding, which is slower than stream copy but necessary for caption synchronization.
@@ -219,3 +301,5 @@ python -m video_editor test/test.mp4 -o output.mp4 --streaming-captions --keep-t
 2. **Soniox Granularity**: More segments means better precision but requires robust retake detection algorithms.
 
 3. **LLM Take Selection**: Uses Gemini 2.0 Flash (primary) or OpenAI (fallback) for selecting best takes. Falls back to duration-based selection if no API keys available.
+
+4. **Two-Pass Segment Processing**: Frozen frame feature requires two FFmpeg passes per segment (extract, then tpad), adding processing time but ensuring smooth transitions.

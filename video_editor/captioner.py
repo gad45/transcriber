@@ -224,30 +224,27 @@ class Captioner:
         text = text.replace("%", "\\%")
         return text
 
-    def _split_into_lines(self, text: str, max_lines: int = 2, words_per_line: int = 8) -> str:
+    def _split_into_lines(self, text: str, words_per_line: int = 8) -> list[str]:
         """
         Split text into multiple lines for better readability.
 
         Args:
             text: The text to split
-            max_lines: Maximum number of lines
             words_per_line: Target words per line
 
         Returns:
-            Text with newlines inserted
+            List of lines (max 2 lines)
         """
         words = text.split()
         if len(words) <= words_per_line:
-            return text
+            return [text]
 
-        lines = []
-        for i in range(0, len(words), words_per_line):
-            line = " ".join(words[i:i + words_per_line])
-            lines.append(line)
-            if len(lines) >= max_lines:
-                break
+        line1 = " ".join(words[:words_per_line])
+        line2 = " ".join(words[words_per_line:words_per_line * 2])
 
-        return "\n".join(lines)
+        if line2:
+            return [line1, line2]
+        return [line1]
 
     def _build_drawtext_filter(self, tokens: list[Token], max_words: int = 15) -> str:
         """
@@ -255,6 +252,8 @@ class Captioner:
 
         Creates accumulating text effect: words appear one by one and stay visible
         until the chunk is complete, then clear for the next chunk.
+
+        Uses separate drawtext filters for each line to avoid newline rendering issues.
 
         Args:
             tokens: List of word-level tokens with timing
@@ -278,12 +277,15 @@ class Captioner:
         box = 1
         boxcolor = "black@0.5"
         boxborderw = 10
-        line_spacing = 10  # Pixels between lines
+
+        # Vertical positions for 2-line layout
+        line1_y = "h-140"  # First line (higher)
+        line2_y = "h-90"   # Second line (lower)
 
         for chunk in chunks:
             chunk_end = chunk[-1].end + 0.1  # Small buffer after last word
 
-            # For each word position in the chunk, create a filter that shows
+            # For each word position in the chunk, create filters that show
             # all words from the start up to that word
             for word_idx in range(len(chunk)):
                 # Accumulate text from start of chunk to current word
@@ -291,8 +293,7 @@ class Captioner:
 
                 # Split into 2 lines for readability (roughly half the words per line)
                 words_per_line = max(4, (max_words + 1) // 2)  # e.g., 15 words -> 8 per line
-                display_text = self._split_into_lines(accumulated_text, max_lines=2, words_per_line=words_per_line)
-                escaped_text = self._escape_drawtext(display_text)
+                lines = self._split_into_lines(accumulated_text, words_per_line=words_per_line)
 
                 # This filter is active from when this word starts until the next word starts
                 # (or until chunk end for the last word)
@@ -303,10 +304,11 @@ class Captioner:
                 else:
                     word_end = chunk_end
 
-                # Build the drawtext filter for this state
-                # Position: centered horizontally, near bottom with room for 2 lines
-                filter_str = (
-                    f"drawtext=text='{escaped_text}'"
+                # Build separate drawtext filter for each line
+                # Line 1 (always present)
+                escaped_line1 = self._escape_drawtext(lines[0])
+                filter_str1 = (
+                    f"drawtext=text='{escaped_line1}'"
                     f":fontsize={fontsize}"
                     f":fontcolor={fontcolor}"
                     f":borderw={borderw}"
@@ -314,12 +316,29 @@ class Captioner:
                     f":box={box}"
                     f":boxcolor={boxcolor}"
                     f":boxborderw={boxborderw}"
-                    f":line_spacing={line_spacing}"
                     f":x=(w-text_w)/2"
-                    f":y=h-150"
+                    f":y={line1_y}"
                     f":enable='between(t,{word_start:.3f},{word_end:.3f})'"
                 )
-                filters.append(filter_str)
+                filters.append(filter_str1)
+
+                # Line 2 (only if there's a second line)
+                if len(lines) > 1 and lines[1]:
+                    escaped_line2 = self._escape_drawtext(lines[1])
+                    filter_str2 = (
+                        f"drawtext=text='{escaped_line2}'"
+                        f":fontsize={fontsize}"
+                        f":fontcolor={fontcolor}"
+                        f":borderw={borderw}"
+                        f":bordercolor={bordercolor}"
+                        f":box={box}"
+                        f":boxcolor={boxcolor}"
+                        f":boxborderw={boxborderw}"
+                        f":x=(w-text_w)/2"
+                        f":y={line2_y}"
+                        f":enable='between(t,{word_start:.3f},{word_end:.3f})'"
+                    )
+                    filters.append(filter_str2)
 
         return ",".join(filters)
 

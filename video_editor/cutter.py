@@ -15,7 +15,10 @@ console = Console()
 
 class Cutter:
     """Handles video cutting and concatenation using FFmpeg."""
-    
+
+    # Gap between segments in seconds
+    SEGMENT_GAP = 0.2
+
     def __init__(self, config: Config):
         self.config = config
     
@@ -50,7 +53,8 @@ class Cutter:
         output_path: Path,
         start: float,
         end: float,
-        index: int
+        index: int,
+        freeze_last_frame: bool = True
     ) -> Path:
         """
         Extract a single segment from the video with precise timing.
@@ -58,40 +62,158 @@ class Cutter:
         Uses re-encoding to ensure frame-accurate cuts. Stream copy (-c copy)
         can only cut at keyframes, causing timing mismatches that desync captions.
 
+        Optionally freezes the last frame for SEGMENT_GAP duration to create
+        smooth transitions between segments (uses two-pass for reliability).
+
         Args:
             input_path: Path to input video
             output_path: Path for output segment
             start: Start time in seconds
             end: End time in seconds
             index: Segment index for logging
+            freeze_last_frame: Whether to freeze last frame for gap duration
 
         Returns:
             Path to the extracted segment
         """
-        # Use -ss before -i for fast seeking to approximate position,
-        # then re-encode to get precise frame-accurate cuts
+        # Two-pass approach required because tpad doesn't work well with -ss seeking
+        if freeze_last_frame and self.SEGMENT_GAP > 0:
+            # Pass 1: Extract the segment
+            temp_segment = output_path.parent / f"{output_path.stem}_temp{output_path.suffix}"
+
+            cmd1 = [
+                "ffmpeg",
+                "-y",
+                "-ss", str(start),
+                "-i", str(input_path),
+                "-t", str(end - start),
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "18",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-avoid_negative_ts", "make_zero",
+                str(temp_segment)
+            ]
+
+            result = subprocess.run(cmd1, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise RuntimeError(f"FFmpeg segment extraction failed: {result.stderr}")
+
+            # Pass 2: Add frozen last frame
+            # Use generous audio padding with -shortest to ensure audio matches video exactly
+            # (apad=pad_dur alone can cause slight duration mismatches due to AAC frame sizes)
+            cmd2 = [
+                "ffmpeg",
+                "-y",
+                "-i", str(temp_segment),
+                "-vf", f"tpad=stop_mode=clone:stop_duration={self.SEGMENT_GAP}",
+                "-af", f"apad=pad_dur={self.SEGMENT_GAP + 0.5}",
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "18",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-shortest",
+                str(output_path)
+            ]
+
+            result = subprocess.run(cmd2, capture_output=True, text=True)
+
+            # Clean up temp file
+            if temp_segment.exists():
+                temp_segment.unlink()
+
+            if result.returncode != 0:
+                raise RuntimeError(f"FFmpeg frame padding failed: {result.stderr}")
+
+        else:
+            # Single pass without frame freezing
+            cmd = [
+                "ffmpeg",
+                "-y",
+                "-ss", str(start),
+                "-i", str(input_path),
+                "-t", str(end - start),
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "18",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-avoid_negative_ts", "make_zero",
+                str(output_path)
+            ]
+
+            result = subprocess.run(cmd, capture_output=True, text=True)
+
+            if result.returncode != 0:
+                raise RuntimeError(f"FFmpeg segment extraction failed: {result.stderr}")
+
+        return output_path
+
+    def create_gap_segment(
+        self,
+        reference_video: Path,
+        output_path: Path,
+        duration: float
+    ) -> Path:
+        """
+        Create a short black video segment with silence for gaps between segments.
+
+        Args:
+            reference_video: Reference video to match resolution/fps
+            output_path: Path for the gap segment
+            duration: Duration of the gap in seconds
+
+        Returns:
+            Path to the gap segment
+        """
+        # Get video properties from reference
+        probe_cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height,r_frame_rate",
+            "-of", "csv=p=0",
+            str(reference_video)
+        ]
+        result = subprocess.run(probe_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            # Fallback to common values
+            width, height, fps = 1920, 1080, 30
+        else:
+            parts = result.stdout.strip().split(",")
+            width = int(parts[0]) if len(parts) > 0 else 1920
+            height = int(parts[1]) if len(parts) > 1 else 1080
+            # Parse fps (might be "30/1" format)
+            fps_str = parts[2] if len(parts) > 2 else "30"
+            if "/" in fps_str:
+                num, den = fps_str.split("/")
+                fps = int(num) / int(den)
+            else:
+                fps = float(fps_str)
+
+        # Create black video with silent audio
         cmd = [
             "ffmpeg",
             "-y",
-            "-ss", str(start),          # Seek before input (fast approximate seek)
-            "-i", str(input_path),
-            "-t", str(end - start),     # Duration
-            "-c:v", "libx264",          # Re-encode video for precise cuts
-            "-preset", "fast",          # Balance speed vs compression
-            "-crf", "18",               # High quality (lower = better, 18 is visually lossless)
-            "-c:a", "aac",              # Re-encode audio
-            "-b:a", "192k",             # Audio bitrate
-            "-avoid_negative_ts", "make_zero",
+            "-f", "lavfi",
+            "-i", f"color=c=black:s={width}x{height}:r={fps}:d={duration}",
+            "-f", "lavfi",
+            "-i", f"anullsrc=r=48000:cl=stereo:d={duration}",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-c:a", "aac",
+            "-shortest",
             str(output_path)
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True)
-
         if result.returncode != 0:
-            raise RuntimeError(f"FFmpeg segment extraction failed: {result.stderr}")
+            raise RuntimeError(f"FFmpeg gap segment creation failed: {result.stderr}")
 
         return output_path
-    
+
     def concatenate_segments(
         self,
         segment_paths: list[Path],
@@ -99,22 +221,25 @@ class Cutter:
     ) -> Path:
         """
         Concatenate multiple video segments into one.
-        
+
+        Each segment already has frozen last frame appended (via cut_segment),
+        so no separate gap segments are needed.
+
         Args:
             segment_paths: List of paths to segment files
             output_path: Path for the concatenated output
-            
+
         Returns:
             Path to the concatenated video
         """
-        # Create concat file
         temp_dir = self.config.temp_dir or Path(tempfile.gettempdir())
         concat_file = temp_dir / "concat_list.txt"
-        
+
+        # Create concat file - segments already have frozen frames appended
         with open(concat_file, "w") as f:
             for seg_path in segment_paths:
                 f.write(f"file '{seg_path}'\n")
-        
+
         cmd = [
             "ffmpeg",
             "-y",
@@ -124,18 +249,18 @@ class Cutter:
             "-c", "copy",
             str(output_path)
         ]
-        
+
         result = subprocess.run(cmd, capture_output=True, text=True)
-        
+
         # Clean up concat file
         if not self.config.keep_temp:
             concat_file.unlink()
-        
+
         if result.returncode != 0:
             raise RuntimeError(f"FFmpeg concatenation failed: {result.stderr}")
-        
+
         return output_path
-    
+
     def cut_video(
         self,
         input_path: Path,
@@ -179,7 +304,10 @@ class Cutter:
             
             for i, range_ in enumerate(ranges):
                 seg_path = temp_dir / f"segment_{i:04d}.mp4"
-                self.cut_segment(input_path, seg_path, range_.start, range_.end, i)
+                # Don't freeze last frame on the final segment (no transition after it)
+                is_last = (i == len(ranges) - 1)
+                self.cut_segment(input_path, seg_path, range_.start, range_.end, i,
+                                freeze_last_frame=not is_last)
                 segment_paths.append(seg_path)
                 progress.update(task, advance=1)
         
