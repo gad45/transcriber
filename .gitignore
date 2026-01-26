@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.env
+
+# Test outputs
+test/*.mp4
+test/*.srt
+
+# Temp files
+*.tmp
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Egg
+*.egg
+*.egg-info/
+dist/
+build/

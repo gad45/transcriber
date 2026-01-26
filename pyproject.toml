@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "video-editor"
+version = "0.1.0"
+description = "AI-powered video editing agent for Hungarian content"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Video Editor Agent"}
+]
+dependencies = [
+    "openai-whisper>=20231117",
+    "ffmpeg-python>=0.2.0",
+    "rapidfuzz>=3.0.0",
+    "openai>=1.0.0",
+    "rich>=13.0.0",
+    "click>=8.0.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+video-editor = "video_editor.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["video_editor*"]
