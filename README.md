@@ -126,6 +126,9 @@ python -m video_editor.gui_main path/to/video.mp4
 **macOS Quick Launch:**
 Double-click `launch_gui.command` in Finder.
 
+**Windows Quick Launch:**
+Double-click `launch_gui.bat` in Explorer.
+
 ## GUI Features
 
 ### Video Player
