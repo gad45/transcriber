@@ -459,8 +459,9 @@ video-editor-gui test/test.mp4
 2. Review segments in timeline and transcript editor
 3. Toggle keep/cut for segments that were incorrectly classified
 4. Edit transcript text for misrecognized words
-5. Save project (Ctrl+S) to resume later
-6. Export final video
+5. Adjust crop/pan and caption styling as needed
+6. Save project (Ctrl+S) to resume later
+7. Export final video
 
 ---
 
@@ -485,14 +486,15 @@ video-editor-gui test/test.mp4
 ```
 video_editor/
 ├── main.py          # CLI entry point
-├── gui_main.py      # GUI entry point (NEW)
-├── gui/             # GUI package (NEW)
+├── gui_main.py      # GUI entry point
+├── gui/             # GUI package
 │   ├── main_window.py
 │   ├── video_player.py
 │   ├── timeline.py
 │   ├── transcript_editor.py
 │   ├── segment_item.py
-│   └── models.py
+│   ├── caption_settings.py  # Caption styling panel (NEW)
+│   └── models.py            # Includes CropConfig, CaptionSettings
 ├── config.py        # Configuration and caption styles
 ├── transcriber.py   # Soniox API integration, audio extraction
 ├── analyzer.py      # Retake detection, silence detection, LLM take selection
@@ -500,3 +502,100 @@ video_editor/
 ├── captioner.py     # SRT generation, caption burning (drawtext/ASS)
 └── qc.py            # Transcription quality control
 ```
+
+---
+
+## Session Date: January 27, 2026 (Continued)
+
+### 9. Video Cropping and Panning
+
+**Feature:** Interactive crop selection with mouse-based adjustment.
+
+**Location:** `video_editor/gui/video_player.py`, `video_editor/gui/models.py`
+
+**Implementation:**
+- `CropConfig` dataclass stores normalized (0-1) crop dimensions and pan position
+- `VideoView` class handles mouse events for crop selection and adjustment
+- Crop overlay shows semi-transparent mask in edit mode, opaque mask in preview mode
+- Supports aspect ratio constraints (16:9, 9:16, 4:3, 1:1, free)
+- Drag edges/corners to resize, drag inside to move/pan
+- Per-segment crop overrides supported
+
+**Key Methods:**
+- `set_crop_mode(enabled)` - Toggle crop editing mode
+- `set_crop_config(config)` - Apply crop settings
+- `_apply_crop_view()` - Show crop preview with opaque mask
+- `_update_crop_overlay()` - Update crop rectangles in edit mode
+
+**Export Integration:**
+- Crop is converted to FFmpeg filter string via `CropConfig.to_ffmpeg_filter()`
+- Applied during video cutting in `cutter.py`
+
+---
+
+### 10. Draggable Caption Box with Fixed Size
+
+**Feature:** Caption box with fixed dimensions, word wrapping, and drag-to-move/resize.
+
+**Location:** `video_editor/gui/video_player.py`, `video_editor/gui/caption_settings.py`, `video_editor/gui/models.py`
+
+**Implementation:**
+- `CaptionSettings` dataclass stores:
+  - `font_size`, `font_family` - Text styling
+  - `pos_x`, `pos_y` - Normalized position (center-x, bottom-y)
+  - `box_width`, `box_height` - Normalized box dimensions (default 60% x 7%)
+  - `show_preview` - Toggle caption visibility
+- Caption box maintains fixed size regardless of text content
+- Text wraps within the box using `QGraphicsTextItem.setTextWidth()`
+- Drag center to move, drag edges/corners to resize
+
+**Key Methods:**
+- `update_caption(time_seconds)` - Display caption at current time with fixed box
+- `set_caption_mode(enabled)` - Toggle drag interaction mode
+- `_on_caption_rect_changed()` - Live preview during drag
+- `_on_caption_drag_finished()` - Save normalized position/size to settings
+
+**CaptionSettingsPanel Widget:**
+- Font size slider and font family dropdown
+- "Drag to Move" toggle button
+- Position/size display (read-only)
+- "Reset Position" button
+
+---
+
+### 11. Crop Preview Fix
+
+**Problem:** After exiting crop mode, the preview showed parts of the video that wouldn't be in the final export.
+
+**Root Cause:** `fitInView()` with `KeepAspectRatio` centers the crop region but doesn't clip content outside it.
+
+**Solution:** Use fully opaque black overlay rectangles to mask non-cropped areas in preview mode:
+- In crop mode: Semi-transparent overlays (alpha 160) for editing visibility
+- In preview mode: Fully opaque overlays (alpha 255) to accurately show final result
+
+---
+
+## Files Modified (January 27, 2026 - Crop & Caption)
+
+1. **`video_editor/gui/models.py`**
+   - Added `CropConfig` dataclass with normalized dimensions
+   - Updated `CaptionSettings` with `pos_x`, `pos_y`, `box_width`, `box_height`
+   - Added `get_box_pixels()` method for fixed-size caption box
+
+2. **`video_editor/gui/video_player.py`**
+   - Added `VideoView` class with crop/caption mouse interaction
+   - Added crop overlay rectangles and mode switching
+   - Added caption overlay with fixed-size box and word wrapping
+   - Added `_hit_test_caption()` for move vs resize detection
+
+3. **`video_editor/gui/caption_settings.py`** (NEW)
+   - `CaptionSettingsPanel` widget for font/position controls
+   - "Drag to Move" toggle and "Reset Position" button
+
+4. **`video_editor/gui/main_window.py`**
+   - Added crop toolbar (Crop button, aspect ratio dropdown, Reset)
+   - Added caption toolbar integration
+   - Connected crop/caption signals and handlers
+
+5. **`video_editor/config.py`**
+   - Added `caption_position` and `caption_vertical_offset` for CLI export

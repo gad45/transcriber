@@ -7,7 +7,8 @@ An AI-powered video editing tool for spoken content. Automatically removes bad t
 - **Automatic Transcription**: Uses Whisper AI for accurate speech-to-text (optimized for Hungarian)
 - **Intelligent Take Selection**: LLM-powered detection of retakes, selecting the best version automatically
 - **Silence Removal**: Configurable silence detection and removal
-- **Streaming Captions**: Word-by-word captions burned into video
+- **Streaming Captions**: Word-by-word captions burned into video with draggable positioning
+- **Video Cropping & Panning**: Interactive crop selection with aspect ratio constraints
 - **GUI Editor**: Full graphical interface for reviewing and adjusting edits
 - **Timeline Highlights**: Mark non-speech regions to force-include (for screencasts)
 - **Project Files**: Save/load editing sessions for later refinement
@@ -150,6 +151,24 @@ Double-click `launch_gui.bat` in Explorer.
 - Toggle keep/cut with checkbox or double-click
 - Navigate with up/down arrow keys
 
+### Video Cropping
+Adjust the frame to focus on specific areas:
+1. Click "Crop" button in toolbar to enter crop mode
+2. Select aspect ratio (16:9, 9:16, 4:3, 1:1, or free)
+3. Drag to create crop region, or drag edges/corners to adjust
+4. Drag inside the crop to pan/move
+5. Click "Crop" again to exit and preview the result
+6. Crop is applied during export
+
+### Caption Styling
+Customize how captions appear in the video:
+1. Click "Captions" button (available after analysis)
+2. Adjust font size and font family
+3. Click "Drag to Move" to reposition the caption box
+4. Drag the caption box edges/corners to resize
+5. Caption box maintains fixed size with word wrapping
+6. Click "Reset Position" to restore defaults
+
 ### Highlight Regions
 For screencasts or videos with important visual content without speech:
 1. Click and drag on empty timeline space (minimum 0.5 seconds)
@@ -226,12 +245,13 @@ video_editor/
 ├── qc.py                # Quality control checks
 └── gui/
     ├── __init__.py
-    ├── main_window.py   # Main application window
-    ├── video_player.py  # Video playback widget
-    ├── timeline.py      # Timeline visualization
-    ├── segment_item.py  # Timeline graphics items
-    ├── transcript_editor.py  # Text editing panel
-    └── models.py        # Data models for GUI state
+    ├── main_window.py       # Main application window
+    ├── video_player.py      # Video playback with crop/caption overlay
+    ├── timeline.py          # Timeline visualization
+    ├── segment_item.py      # Timeline graphics items
+    ├── transcript_editor.py # Text editing panel
+    ├── caption_settings.py  # Caption styling panel
+    └── models.py            # Data models (EditSession, CropConfig, CaptionSettings)
 ```
 
 ### Processing Pipeline
@@ -262,8 +282,10 @@ video_editor/
 - `Token`: Word-level timing for streaming captions
 - `TimeRange`: Start/end times for video cutting
 - `RetakeGroup`: Multiple segments that are retakes of each other
-- `EditSession`: GUI state including user edits and highlight regions
+- `EditSession`: GUI state including user edits, crops, and highlights
 - `HighlightRegion`: User-defined force-include region
+- `CropConfig`: Crop dimensions and pan position (normalized 0-1)
+- `CaptionSettings`: Caption font, position, and box dimensions
 
 ## Troubleshooting
 
