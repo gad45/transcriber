@@ -85,6 +85,20 @@ class Config(BaseModel):
         description="LLM model for take selection"
     )
 
+    # QC settings
+    qc_enabled: bool = Field(
+        default=True,
+        description="Enable transcription quality control"
+    )
+    qc_auto_correct: bool = Field(
+        default=True,
+        description="Automatically apply QC corrections"
+    )
+    qc_model: str = Field(
+        default="gemini-2.0-flash",
+        description="Gemini model for QC (update when gemini-3-flash available)"
+    )
+
 
 # Caption style presets
 CAPTION_STYLES = {

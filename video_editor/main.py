@@ -18,6 +18,7 @@ from .transcriber import Transcriber, Token
 from .analyzer import Analyzer, TimeRange
 from .cutter import Cutter
 from .captioner import Captioner
+from .qc import QualityController
 
 console = Console()
 
@@ -147,6 +148,10 @@ def print_preview(ranges: list[TimeRange], segments: list, original_duration: fl
               help="Keep temporary files for debugging")
 @click.option("--openai-key", envvar="OPENAI_API_KEY",
               help="OpenAI API key for LLM take selection")
+@click.option("--skip-qc", is_flag=True,
+              help="Skip transcription quality control")
+@click.option("--qc-report-only", is_flag=True,
+              help="Run QC but don't auto-correct (just report issues)")
 def main(
     input_video: str,
     output_path: str | None,
@@ -159,7 +164,9 @@ def main(
     max_words: int,
     preview: bool,
     keep_temp: bool,
-    openai_key: str | None
+    openai_key: str | None,
+    skip_qc: bool,
+    qc_report_only: bool
 ):
     """
     AI Video Editing Agent - Automatically edit Hungarian spoken content.
@@ -200,21 +207,39 @@ def main(
         cutter = Cutter(config)
         captioner = Captioner(config)
         
+        # Determine total steps based on QC flag
+        total_steps = 4 if skip_qc else 5
+
         # Step 1: Get video duration
-        console.print("\n[bold]Step 1/4:[/bold] Getting video info...")
+        console.print(f"\n[bold]Step 1/{total_steps}:[/bold] Getting video info...")
         video_duration = cutter.get_video_duration(input_path)
         console.print(f"  Video duration: {video_duration:.1f}s")
-        
+
         # Step 2: Transcribe
-        console.print("\n[bold]Step 2/4:[/bold] Transcribing speech...")
+        console.print(f"\n[bold]Step 2/{total_steps}:[/bold] Transcribing speech...")
         segments, tokens = transcriber.transcribe_video(input_path)
 
         if not segments:
             console.print("[red]No speech detected in video![/red]")
             sys.exit(1)
-        
-        # Step 3: Analyze
-        console.print("\n[bold]Step 3/4:[/bold] Analyzing for bad takes and silences...")
+
+        # Step 3: Quality Control (optional)
+        if not skip_qc:
+            console.print(f"\n[bold]Step 3/{total_steps}:[/bold] Running transcription quality control...")
+            qc = QualityController(config, auto_correct=not qc_report_only)
+
+            if qc.is_available():
+                qc_report = qc.check_segments(segments)
+
+                # Apply corrections if enabled
+                if not qc_report_only:
+                    segments = qc.apply_corrections(segments, qc_report)
+        else:
+            console.print(f"\n[dim]Step 3/{total_steps}: Quality control skipped[/dim]")
+
+        # Step 4 (or 3 if QC skipped): Analyze
+        step_num = 4 if not skip_qc else 3
+        console.print(f"\n[bold]Step {step_num}/{total_steps}:[/bold] Analyzing for bad takes and silences...")
         keep_ranges, kept_segments = analyzer.analyze(segments, video_duration)
         
         # Preview mode - just show what would be cut
@@ -224,8 +249,9 @@ def main(
             console.print("\n[dim]Run without --preview to process the video.[/dim]")
             return
         
-        # Step 4: Process video
-        console.print("\n[bold]Step 4/4:[/bold] Processing video...")
+        # Step 5 (or 4 if QC skipped): Process video
+        step_num = 5 if not skip_qc else 4
+        console.print(f"\n[bold]Step {step_num}/{total_steps}:[/bold] Processing video...")
         
         # Cut video
         temp_cut = config.temp_dir / f"{input_path.stem}_cut.mp4" if config.temp_dir else Path(tempfile.gettempdir()) / f"{input_path.stem}_cut.mp4"
