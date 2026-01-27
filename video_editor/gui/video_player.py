@@ -23,11 +23,27 @@ def format_time(ms: int) -> str:
 
 
 class VideoView(QGraphicsView):
-    """Custom graphics view for video display with interactive crop selection."""
+    """Custom graphics view for video display with interactive crop selection and adjustment."""
 
     # Signal emitted when crop rectangle changes during drag
     crop_rect_changed = Signal(float, float, float, float)  # x, y, width, height (in pixels)
     crop_drag_finished = Signal()
+
+    # Drag modes for different interactions
+    DRAG_NONE = 0
+    DRAG_NEW = 1        # Creating a new crop selection
+    DRAG_MOVE = 2       # Moving the entire crop region
+    DRAG_EDGE_LEFT = 3
+    DRAG_EDGE_RIGHT = 4
+    DRAG_EDGE_TOP = 5
+    DRAG_EDGE_BOTTOM = 6
+    DRAG_CORNER_TL = 7  # Top-left
+    DRAG_CORNER_TR = 8  # Top-right
+    DRAG_CORNER_BL = 9  # Bottom-left
+    DRAG_CORNER_BR = 10 # Bottom-right
+
+    # Hit detection threshold (in scene coordinates, will be scaled)
+    EDGE_THRESHOLD = 15
 
     def __init__(self, scene: QGraphicsScene, parent=None):
         super().__init__(scene, parent)
@@ -36,14 +52,19 @@ class VideoView(QGraphicsView):
         self.setFrameShape(QGraphicsView.Shape.NoFrame)
         self.setBackgroundBrush(QBrush(QColor(0, 0, 0)))
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.setMouseTracking(True)  # Enable mouse tracking for cursor updates
 
         # Crop interaction state
         self._crop_mode = False
+        self._drag_mode = self.DRAG_NONE
         self._drag_start: QPointF | None = None
         self._drag_current: QPointF | None = None
         self._aspect_ratio: tuple[int, int] | None = None  # e.g., (16, 9) or None for free
         self._video_width = 1920
         self._video_height = 1080
+
+        # Current crop rect (for adjustment operations)
+        self._current_crop_rect: QRectF | None = None
 
     def set_crop_interaction(self, enabled: bool):
         """Enable or disable crop mouse interaction."""
@@ -52,6 +73,7 @@ class VideoView(QGraphicsView):
             self.setCursor(QCursor(Qt.CursorShape.CrossCursor))
         else:
             self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+            self._drag_mode = self.DRAG_NONE
             self._drag_start = None
             self._drag_current = None
 
@@ -64,44 +86,134 @@ class VideoView(QGraphicsView):
         self._video_width = width
         self._video_height = height
 
+    def set_current_crop_rect(self, rect: QRectF | None):
+        """Set the current crop rectangle for adjustment operations."""
+        self._current_crop_rect = rect
+
     def resizeEvent(self, event):
         """Fit the scene to the view when resized."""
         super().resizeEvent(event)
         if self.scene():
             self.fitInView(self.scene().sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
+    def _get_edge_threshold(self) -> float:
+        """Get edge detection threshold scaled for current zoom level."""
+        # Scale threshold based on view transform
+        transform = self.transform()
+        scale = transform.m11()  # Horizontal scale factor
+        if scale > 0:
+            return self.EDGE_THRESHOLD / scale
+        return self.EDGE_THRESHOLD
+
+    def _hit_test(self, pos: QPointF) -> int:
+        """Determine what part of the crop rect the position hits."""
+        if self._current_crop_rect is None or self._current_crop_rect.isEmpty():
+            return self.DRAG_NEW
+
+        rect = self._current_crop_rect
+        threshold = self._get_edge_threshold()
+
+        x, y = pos.x(), pos.y()
+        left, top = rect.left(), rect.top()
+        right, bottom = rect.right(), rect.bottom()
+
+        on_left = abs(x - left) < threshold
+        on_right = abs(x - right) < threshold
+        on_top = abs(y - top) < threshold
+        on_bottom = abs(y - bottom) < threshold
+
+        in_x = left - threshold < x < right + threshold
+        in_y = top - threshold < y < bottom + threshold
+
+        # Check corners first (they take priority)
+        if on_left and on_top:
+            return self.DRAG_CORNER_TL
+        if on_right and on_top:
+            return self.DRAG_CORNER_TR
+        if on_left and on_bottom:
+            return self.DRAG_CORNER_BL
+        if on_right and on_bottom:
+            return self.DRAG_CORNER_BR
+
+        # Check edges
+        if on_left and in_y:
+            return self.DRAG_EDGE_LEFT
+        if on_right and in_y:
+            return self.DRAG_EDGE_RIGHT
+        if on_top and in_x:
+            return self.DRAG_EDGE_TOP
+        if on_bottom and in_x:
+            return self.DRAG_EDGE_BOTTOM
+
+        # Check if inside (for move)
+        if rect.contains(pos):
+            return self.DRAG_MOVE
+
+        # Outside - start new selection
+        return self.DRAG_NEW
+
+    def _update_cursor_for_mode(self, mode: int):
+        """Update cursor based on drag mode."""
+        cursors = {
+            self.DRAG_NEW: Qt.CursorShape.CrossCursor,
+            self.DRAG_MOVE: Qt.CursorShape.SizeAllCursor,
+            self.DRAG_EDGE_LEFT: Qt.CursorShape.SizeHorCursor,
+            self.DRAG_EDGE_RIGHT: Qt.CursorShape.SizeHorCursor,
+            self.DRAG_EDGE_TOP: Qt.CursorShape.SizeVerCursor,
+            self.DRAG_EDGE_BOTTOM: Qt.CursorShape.SizeVerCursor,
+            self.DRAG_CORNER_TL: Qt.CursorShape.SizeFDiagCursor,
+            self.DRAG_CORNER_BR: Qt.CursorShape.SizeFDiagCursor,
+            self.DRAG_CORNER_TR: Qt.CursorShape.SizeBDiagCursor,
+            self.DRAG_CORNER_BL: Qt.CursorShape.SizeBDiagCursor,
+        }
+        self.setCursor(QCursor(cursors.get(mode, Qt.CursorShape.CrossCursor)))
+
     def mousePressEvent(self, event):
-        """Start crop selection on mouse press."""
+        """Start crop selection or adjustment on mouse press."""
         if self._crop_mode and event.button() == Qt.MouseButton.LeftButton:
             scene_pos = self.mapToScene(event.pos())
             # Clamp to video bounds
             x = max(0, min(scene_pos.x(), self._video_width))
             y = max(0, min(scene_pos.y(), self._video_height))
+
+            self._drag_mode = self._hit_test(QPointF(x, y))
             self._drag_start = QPointF(x, y)
             self._drag_current = QPointF(x, y)
+
+            # Store original rect for adjustment operations
+            if self._drag_mode != self.DRAG_NEW and self._current_crop_rect:
+                self._original_rect = QRectF(self._current_crop_rect)
+            else:
+                self._original_rect = None
+
             event.accept()
         else:
             super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        """Update crop selection during drag."""
+        """Update crop selection/adjustment during drag or update cursor."""
+        scene_pos = self.mapToScene(event.pos())
+        x = max(0, min(scene_pos.x(), self._video_width))
+        y = max(0, min(scene_pos.y(), self._video_height))
+
         if self._crop_mode and self._drag_start is not None:
-            scene_pos = self.mapToScene(event.pos())
-            # Clamp to video bounds
-            x = max(0, min(scene_pos.x(), self._video_width))
-            y = max(0, min(scene_pos.y(), self._video_height))
             self._drag_current = QPointF(x, y)
 
-            # Calculate rectangle
-            rect = self._calculate_crop_rect()
+            # Calculate rectangle based on drag mode
+            rect = self._calculate_adjusted_rect()
             if rect:
                 self.crop_rect_changed.emit(rect[0], rect[1], rect[2], rect[3])
             event.accept()
+        elif self._crop_mode:
+            # Update cursor based on hover position
+            mode = self._hit_test(QPointF(x, y))
+            self._update_cursor_for_mode(mode)
+            super().mouseMoveEvent(event)
         else:
             super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        """Finish crop selection on mouse release."""
+        """Finish crop selection/adjustment on mouse release."""
         if self._crop_mode and event.button() == Qt.MouseButton.LeftButton and self._drag_start is not None:
             scene_pos = self.mapToScene(event.pos())
             x = max(0, min(scene_pos.x(), self._video_width))
@@ -109,26 +221,36 @@ class VideoView(QGraphicsView):
             self._drag_current = QPointF(x, y)
 
             # Calculate final rectangle
-            rect = self._calculate_crop_rect()
+            rect = self._calculate_adjusted_rect()
             if rect and rect[2] > 10 and rect[3] > 10:  # Minimum size threshold
                 self.crop_rect_changed.emit(rect[0], rect[1], rect[2], rect[3])
                 self.crop_drag_finished.emit()
 
+            self._drag_mode = self.DRAG_NONE
             self._drag_start = None
             self._drag_current = None
+            self._original_rect = None
             event.accept()
         else:
             super().mouseReleaseEvent(event)
 
-    def _calculate_crop_rect(self) -> tuple[float, float, float, float] | None:
-        """Calculate crop rectangle from drag points, applying aspect ratio constraint."""
+    def _calculate_adjusted_rect(self) -> tuple[float, float, float, float] | None:
+        """Calculate crop rectangle based on current drag mode."""
         if self._drag_start is None or self._drag_current is None:
             return None
 
+        if self._drag_mode == self.DRAG_NEW:
+            return self._calculate_new_rect()
+        elif self._drag_mode == self.DRAG_MOVE:
+            return self._calculate_move_rect()
+        else:
+            return self._calculate_resize_rect()
+
+    def _calculate_new_rect(self) -> tuple[float, float, float, float] | None:
+        """Calculate rectangle for new selection."""
         x1, y1 = self._drag_start.x(), self._drag_start.y()
         x2, y2 = self._drag_current.x(), self._drag_current.y()
 
-        # Get raw dimensions
         raw_width = abs(x2 - x1)
         raw_height = abs(y2 - y1)
 
@@ -141,22 +263,13 @@ class VideoView(QGraphicsView):
             current_ratio = raw_width / raw_height
 
             if current_ratio > target_ratio:
-                # Too wide, constrain width
                 raw_width = raw_height * target_ratio
             else:
-                # Too tall, constrain height
                 raw_height = raw_width / target_ratio
 
         # Calculate top-left corner
-        if x2 >= x1:
-            left = x1
-        else:
-            left = x1 - raw_width
-
-        if y2 >= y1:
-            top = y1
-        else:
-            top = y1 - raw_height
+        left = x1 if x2 >= x1 else x1 - raw_width
+        top = y1 if y2 >= y1 else y1 - raw_height
 
         # Clamp to video bounds
         left = max(0, min(left, self._video_width - raw_width))
@@ -165,6 +278,85 @@ class VideoView(QGraphicsView):
         raw_height = min(raw_height, self._video_height - top)
 
         return (left, top, raw_width, raw_height)
+
+    def _calculate_move_rect(self) -> tuple[float, float, float, float] | None:
+        """Calculate rectangle for move operation."""
+        if self._original_rect is None:
+            return None
+
+        dx = self._drag_current.x() - self._drag_start.x()
+        dy = self._drag_current.y() - self._drag_start.y()
+
+        new_left = self._original_rect.left() + dx
+        new_top = self._original_rect.top() + dy
+        width = self._original_rect.width()
+        height = self._original_rect.height()
+
+        # Clamp to video bounds
+        new_left = max(0, min(new_left, self._video_width - width))
+        new_top = max(0, min(new_top, self._video_height - height))
+
+        return (new_left, new_top, width, height)
+
+    def _calculate_resize_rect(self) -> tuple[float, float, float, float] | None:
+        """Calculate rectangle for resize operation (edges/corners)."""
+        if self._original_rect is None:
+            return None
+
+        orig = self._original_rect
+        dx = self._drag_current.x() - self._drag_start.x()
+        dy = self._drag_current.y() - self._drag_start.y()
+
+        left, top = orig.left(), orig.top()
+        right, bottom = orig.right(), orig.bottom()
+
+        # Apply changes based on drag mode
+        if self._drag_mode in (self.DRAG_EDGE_LEFT, self.DRAG_CORNER_TL, self.DRAG_CORNER_BL):
+            left = min(orig.left() + dx, right - 20)  # Min width 20
+        if self._drag_mode in (self.DRAG_EDGE_RIGHT, self.DRAG_CORNER_TR, self.DRAG_CORNER_BR):
+            right = max(orig.right() + dx, left + 20)
+        if self._drag_mode in (self.DRAG_EDGE_TOP, self.DRAG_CORNER_TL, self.DRAG_CORNER_TR):
+            top = min(orig.top() + dy, bottom - 20)  # Min height 20
+        if self._drag_mode in (self.DRAG_EDGE_BOTTOM, self.DRAG_CORNER_BL, self.DRAG_CORNER_BR):
+            bottom = max(orig.bottom() + dy, top + 20)
+
+        # Apply aspect ratio constraint for corner drags
+        if self._aspect_ratio and self._drag_mode in (
+            self.DRAG_CORNER_TL, self.DRAG_CORNER_TR, self.DRAG_CORNER_BL, self.DRAG_CORNER_BR
+        ):
+            target_ratio = self._aspect_ratio[0] / self._aspect_ratio[1]
+            width = right - left
+            height = bottom - top
+            current_ratio = width / height if height > 0 else 1
+
+            if current_ratio > target_ratio:
+                # Adjust width
+                new_width = height * target_ratio
+                if self._drag_mode in (self.DRAG_CORNER_TL, self.DRAG_CORNER_BL):
+                    left = right - new_width
+                else:
+                    right = left + new_width
+            else:
+                # Adjust height
+                new_height = width / target_ratio
+                if self._drag_mode in (self.DRAG_CORNER_TL, self.DRAG_CORNER_TR):
+                    top = bottom - new_height
+                else:
+                    bottom = top + new_height
+
+        # Clamp to video bounds
+        left = max(0, left)
+        top = max(0, top)
+        right = min(self._video_width, right)
+        bottom = min(self._video_height, bottom)
+
+        width = right - left
+        height = bottom - top
+
+        if width < 10 or height < 10:
+            return None
+
+        return (left, top, width, height)
 
 
 class VideoPlayer(QWidget):
@@ -374,6 +566,9 @@ class VideoPlayer(QWidget):
         # Update border rectangle
         self._crop_border.setRect(crop_x, crop_y, crop_w, crop_h)
 
+        # Sync current crop rect to view for adjustment hit testing
+        self._view.set_current_crop_rect(QRectF(crop_x, crop_y, crop_w, crop_h))
+
     # Public API
 
     def load_video(self, path: Path) -> None:
@@ -526,6 +721,7 @@ class VideoPlayer(QWidget):
     def reset_crop(self) -> None:
         """Reset crop to default (full frame)."""
         self._crop_config = CropConfig()
+        self._view.set_current_crop_rect(None)  # Clear adjustment rect
         if self._crop_mode:
             self._update_crop_overlay()
         self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
@@ -599,6 +795,9 @@ class VideoPlayer(QWidget):
         self._crop_overlay_left.setRect(0, y, x, height)
         self._crop_overlay_right.setRect(x + width, y, self._video_width - x - width, height)
         self._crop_border.setRect(x, y, width, height)
+
+        # Keep view's current crop rect in sync for subsequent adjustments
+        self._view.set_current_crop_rect(QRectF(x, y, width, height))
 
     @Slot()
     def _on_crop_drag_finished(self):

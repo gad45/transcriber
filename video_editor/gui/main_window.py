@@ -603,7 +603,7 @@ class MainWindow(QMainWindow):
         self._crop_btn.setChecked(is_crop_mode)
 
         if is_crop_mode:
-            self._status_label.setText("Crop mode: Click and drag to select crop region, Shift+Arrows to pan")
+            self._status_label.setText("Crop mode: Drag to select, drag edges/corners to adjust, drag inside to move")
         else:
             crop = self._video_player.get_crop_config()
             if crop.is_default:
