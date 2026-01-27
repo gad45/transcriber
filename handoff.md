@@ -303,3 +303,103 @@ for i, range_ in enumerate(sorted_ranges):
 3. **LLM Take Selection**: Uses Gemini 2.0 Flash (primary) or OpenAI (fallback) for selecting best takes. Falls back to duration-based selection if no API keys available.
 
 4. **Two-Pass Segment Processing**: Frozen frame feature requires two FFmpeg passes per segment (extract, then tpad), adding processing time but ensuring smooth transitions.
+
+---
+
+## Session Date: January 27, 2026
+
+### 6. Transcription Quality Control (QC) Agent
+
+**Feature:** Added LLM-based quality control for Hungarian transcription.
+
+**Location:** `video_editor/qc.py` (new file)
+
+**Implementation:**
+- Uses Gemini 2.0 Flash to validate transcribed text
+- Checks semantic coherence, Hungarian grammar, and common ASR errors
+- Batch processes segments (10 per API call) for efficiency
+- Can auto-correct errors or just report them
+
+**CLI Options:**
+- `--skip-qc` - Skip quality control entirely
+- `--qc-report-only` - Run QC but don't auto-correct
+
+**Config Options:**
+- `qc_enabled` - Enable/disable QC (default: True)
+- `qc_auto_correct` - Auto-apply corrections (default: True)
+- `qc_model` - Gemini model to use (default: "gemini-2.0-flash")
+
+---
+
+### 7. Word Cutoff Fix (Timing Buffers)
+
+**Symptom:** Words were being cut off at the beginning or end of segments (~0.1s too early).
+
+**Root Cause:** Segment boundaries from Soniox token timestamps were used exactly without any buffer. Soniox timing represents acoustic onset, not when words are fully audible.
+
+**Solution:** Added configurable timing buffers in `config.py`:
+```python
+segment_start_buffer: float = 0.1   # 100ms before segment start
+segment_end_buffer: float = 0.15    # 150ms after segment end
+caption_delay: float = 0.1          # 100ms delay for caption appearance
+```
+
+**Implementation:**
+- `analyzer.py` - Apply buffers when creating keep_ranges
+- `analyzer.py` - Added `_merge_overlapping_ranges()` to merge adjacent segments after buffering
+- `captioner.py` - Apply caption_delay to word timing in drawtext filter
+
+**Result:**
+- Words no longer cut off at segment boundaries
+- Captions appear in better sync with spoken words
+- Adjacent segments merged to avoid duplicate content (124 segments → 35 merged segments)
+
+---
+
+## Files Modified (January 27, 2026)
+
+1. **`video_editor/qc.py`** (NEW)
+   - QualityController class for Hungarian transcription validation
+   - Uses Gemini API for grammar/semantic checking
+   - Batch processing with JSON response parsing
+
+2. **`video_editor/config.py`**
+   - Added QC settings (qc_enabled, qc_auto_correct, qc_model)
+   - Added timing buffer settings (segment_start_buffer, segment_end_buffer, caption_delay)
+
+3. **`video_editor/analyzer.py`**
+   - Apply timing buffers to keep_ranges
+   - Added `_merge_overlapping_ranges()` method
+
+4. **`video_editor/captioner.py`**
+   - Apply caption_delay to word timing
+
+5. **`video_editor/main.py`**
+   - Integrated QC step into pipeline
+   - Added --skip-qc and --qc-report-only CLI options
+   - Simplified step counting
+
+---
+
+## Current Pipeline Steps
+
+1. **Get video info** - Duration check
+2. **Transcribe** - Soniox API → Segments + Tokens
+3. **Quality Control** - Gemini validates/corrects Hungarian text (optional)
+4. **Analyze** - Detect silences, retakes, select best takes → Keep ranges (with buffers)
+5. **Process** - Cut video, add captions (with delay)
+
+---
+
+## Testing Commands (Updated)
+
+```bash
+# Full processing with QC and streaming captions
+python -m video_editor test/test.mp4 -o output.mp4 --streaming-captions
+
+# Skip QC for faster processing
+python -m video_editor test/test.mp4 -o output.mp4 --streaming-captions --skip-qc
+
+# QC report only (no auto-corrections)
+python -m video_editor test/test.mp4 -o output.mp4 --streaming-captions --qc-report-only
+```

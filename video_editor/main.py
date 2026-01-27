@@ -221,7 +221,7 @@ def main(
 
         # Step 2: Transcribe
         console.print(f"\n[bold]Step 2/{total_steps}:[/bold] Transcribing speech...")
-        segments, tokens, _ = transcriber.transcribe_video(input_path)
+        segments, tokens = transcriber.transcribe_video(input_path)
 
         if not segments:
             console.print("[red]No speech detected in video![/red]")

@@ -362,16 +362,15 @@ class Transcriber:
             if not self.config.keep_temp:
                 self._cleanup(file_id, transcription_id)
 
-    def transcribe_video(self, video_path: Path, keep_audio: bool = False) -> tuple[list[Segment], list[Token], Path | None]:
+    def transcribe_video(self, video_path: Path) -> tuple[list[Segment], list[Token]]:
         """
         Full pipeline: extract audio and transcribe.
 
         Args:
             video_path: Path to the input video
-            keep_audio: If True, return the audio path for further analysis
 
         Returns:
-            Tuple of (segments, tokens, audio_path or None)
+            Tuple of (segments, tokens)
         """
         video_path = Path(video_path)
 
@@ -384,12 +383,8 @@ class Transcriber:
         try:
             # Transcribe
             segments, tokens = self.transcribe(audio_path)
-
-            if keep_audio:
-                return segments, tokens, audio_path
-            else:
-                return segments, tokens, None
+            return segments, tokens
         finally:
-            # Clean up temp audio if not keeping and not requested
-            if not keep_audio and not self.config.keep_temp and audio_path.exists():
+            # Clean up temp audio if not keeping
+            if not self.config.keep_temp and audio_path.exists():
                 audio_path.unlink()
