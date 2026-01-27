@@ -16,6 +16,7 @@ from .timeline import Timeline
 from .transcript_editor import TranscriptEditor
 from .models import EditSession, CropConfig, CaptionSettings
 from .caption_settings import CaptionSettingsPanel
+from .settings_dialog import SettingsDialog
 from ..transcriber import Transcriber, Segment
 from ..analyzer import Analyzer, AnalyzedSegment, SegmentAction
 from ..cutter import Cutter
@@ -42,6 +43,9 @@ class MainWindow(QMainWindow):
         self._config = Config()
         self._project_path: Path | None = None
         self._unsaved_changes = False
+
+        # Load API keys from settings file into environment
+        SettingsDialog.load_settings_to_env()
 
         self.setWindowTitle("Video Editor")
         self.setMinimumSize(1200, 800)
@@ -236,6 +240,17 @@ class MainWindow(QMainWindow):
         zoom_out = view_menu.addAction("Zoom Out")
         zoom_out.setShortcut(QKeySequence("Ctrl+-"))
 
+        # Settings menu
+        settings_menu = menubar.addMenu("Settings")
+
+        api_keys_action = settings_menu.addAction("API Keys...")
+        api_keys_action.triggered.connect(self._open_settings)
+
+    def _open_settings(self):
+        """Open the settings dialog."""
+        dialog = SettingsDialog(self)
+        dialog.exec()
+
     def _setup_shortcuts(self):
         """Set up keyboard shortcuts."""
         # Space - play/pause
@@ -426,6 +441,43 @@ class MainWindow(QMainWindow):
         """Run the full analysis pipeline."""
         if not self._session:
             return
+
+        # Check for required API keys before starting
+        soniox_key = SettingsDialog.get_soniox_key()
+        gemini_key = SettingsDialog.get_gemini_key()
+
+        if not soniox_key:
+            result = QMessageBox.warning(
+                self,
+                "Soniox API Key Required",
+                "A Soniox API key is required for speech transcription.\n\n"
+                "Please configure your API key in Settings > API Keys.\n\n"
+                "You can get an API key at: https://soniox.com",
+                QMessageBox.StandardButton.Open | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Open
+            )
+            if result == QMessageBox.StandardButton.Open:
+                self._open_settings()
+            return
+
+        if not gemini_key:
+            result = QMessageBox.question(
+                self,
+                "Gemini API Key Missing",
+                "No Gemini API key configured.\n\n"
+                "Without a Gemini key, the editor will use simple duration-based "
+                "take selection instead of intelligent AI-powered selection.\n\n"
+                "Would you like to configure your Gemini API key now?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if result == QMessageBox.StandardButton.Yes:
+                self._open_settings()
+                # Check again after settings dialog
+                gemini_key = SettingsDialog.get_gemini_key()
+                if not gemini_key:
+                    # User closed without adding key, continue anyway
+                    pass
 
         path = self._session.video_path
 
