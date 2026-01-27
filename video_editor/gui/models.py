@@ -10,6 +10,18 @@ from ..analyzer import AnalyzedSegment, TimeRange, SegmentAction
 
 
 @dataclass
+class HighlightRegion:
+    """A user-defined region to force-include in export (for non-speech content)."""
+    start: float
+    end: float
+    label: str = ""
+
+    @property
+    def duration(self) -> float:
+        return self.end - self.start
+
+
+@dataclass
 class EditSession:
     """
     Stores the editable state for a video editing session.
@@ -29,6 +41,7 @@ class EditSession:
     # User modifications
     text_edits: dict[int, str] = field(default_factory=dict)  # segment_index → edited_text
     keep_overrides: dict[int, bool] = field(default_factory=dict)  # segment_index → keep (True/False)
+    highlight_regions: list[HighlightRegion] = field(default_factory=list)  # Force-include regions
 
     def get_segment_text(self, index: int) -> str:
         """Get the current text for a segment (edited or original)."""
@@ -79,6 +92,28 @@ class EditSession:
         if 0 <= index < len(self.analyzed_segments):
             return self.analyzed_segments[index].reason
         return ""
+
+    def add_highlight(self, start: float, end: float, label: str = "") -> int:
+        """Add a highlight region. Returns the index of the new highlight."""
+        highlight = HighlightRegion(start=start, end=end, label=label)
+        self.highlight_regions.append(highlight)
+        return len(self.highlight_regions) - 1
+
+    def remove_highlight(self, index: int) -> None:
+        """Remove a highlight region by index."""
+        if 0 <= index < len(self.highlight_regions):
+            self.highlight_regions.pop(index)
+
+    def update_highlight(self, index: int, start: float = None, end: float = None, label: str = None) -> None:
+        """Update a highlight region's properties."""
+        if 0 <= index < len(self.highlight_regions):
+            h = self.highlight_regions[index]
+            if start is not None:
+                h.start = start
+            if end is not None:
+                h.end = end
+            if label is not None:
+                h.label = label
 
     def get_final_segments(self) -> list[Segment]:
         """Get segments with text edits applied."""
@@ -138,18 +173,24 @@ class EditSession:
 
     def get_final_keep_ranges(self, start_buffer: float = 0.1, end_buffer: float = 0.15) -> list[TimeRange]:
         """
-        Get the final keep ranges with user overrides applied.
+        Get the final keep ranges with user overrides and highlights applied.
 
         Args:
             start_buffer: Buffer before segment start (prevents word cutoff)
             end_buffer: Buffer after segment end (prevents word cutoff)
         """
         ranges = []
+
+        # Add kept speech segments
         for i, seg in enumerate(self.original_segments):
             if self.is_segment_kept(i):
                 buffered_start = max(0.0, seg.start - start_buffer)
                 buffered_end = min(self.video_duration, seg.end + end_buffer)
                 ranges.append(TimeRange(buffered_start, buffered_end))
+
+        # Add highlight regions (force-include, no buffer needed)
+        for highlight in self.highlight_regions:
+            ranges.append(TimeRange(highlight.start, highlight.end))
 
         # Merge overlapping ranges
         return self._merge_ranges(ranges)
@@ -213,7 +254,11 @@ class EditSession:
                 for aseg in self.analyzed_segments
             ],
             "text_edits": {str(k): v for k, v in self.text_edits.items()},
-            "keep_overrides": {str(k): v for k, v in self.keep_overrides.items()}
+            "keep_overrides": {str(k): v for k, v in self.keep_overrides.items()},
+            "highlight_regions": [
+                {"start": h.start, "end": h.end, "label": h.label}
+                for h in self.highlight_regions
+            ]
         }
 
         with open(path, "w", encoding="utf-8") as f:
@@ -250,6 +295,12 @@ class EditSession:
                     retake_group_id=a.get("retake_group_id")
                 ))
 
+        # Load highlight regions
+        highlights = [
+            HighlightRegion(start=h["start"], end=h["end"], label=h.get("label", ""))
+            for h in data.get("highlight_regions", [])
+        ]
+
         session = cls(
             video_path=Path(data["video_path"]),
             video_duration=data["video_duration"],
@@ -257,11 +308,12 @@ class EditSession:
             analyzed_segments=analyzed,
             tokens=tokens,
             text_edits={int(k): v for k, v in data.get("text_edits", {}).items()},
-            keep_overrides={int(k): v for k, v in data.get("keep_overrides", {}).items()}
+            keep_overrides={int(k): v for k, v in data.get("keep_overrides", {}).items()},
+            highlight_regions=highlights
         )
 
         return session
 
     def has_unsaved_changes(self) -> bool:
         """Check if there are unsaved user modifications."""
-        return bool(self.text_edits) or bool(self.keep_overrides)
+        return bool(self.text_edits) or bool(self.keep_overrides) or bool(self.highlight_regions)

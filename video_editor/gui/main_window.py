@@ -227,6 +227,8 @@ class MainWindow(QMainWindow):
         self._timeline.segment_clicked.connect(self._on_timeline_segment_clicked)
         self._timeline.seek_requested.connect(self._on_seek_requested)
         self._timeline.toggle_segment.connect(self._on_toggle_segment)
+        self._timeline.highlight_created.connect(self._on_highlight_created)
+        self._timeline.highlight_removed.connect(self._on_highlight_removed)
 
         # Transcript editor
         self._transcript_editor.segment_clicked.connect(self._on_transcript_segment_clicked)
@@ -478,6 +480,26 @@ class MainWindow(QMainWindow):
     def _on_segment_text_changed(self, index: int, text: str):
         """Track text changes."""
         self._unsaved_changes = True
+
+    @Slot(float, float)
+    def _on_highlight_created(self, start_time: float, end_time: float):
+        """Handle creation of a new highlight region."""
+        if self._session:
+            index = self._session.add_highlight(start_time, end_time)
+            self._timeline.add_highlight(index, start_time, end_time)
+            self._unsaved_changes = True
+            self._status_label.setText(
+                f"Added highlight: {start_time:.1f}s - {end_time:.1f}s"
+            )
+
+    @Slot(int)
+    def _on_highlight_removed(self, index: int):
+        """Handle removal of a highlight region."""
+        if self._session:
+            self._session.remove_highlight(index)
+            self._timeline.remove_highlight(index)
+            self._unsaved_changes = True
+            self._status_label.setText("Highlight removed")
 
     @Slot()
     def _on_view_original(self):

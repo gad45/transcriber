@@ -16,6 +16,13 @@ class SegmentSignals(QObject):
     context_menu = Signal(int, object)  # segment index, QPoint
 
 
+class HighlightSignals(QObject):
+    """Signals for highlight items."""
+    clicked = Signal(int)  # highlight index
+    removed = Signal(int)  # highlight index
+    updated = Signal(int, float, float)  # index, new_start, new_end
+
+
 class SegmentItem(QGraphicsRectItem):
     """
     A visual representation of a video segment on the timeline.
@@ -168,3 +175,117 @@ class PlayheadItem(QGraphicsRectItem):
         """Update playhead position."""
         x = time_seconds * pixels_per_second
         self.setPos(x - 1, 0)  # -1 to center the 2px width
+
+
+class HighlightItem(QGraphicsRectItem):
+    """
+    A user-defined highlight region for non-speech content.
+
+    Blue color to distinguish from speech segments.
+    """
+
+    COLOR_HIGHLIGHT = QColor(33, 150, 243, 180)  # Blue with transparency
+    COLOR_BORDER = QColor(25, 118, 210)  # Darker blue border
+
+    def __init__(
+        self,
+        highlight_index: int,
+        start_time: float,
+        end_time: float,
+        label: str = "",
+        pixels_per_second: float = 50.0,
+        height: float = 40.0,
+        signals: HighlightSignals = None
+    ):
+        super().__init__()
+
+        self.highlight_index = highlight_index
+        self.start_time = start_time
+        self.end_time = end_time
+        self.label = label
+        self.pixels_per_second = pixels_per_second
+        self.signals = signals or HighlightSignals()
+
+        # Calculate position and size
+        x = start_time * pixels_per_second
+        width = (end_time - start_time) * pixels_per_second
+        self.setRect(0, 0, max(width, 2), height)
+        self.setPos(x, 0)
+
+        # Render below segments but above background
+        self.setZValue(-1)
+
+        # Enable interactions
+        self.setAcceptHoverEvents(True)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+
+        # Set up appearance
+        self.setBrush(QBrush(self.COLOR_HIGHLIGHT))
+        self.setPen(QPen(self.COLOR_BORDER, 2))
+
+        # Add label if provided
+        if label and width > 50:
+            self._add_label(width, height)
+
+    def _add_label(self, width: float, height: float):
+        """Add a text label inside the highlight."""
+        max_chars = int(width / 7)
+        text = self.label[:max_chars]
+        if len(self.label) > max_chars:
+            text = text[:-3] + "..."
+
+        label_item = QGraphicsSimpleTextItem(text, self)
+        label_item.setBrush(QBrush(Qt.GlobalColor.white))
+        font = QFont("Arial", 9)
+        label_item.setFont(font)
+
+        text_rect = label_item.boundingRect()
+        label_item.setPos(
+            (width - text_rect.width()) / 2,
+            (height - text_rect.height()) / 2
+        )
+
+    def update_times(self, start_time: float, end_time: float):
+        """Update the highlight's time range."""
+        self.start_time = start_time
+        self.end_time = end_time
+        x = start_time * self.pixels_per_second
+        width = (end_time - start_time) * self.pixels_per_second
+        self.setRect(0, 0, max(width, 2), self.rect().height())
+        self.setPos(x, self.pos().y())
+
+    def update_scale(self, pixels_per_second: float):
+        """Update position and size when zoom changes."""
+        self.pixels_per_second = pixels_per_second
+        x = self.start_time * pixels_per_second
+        width = (self.end_time - self.start_time) * pixels_per_second
+        self.setRect(0, 0, max(width, 2), self.rect().height())
+        self.setPos(x, self.pos().y())
+
+    def update_index(self, new_index: int):
+        """Update the highlight index (after deletion of another)."""
+        self.highlight_index = new_index
+
+    # Event handlers
+
+    def hoverEnterEvent(self, event):
+        self.setOpacity(0.9)
+        super().hoverEnterEvent(event)
+
+    def hoverLeaveEvent(self, event):
+        self.setOpacity(1.0)
+        super().hoverLeaveEvent(event)
+
+    def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.signals.clicked.emit(self.highlight_index)
+        super().mousePressEvent(event)
+
+    def contextMenuEvent(self, event):
+        """Show context menu for highlight."""
+        menu = QMenu()
+        remove_action = menu.addAction("Remove highlight")
+
+        result = menu.exec(event.screenPos())
+        if result == remove_action:
+            self.signals.removed.emit(self.highlight_index)
