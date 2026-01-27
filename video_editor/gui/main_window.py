@@ -14,7 +14,8 @@ from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from .video_player import VideoPlayer
 from .timeline import Timeline
 from .transcript_editor import TranscriptEditor
-from .models import EditSession, CropConfig
+from .models import EditSession, CropConfig, CaptionSettings
+from .caption_settings import CaptionSettingsPanel
 from ..transcriber import Transcriber, Segment
 from ..analyzer import Analyzer, AnalyzedSegment, SegmentAction
 from ..cutter import Cutter
@@ -70,6 +71,12 @@ class MainWindow(QMainWindow):
         self._toolbar.setMovable(False)
         self._setup_toolbar()
         main_layout.addWidget(self._toolbar)
+
+        # Caption settings panel (collapsible)
+        self._caption_settings_panel = CaptionSettingsPanel()
+        self._caption_settings_panel.setVisible(False)
+        self._caption_settings_panel.setMaximumHeight(180)
+        main_layout.addWidget(self._caption_settings_panel)
 
         # Main content splitter (video + transcript)
         content_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -151,6 +158,15 @@ class MainWindow(QMainWindow):
         self._reset_crop_btn = QPushButton("Reset Crop")
         self._reset_crop_btn.setToolTip("Reset to full frame (Shift+R)")
         self._toolbar.addWidget(self._reset_crop_btn)
+
+        self._toolbar.addSeparator()
+
+        # Captions toggle button
+        self._captions_btn = QPushButton("Captions")
+        self._captions_btn.setCheckable(True)
+        self._captions_btn.setEnabled(False)  # Disabled until analysis is done
+        self._captions_btn.setToolTip("Show/hide caption settings (available after analysis)")
+        self._toolbar.addWidget(self._captions_btn)
 
         self._toolbar.addSeparator()
 
@@ -295,6 +311,10 @@ class MainWindow(QMainWindow):
         self._aspect_combo.currentIndexChanged.connect(self._on_aspect_ratio_changed)
         self._reset_crop_btn.clicked.connect(self._reset_crop)
         self._video_player.crop_changed.connect(self._on_crop_changed)
+
+        # Caption controls
+        self._captions_btn.clicked.connect(self._on_captions_btn_clicked)
+        self._caption_settings_panel.settings_changed.connect(self._on_caption_settings_changed)
 
     def _apply_dark_theme(self):
         """Apply dark theme styling."""
@@ -482,6 +502,11 @@ class MainWindow(QMainWindow):
             self._timeline.load_session(self._session)
             self._transcript_editor.load_session(self._session)
 
+            # Set up caption preview with tokens
+            self._video_player.set_caption_tokens(tokens)
+            self._video_player.set_caption_settings(self._session.caption_settings)
+            self._caption_settings_panel.set_settings(self._session.caption_settings)
+
             progress.setValue(100)
 
             # Update status
@@ -492,6 +517,7 @@ class MainWindow(QMainWindow):
             )
 
             self._export_btn.setEnabled(True)
+            self._captions_btn.setEnabled(True)
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Analysis failed: {e}")
@@ -502,10 +528,11 @@ class MainWindow(QMainWindow):
 
     @Slot(int)
     def _on_playback_position_changed(self, position_ms: int):
-        """Update timeline and transcript when playback position changes."""
+        """Update timeline, transcript, and captions when playback position changes."""
         time_seconds = position_ms / 1000.0
         self._timeline.set_playhead_position(time_seconds)
         self._transcript_editor.highlight_current_time(time_seconds)
+        self._video_player.update_caption(time_seconds)
 
     @Slot(int)
     def _on_duration_changed(self, duration_ms: int):
@@ -676,6 +703,23 @@ class MainWindow(QMainWindow):
         self._unsaved_changes = True
         self._status_label.setText("Crop reset to full frame")
 
+    # Caption controls
+
+    @Slot()
+    def _on_captions_btn_clicked(self):
+        """Toggle caption settings panel visibility."""
+        is_visible = self._caption_settings_panel.isVisible()
+        self._caption_settings_panel.setVisible(not is_visible)
+        self._captions_btn.setChecked(not is_visible)
+
+    @Slot(object)
+    def _on_caption_settings_changed(self, settings):
+        """Handle caption settings changes."""
+        self._video_player.set_caption_settings(settings)
+        if self._session:
+            self._session.caption_settings = settings
+            self._unsaved_changes = True
+
     def _toggle_selected_segment(self):
         """Toggle keep/cut for the currently selected segment."""
         if self._transcript_editor._selected_index >= 0:
@@ -746,6 +790,13 @@ class MainWindow(QMainWindow):
                 if self._session.crop_config:
                     self._video_player.set_crop_config(self._session.crop_config)
 
+                # Restore caption settings and tokens
+                if self._session.tokens:
+                    self._video_player.set_caption_tokens(self._session.tokens)
+                self._video_player.set_caption_settings(self._session.caption_settings)
+                self._caption_settings_panel.set_settings(self._session.caption_settings)
+                self._captions_btn.setEnabled(True)
+
                 self._export_btn.setEnabled(True)
                 self.setWindowTitle(f"Video Editor - {path}")
             except Exception as e:
@@ -806,6 +857,13 @@ class MainWindow(QMainWindow):
         QApplication.processEvents()
 
         try:
+            # Apply caption settings to config before export
+            caption_settings = self._session.caption_settings
+            self._config.caption_font_size = caption_settings.font_size
+            self._config.caption_font = caption_settings.font_family
+            self._config.caption_position = caption_settings.position
+            self._config.caption_vertical_offset = caption_settings.vertical_offset
+
             cutter = Cutter(self._config)
             captioner = Captioner(self._config)
 

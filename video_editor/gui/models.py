@@ -99,6 +99,47 @@ class CropConfig:
 
 
 @dataclass
+class CaptionSettings:
+    """Configuration for caption display and styling."""
+    font_size: int = 24
+    font_family: str = "Arial"
+    position: str = "bottom"  # top, center, bottom
+    vertical_offset: float = 60.0  # pixels from edge
+    show_preview: bool = True
+
+    def to_dict(self) -> dict:
+        """Serialize for JSON storage."""
+        return {
+            "font_size": self.font_size,
+            "font_family": self.font_family,
+            "position": self.position,
+            "vertical_offset": self.vertical_offset,
+            "show_preview": self.show_preview
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CaptionSettings":
+        """Deserialize from JSON."""
+        return cls(
+            font_size=data.get("font_size", 24),
+            font_family=data.get("font_family", "Arial"),
+            position=data.get("position", "bottom"),
+            vertical_offset=data.get("vertical_offset", 60.0),
+            show_preview=data.get("show_preview", True)
+        )
+
+    def copy(self) -> "CaptionSettings":
+        """Create a copy of this settings."""
+        return CaptionSettings(
+            font_size=self.font_size,
+            font_family=self.font_family,
+            position=self.position,
+            vertical_offset=self.vertical_offset,
+            show_preview=self.show_preview
+        )
+
+
+@dataclass
 class HighlightRegion:
     """A user-defined region to force-include in export (for non-speech content)."""
     start: float
@@ -136,6 +177,9 @@ class EditSession:
     # Crop configuration
     crop_config: CropConfig = field(default_factory=CropConfig)  # Global crop settings
     segment_crop_overrides: dict[int, CropConfig] = field(default_factory=dict)  # Per-segment overrides
+
+    # Caption settings
+    caption_settings: CaptionSettings = field(default_factory=CaptionSettings)
 
     def get_segment_text(self, index: int) -> str:
         """Get the current text for a segment (edited or original)."""
@@ -386,7 +430,8 @@ class EditSession:
             "crop_config": self.crop_config.to_dict() if not self.crop_config.is_default else None,
             "segment_crop_overrides": {
                 str(k): v.to_dict() for k, v in self.segment_crop_overrides.items()
-            } if self.segment_crop_overrides else None
+            } if self.segment_crop_overrides else None,
+            "caption_settings": self.caption_settings.to_dict()
         }
 
         with open(path, "w", encoding="utf-8") as f:
@@ -440,6 +485,10 @@ class EditSession:
             for k, v in segment_crops_data.items()
         } if segment_crops_data else {}
 
+        # Load caption settings
+        caption_data = data.get("caption_settings")
+        caption_settings = CaptionSettings.from_dict(caption_data) if caption_data else CaptionSettings()
+
         session = cls(
             video_path=Path(data["video_path"]),
             video_duration=data["video_duration"],
@@ -450,7 +499,8 @@ class EditSession:
             keep_overrides={int(k): v for k, v in data.get("keep_overrides", {}).items()},
             highlight_regions=highlights,
             crop_config=crop_config,
-            segment_crop_overrides=segment_crop_overrides
+            segment_crop_overrides=segment_crop_overrides,
+            caption_settings=caption_settings
         )
 
         return session

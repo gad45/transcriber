@@ -118,6 +118,16 @@ class Config(BaseModel):
         le=0.5,
         description="Delay (seconds) for caption appearance to better match speech"
     )
+    caption_position: str = Field(
+        default="bottom",
+        description="Caption position: top, center, or bottom"
+    )
+    caption_vertical_offset: float = Field(
+        default=60.0,
+        ge=10.0,
+        le=300.0,
+        description="Vertical offset in pixels from the caption position edge"
+    )
 
 
 # Caption style presets

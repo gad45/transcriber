@@ -5,13 +5,15 @@ from pathlib import Path
 from PySide6.QtCore import Qt, Signal, Slot, QUrl, QRectF, QSizeF, QPointF
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSlider, QLabel,
-    QStyle, QSizePolicy, QGraphicsScene, QGraphicsView, QGraphicsRectItem
+    QStyle, QSizePolicy, QGraphicsScene, QGraphicsView, QGraphicsRectItem,
+    QGraphicsTextItem
 )
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
-from PySide6.QtGui import QBrush, QColor, QPen, QPainter, QCursor
+from PySide6.QtGui import QBrush, QColor, QPen, QPainter, QCursor, QFont
 
-from .models import CropConfig
+from .models import CropConfig, CaptionSettings
+from ..transcriber import Token
 
 
 def format_time(ms: int) -> str:
@@ -391,6 +393,12 @@ class VideoPlayer(QWidget):
         self._crop_config = CropConfig()
         self._crop_mode = False
 
+        # Caption overlay
+        self._caption_settings = CaptionSettings()
+        self._caption_tokens: list[Token] = []
+        self._caption_chunks: list[list[Token]] = []
+        self._caption_visible = True
+
         self._setup_ui()
         self._setup_media_player()
         self._connect_signals()
@@ -434,6 +442,20 @@ class VideoPlayer(QWidget):
         self._crop_border.setZValue(11)
         self._crop_border.setVisible(False)
         self._scene.addItem(self._crop_border)
+
+        # Caption overlay - background box and text
+        self._caption_bg = QGraphicsRectItem()
+        self._caption_bg.setBrush(QBrush(QColor(0, 0, 0, 180)))
+        self._caption_bg.setPen(QPen(Qt.PenStyle.NoPen))
+        self._caption_bg.setZValue(20)
+        self._caption_bg.setVisible(False)
+        self._scene.addItem(self._caption_bg)
+
+        self._caption_text = QGraphicsTextItem()
+        self._caption_text.setDefaultTextColor(QColor(255, 255, 255))
+        self._caption_text.setZValue(21)
+        self._caption_text.setVisible(False)
+        self._scene.addItem(self._caption_text)
 
         layout.addWidget(self._view, stretch=1)
 
@@ -858,3 +880,142 @@ class VideoPlayer(QWidget):
             self._play_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPause))
         else:
             self._play_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
+
+    # Caption API
+
+    def set_caption_tokens(self, tokens: list[Token]) -> None:
+        """Set the tokens for caption display and build chunks."""
+        self._caption_tokens = tokens
+        self._caption_chunks = self._chunk_tokens(tokens, max_words=15)
+
+    def _chunk_tokens(self, tokens: list[Token], max_words: int = 15, gap_threshold: float = 1.5) -> list[list[Token]]:
+        """Group tokens into display chunks based on max words and silence gaps."""
+        if not tokens:
+            return []
+
+        chunks = []
+        current_chunk: list[Token] = []
+
+        for i, token in enumerate(tokens):
+            current_chunk.append(token)
+
+            should_end_chunk = False
+
+            if len(current_chunk) >= max_words:
+                should_end_chunk = True
+
+            if i < len(tokens) - 1:
+                gap = tokens[i + 1].start - token.end
+                if gap > gap_threshold:
+                    should_end_chunk = True
+
+            if i == len(tokens) - 1:
+                should_end_chunk = True
+
+            if should_end_chunk and current_chunk:
+                chunks.append(current_chunk)
+                current_chunk = []
+
+        return chunks
+
+    def set_caption_settings(self, settings: CaptionSettings) -> None:
+        """Set caption display settings."""
+        self._caption_settings = settings
+        self._caption_visible = settings.show_preview
+        self._update_caption_style()
+
+        # Update visibility
+        if self._caption_tokens and self._caption_visible:
+            self.update_caption(self._player.position() / 1000.0)
+        else:
+            self._caption_text.setVisible(False)
+            self._caption_bg.setVisible(False)
+
+    def get_caption_settings(self) -> CaptionSettings:
+        """Get current caption settings."""
+        return self._caption_settings
+
+    def set_caption_visible(self, visible: bool) -> None:
+        """Set whether captions are visible."""
+        self._caption_visible = visible
+        if not visible:
+            self._caption_text.setVisible(False)
+            self._caption_bg.setVisible(False)
+
+    def _update_caption_style(self) -> None:
+        """Update caption font and styling based on settings."""
+        font = QFont(self._caption_settings.font_family, self._caption_settings.font_size)
+        font.setBold(True)
+        self._caption_text.setFont(font)
+
+    def update_caption(self, time_seconds: float) -> None:
+        """Update caption display based on current playback time."""
+        if not self._caption_chunks or not self._caption_visible:
+            self._caption_text.setVisible(False)
+            self._caption_bg.setVisible(False)
+            return
+
+        # Find the current chunk and word index
+        current_text = self._get_caption_text_at_time(time_seconds)
+
+        if not current_text:
+            self._caption_text.setVisible(False)
+            self._caption_bg.setVisible(False)
+            return
+
+        # Update text
+        self._caption_text.setPlainText(current_text)
+        self._caption_text.setVisible(True)
+
+        # Calculate position
+        text_rect = self._caption_text.boundingRect()
+        text_width = text_rect.width()
+        text_height = text_rect.height()
+
+        # Center horizontally
+        x = (self._video_width - text_width) / 2
+
+        # Vertical position based on setting
+        offset = self._caption_settings.vertical_offset
+        position = self._caption_settings.position
+
+        if position == "top":
+            y = offset
+        elif position == "center":
+            y = (self._video_height - text_height) / 2
+        else:  # bottom
+            y = self._video_height - offset - text_height
+
+        self._caption_text.setPos(x, y)
+
+        # Update background
+        padding = 10
+        bg_rect = QRectF(
+            x - padding,
+            y - padding / 2,
+            text_width + padding * 2,
+            text_height + padding
+        )
+        self._caption_bg.setRect(bg_rect)
+        self._caption_bg.setVisible(True)
+
+    def _get_caption_text_at_time(self, time_seconds: float) -> str:
+        """Get the caption text to display at the given time."""
+        for chunk in self._caption_chunks:
+            if not chunk:
+                continue
+
+            chunk_start = chunk[0].start
+            chunk_end = chunk[-1].end + 0.1  # Small buffer
+
+            if chunk_start <= time_seconds <= chunk_end:
+                # Find how many words to show (accumulating effect)
+                accumulated = []
+                for token in chunk:
+                    if token.start <= time_seconds:
+                        accumulated.append(token.text.strip())
+
+                if accumulated:
+                    return " ".join(accumulated)
+
+        return ""

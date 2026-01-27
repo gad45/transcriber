@@ -278,9 +278,19 @@ class Captioner:
         boxcolor = "black@0.5"
         boxborderw = 10
 
-        # Vertical positions for 2-line layout
-        line1_y = "h-140"  # First line (higher)
-        line2_y = "h-90"   # Second line (lower)
+        # Vertical positions based on position setting
+        offset = int(self.config.caption_vertical_offset)
+        position = self.config.caption_position
+
+        if position == "top":
+            line1_y = str(offset)
+            line2_y = str(offset + 50)
+        elif position == "center":
+            line1_y = "(h-text_h)/2-25"
+            line2_y = "(h-text_h)/2+25"
+        else:  # bottom (default)
+            line1_y = f"h-{offset + 50}"
+            line2_y = f"h-{offset}"
 
         for chunk in chunks:
             chunk_end = chunk[-1].end + 0.1  # Small buffer after last word
