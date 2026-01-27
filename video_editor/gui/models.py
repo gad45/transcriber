@@ -10,6 +10,95 @@ from ..analyzer import AnalyzedSegment, TimeRange, SegmentAction
 
 
 @dataclass
+class CropConfig:
+    """Configuration for video cropping and panning.
+
+    All coordinates are normalized (0.0-1.0) relative to video dimensions.
+    The crop region is defined by its center position and size.
+    Pan offsets allow scrolling content within the crop frame.
+    """
+    # Crop region size (normalized 0.0-1.0)
+    width: float = 1.0   # Crop width (1.0 = full width)
+    height: float = 1.0  # Crop height (1.0 = full height)
+
+    # Pan offset - position of video content within crop frame
+    # 0.0 = centered, negative = shifted left/up, positive = shifted right/down
+    pan_x: float = 0.0
+    pan_y: float = 0.0
+
+    @property
+    def is_default(self) -> bool:
+        """Check if crop is at default (no cropping/panning)."""
+        return (self.width == 1.0 and self.height == 1.0 and
+                self.pan_x == 0.0 and self.pan_y == 0.0)
+
+    def get_crop_rect(self, video_width: int, video_height: int) -> tuple[int, int, int, int]:
+        """Calculate the actual crop rectangle in pixels.
+
+        Returns:
+            (x, y, width, height) in pixels for FFmpeg crop filter
+        """
+        crop_w = int(self.width * video_width)
+        crop_h = int(self.height * video_height)
+
+        # Available space for panning
+        max_pan_x = video_width - crop_w
+        max_pan_y = video_height - crop_h
+
+        # Calculate position based on pan offset (-1 to 1 maps to full range)
+        # pan_x=0 means centered, pan_x=-1 means left edge, pan_x=1 means right edge
+        crop_x = int((max_pan_x / 2) * (1 + self.pan_x)) if max_pan_x > 0 else 0
+        crop_y = int((max_pan_y / 2) * (1 + self.pan_y)) if max_pan_y > 0 else 0
+
+        # Clamp to valid range
+        crop_x = max(0, min(crop_x, video_width - crop_w))
+        crop_y = max(0, min(crop_y, video_height - crop_h))
+
+        return crop_x, crop_y, crop_w, crop_h
+
+    def to_ffmpeg_filter(self, video_width: int, video_height: int) -> str:
+        """Generate FFmpeg crop filter string.
+
+        Args:
+            video_width: Source video width in pixels
+            video_height: Source video height in pixels
+
+        Returns:
+            FFmpeg crop filter string, e.g., "crop=1280:720:320:180"
+        """
+        x, y, w, h = self.get_crop_rect(video_width, video_height)
+        return f"crop={w}:{h}:{x}:{y}"
+
+    def to_dict(self) -> dict:
+        """Serialize for JSON storage."""
+        return {
+            "width": self.width,
+            "height": self.height,
+            "pan_x": self.pan_x,
+            "pan_y": self.pan_y
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CropConfig":
+        """Deserialize from JSON."""
+        return cls(
+            width=data.get("width", 1.0),
+            height=data.get("height", 1.0),
+            pan_x=data.get("pan_x", 0.0),
+            pan_y=data.get("pan_y", 0.0)
+        )
+
+    def copy(self) -> "CropConfig":
+        """Create a copy of this config."""
+        return CropConfig(
+            width=self.width,
+            height=self.height,
+            pan_x=self.pan_x,
+            pan_y=self.pan_y
+        )
+
+
+@dataclass
 class HighlightRegion:
     """A user-defined region to force-include in export (for non-speech content)."""
     start: float
@@ -30,6 +119,7 @@ class EditSession:
     - Original transcription data (segments and tokens)
     - Analysis results (what the AI decided to keep/cut)
     - User modifications (text edits and keep/cut overrides)
+    - Crop configuration (global and per-segment overrides)
     """
     video_path: Path
     video_duration: float
@@ -42,6 +132,10 @@ class EditSession:
     text_edits: dict[int, str] = field(default_factory=dict)  # segment_index → edited_text
     keep_overrides: dict[int, bool] = field(default_factory=dict)  # segment_index → keep (True/False)
     highlight_regions: list[HighlightRegion] = field(default_factory=list)  # Force-include regions
+
+    # Crop configuration
+    crop_config: CropConfig = field(default_factory=CropConfig)  # Global crop settings
+    segment_crop_overrides: dict[int, CropConfig] = field(default_factory=dict)  # Per-segment overrides
 
     def get_segment_text(self, index: int) -> str:
         """Get the current text for a segment (edited or original)."""
@@ -114,6 +208,36 @@ class EditSession:
                 h.end = end
             if label is not None:
                 h.label = label
+
+    # Crop configuration methods
+
+    def set_global_crop(self, config: CropConfig) -> None:
+        """Set the global crop configuration."""
+        self.crop_config = config
+
+    def get_segment_crop(self, index: int) -> CropConfig:
+        """Get the crop config for a segment (override or global)."""
+        if index in self.segment_crop_overrides:
+            return self.segment_crop_overrides[index]
+        return self.crop_config
+
+    def set_segment_crop(self, index: int, config: CropConfig) -> None:
+        """Set a crop override for a specific segment."""
+        if 0 <= index < len(self.original_segments):
+            self.segment_crop_overrides[index] = config
+
+    def clear_segment_crop(self, index: int) -> None:
+        """Remove crop override for a segment (reverts to global)."""
+        self.segment_crop_overrides.pop(index, None)
+
+    def has_segment_crop_override(self, index: int) -> bool:
+        """Check if a segment has a crop override."""
+        return index in self.segment_crop_overrides
+
+    def reset_all_crops(self) -> None:
+        """Reset all crop settings to default."""
+        self.crop_config = CropConfig()
+        self.segment_crop_overrides.clear()
 
     def get_final_segments(self) -> list[Segment]:
         """Get segments with text edits applied."""
@@ -229,7 +353,7 @@ class EditSession:
     def save(self, path: Path) -> None:
         """Save the editing session to a JSON file."""
         data = {
-            "version": "1.0",
+            "version": "1.1",
             "video_path": str(self.video_path),
             "video_duration": self.video_duration,
             "segments": [
@@ -258,7 +382,11 @@ class EditSession:
             "highlight_regions": [
                 {"start": h.start, "end": h.end, "label": h.label}
                 for h in self.highlight_regions
-            ]
+            ],
+            "crop_config": self.crop_config.to_dict() if not self.crop_config.is_default else None,
+            "segment_crop_overrides": {
+                str(k): v.to_dict() for k, v in self.segment_crop_overrides.items()
+            } if self.segment_crop_overrides else None
         }
 
         with open(path, "w", encoding="utf-8") as f:
@@ -301,6 +429,17 @@ class EditSession:
             for h in data.get("highlight_regions", [])
         ]
 
+        # Load crop configuration (v1.1+)
+        crop_data = data.get("crop_config")
+        crop_config = CropConfig.from_dict(crop_data) if crop_data else CropConfig()
+
+        # Load per-segment crop overrides
+        segment_crops_data = data.get("segment_crop_overrides", {})
+        segment_crop_overrides = {
+            int(k): CropConfig.from_dict(v)
+            for k, v in segment_crops_data.items()
+        } if segment_crops_data else {}
+
         session = cls(
             video_path=Path(data["video_path"]),
             video_duration=data["video_duration"],
@@ -309,11 +448,15 @@ class EditSession:
             tokens=tokens,
             text_edits={int(k): v for k, v in data.get("text_edits", {}).items()},
             keep_overrides={int(k): v for k, v in data.get("keep_overrides", {}).items()},
-            highlight_regions=highlights
+            highlight_regions=highlights,
+            crop_config=crop_config,
+            segment_crop_overrides=segment_crop_overrides
         )
 
         return session
 
     def has_unsaved_changes(self) -> bool:
         """Check if there are unsaved user modifications."""
-        return bool(self.text_edits) or bool(self.keep_overrides) or bool(self.highlight_regions)
+        return (bool(self.text_edits) or bool(self.keep_overrides) or
+                bool(self.highlight_regions) or not self.crop_config.is_default or
+                bool(self.segment_crop_overrides))

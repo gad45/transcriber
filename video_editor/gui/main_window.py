@@ -7,14 +7,14 @@ from PySide6.QtCore import Qt, Slot, QTimer
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QMenuBar, QMenu, QToolBar, QPushButton, QLabel, QStatusBar,
-    QFileDialog, QMessageBox, QProgressDialog, QApplication
+    QFileDialog, QMessageBox, QProgressDialog, QApplication, QComboBox
 )
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 
 from .video_player import VideoPlayer
 from .timeline import Timeline
 from .transcript_editor import TranscriptEditor
-from .models import EditSession
+from .models import EditSession, CropConfig
 from ..transcriber import Transcriber, Segment
 from ..analyzer import Analyzer, AnalyzedSegment, SegmentAction
 from ..cutter import Cutter
@@ -127,6 +127,33 @@ class MainWindow(QMainWindow):
 
         self._toolbar.addSeparator()
 
+        # Crop controls
+        self._crop_btn = QPushButton("Crop")
+        self._crop_btn.setCheckable(True)
+        self._crop_btn.setToolTip("Toggle crop editing mode (C)")
+        self._toolbar.addWidget(self._crop_btn)
+
+        # Aspect ratio dropdown
+        self._aspect_combo = QComboBox()
+        self._aspect_combo.addItems([
+            "Free",
+            "16:9 (Landscape)",
+            "9:16 (Portrait)",
+            "1:1 (Square)",
+            "4:3 (Standard)",
+            "4:5 (Instagram)"
+        ])
+        self._aspect_combo.setToolTip("Lock aspect ratio")
+        self._aspect_combo.setFixedWidth(120)
+        self._toolbar.addWidget(self._aspect_combo)
+
+        # Reset crop button
+        self._reset_crop_btn = QPushButton("Reset Crop")
+        self._reset_crop_btn.setToolTip("Reset to full frame (Shift+R)")
+        self._toolbar.addWidget(self._reset_crop_btn)
+
+        self._toolbar.addSeparator()
+
         # Spacer
         spacer = QWidget()
         spacer.setFixedWidth(20)
@@ -217,6 +244,27 @@ class MainWindow(QMainWindow):
         down = QShortcut(QKeySequence(Qt.Key.Key_Down), self)
         down.activated.connect(self._select_next_segment)
 
+        # C - toggle crop mode
+        crop_toggle = QShortcut(QKeySequence(Qt.Key.Key_C), self)
+        crop_toggle.activated.connect(self._toggle_crop_mode)
+
+        # Shift+R - reset crop
+        reset_crop = QShortcut(QKeySequence("Shift+R"), self)
+        reset_crop.activated.connect(self._reset_crop)
+
+        # Shift+Arrow keys - pan crop region
+        pan_left = QShortcut(QKeySequence("Shift+Left"), self)
+        pan_left.activated.connect(lambda: self._pan_crop(-0.05, 0))
+
+        pan_right = QShortcut(QKeySequence("Shift+Right"), self)
+        pan_right.activated.connect(lambda: self._pan_crop(0.05, 0))
+
+        pan_up = QShortcut(QKeySequence("Shift+Up"), self)
+        pan_up.activated.connect(lambda: self._pan_crop(0, -0.05))
+
+        pan_down = QShortcut(QKeySequence("Shift+Down"), self)
+        pan_down.activated.connect(lambda: self._pan_crop(0, 0.05))
+
     def _connect_signals(self):
         """Connect signals between components."""
         # Video player
@@ -241,6 +289,12 @@ class MainWindow(QMainWindow):
         self._view_preview_btn.clicked.connect(self._on_view_preview)
         self._process_btn.clicked.connect(self._analyze_video)
         self._export_btn.clicked.connect(self._export_video)
+
+        # Crop controls
+        self._crop_btn.clicked.connect(self._on_crop_btn_clicked)
+        self._aspect_combo.currentIndexChanged.connect(self._on_aspect_ratio_changed)
+        self._reset_crop_btn.clicked.connect(self._reset_crop)
+        self._video_player.crop_changed.connect(self._on_crop_changed)
 
     def _apply_dark_theme(self):
         """Apply dark theme styling."""
@@ -298,6 +352,25 @@ class MainWindow(QMainWindow):
             }
             QLabel {
                 color: #fff;
+            }
+            QComboBox {
+                background-color: #3d3d3d;
+                color: #fff;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 4px 8px;
+            }
+            QComboBox:hover {
+                background-color: #4d4d4d;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #3d3d3d;
+                color: #fff;
+                selection-background-color: #2196f3;
             }
         """)
 
@@ -516,6 +589,89 @@ class MainWindow(QMainWindow):
         self._view_preview_btn.setChecked(True)
         # TODO: Generate preview video and load it
 
+    # Crop controls
+
+    @Slot()
+    def _on_crop_btn_clicked(self):
+        """Toggle crop editing mode."""
+        self._toggle_crop_mode()
+
+    def _toggle_crop_mode(self):
+        """Toggle crop editing mode."""
+        is_crop_mode = not self._video_player.is_crop_mode()
+        self._video_player.set_crop_mode(is_crop_mode)
+        self._crop_btn.setChecked(is_crop_mode)
+
+        if is_crop_mode:
+            self._status_label.setText("Crop mode: Use Shift+Arrows to pan, dropdown for aspect ratio")
+        else:
+            crop = self._video_player.get_crop_config()
+            if crop.is_default:
+                self._status_label.setText("Crop: Full frame")
+            else:
+                w, h = self._video_player.get_video_dimensions()
+                x, y, cw, ch = crop.get_crop_rect(w, h)
+                self._status_label.setText(f"Crop: {cw}x{ch} at ({x},{y})")
+
+    @Slot(int)
+    def _on_aspect_ratio_changed(self, index: int):
+        """Handle aspect ratio selection change."""
+        aspect_ratios = {
+            0: None,           # Free
+            1: (16, 9),        # 16:9 Landscape
+            2: (9, 16),        # 9:16 Portrait
+            3: (1, 1),         # 1:1 Square
+            4: (4, 3),         # 4:3 Standard
+            5: (4, 5),         # 4:5 Instagram
+        }
+
+        ratio = aspect_ratios.get(index)
+        if ratio is None:
+            return  # Free aspect ratio, don't change anything
+
+        video_w, video_h = self._video_player.get_video_dimensions()
+        target_ratio = ratio[0] / ratio[1]
+        video_ratio = video_w / video_h
+
+        # Calculate crop dimensions to match target aspect ratio
+        if target_ratio > video_ratio:
+            # Target is wider, crop height
+            new_width = 1.0
+            new_height = video_ratio / target_ratio
+        else:
+            # Target is taller, crop width
+            new_height = 1.0
+            new_width = target_ratio / video_ratio
+
+        crop_config = self._video_player.get_crop_config()
+        crop_config.width = new_width
+        crop_config.height = new_height
+        crop_config.pan_x = 0.0  # Center
+        crop_config.pan_y = 0.0
+
+        self._video_player.set_crop_config(crop_config)
+        self._unsaved_changes = True
+
+    @Slot(object)
+    def _on_crop_changed(self, config):
+        """Handle crop configuration changes from video player."""
+        if self._session:
+            self._session.set_global_crop(config)
+            self._unsaved_changes = True
+
+    def _pan_crop(self, pan_x_delta: float, pan_y_delta: float):
+        """Adjust pan offset by delta values."""
+        self._video_player.adjust_pan(pan_x_delta, pan_y_delta)
+
+    def _reset_crop(self):
+        """Reset crop to full frame."""
+        self._video_player.reset_crop()
+        self._aspect_combo.setCurrentIndex(0)  # Set to "Free"
+        if self._session:
+            self._session.reset_all_crops()
+        self._unsaved_changes = True
+        self._status_label.setText("Crop reset to full frame")
+
     def _toggle_selected_segment(self):
         """Toggle keep/cut for the currently selected segment."""
         if self._transcript_editor._selected_index >= 0:
@@ -581,6 +737,11 @@ class MainWindow(QMainWindow):
                 self._video_player.load_video(self._session.video_path)
                 self._timeline.load_session(self._session)
                 self._transcript_editor.load_session(self._session)
+
+                # Restore crop settings
+                if self._session.crop_config:
+                    self._video_player.set_crop_config(self._session.crop_config)
+
                 self._export_btn.setEnabled(True)
                 self.setWindowTitle(f"Video Editor - {path}")
             except Exception as e:
@@ -654,9 +815,32 @@ class MainWindow(QMainWindow):
             progress.setValue(30)
             QApplication.processEvents()
 
-            # Cut to temp file
+            # Prepare crop configuration
+            crop_filter = None
+            segment_crop_filters = None
+
+            if self._session.crop_config and not self._session.crop_config.is_default:
+                # Get video dimensions for crop calculation
+                video_w, video_h = cutter.get_video_dimensions(self._session.video_path)
+                crop_filter = self._session.crop_config.to_ffmpeg_filter(video_w, video_h)
+
+            # Build per-segment crop overrides
+            if self._session.segment_crop_overrides:
+                video_w, video_h = cutter.get_video_dimensions(self._session.video_path)
+                segment_crop_filters = {
+                    idx: crop.to_ffmpeg_filter(video_w, video_h)
+                    for idx, crop in self._session.segment_crop_overrides.items()
+                }
+
+            # Cut to temp file with crop applied
             temp_cut = Path(tempfile.gettempdir()) / "video_editor_temp_cut.mp4"
-            cutter.cut_video(self._session.video_path, keep_ranges, temp_cut)
+            cutter.cut_video(
+                self._session.video_path,
+                keep_ranges,
+                temp_cut,
+                crop_filter=crop_filter,
+                segment_crop_filters=segment_crop_filters
+            )
 
             progress.setLabelText("Adding captions...")
             progress.setValue(70)
