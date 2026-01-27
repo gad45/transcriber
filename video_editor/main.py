@@ -207,8 +207,12 @@ def main(
         cutter = Cutter(config)
         captioner = Captioner(config)
         
-        # Determine total steps based on QC flag
-        total_steps = 4 if skip_qc else 5
+        # Determine total steps based on flags
+        # Base: video info, transcribe, analyze, process = 4
+        # +1 for QC
+        total_steps = 4
+        if not skip_qc:
+            total_steps += 1
 
         # Step 1: Get video duration
         console.print(f"\n[bold]Step 1/{total_steps}:[/bold] Getting video info...")
@@ -217,15 +221,18 @@ def main(
 
         # Step 2: Transcribe
         console.print(f"\n[bold]Step 2/{total_steps}:[/bold] Transcribing speech...")
-        segments, tokens = transcriber.transcribe_video(input_path)
+        segments, tokens, _ = transcriber.transcribe_video(input_path)
 
         if not segments:
             console.print("[red]No speech detected in video![/red]")
             sys.exit(1)
 
+        # Track current step number
+        current_step = 3
+
         # Step 3: Quality Control (optional)
         if not skip_qc:
-            console.print(f"\n[bold]Step 3/{total_steps}:[/bold] Running transcription quality control...")
+            console.print(f"\n[bold]Step {current_step}/{total_steps}:[/bold] Running transcription quality control...")
             qc = QualityController(config, auto_correct=not qc_report_only)
 
             if qc.is_available():
@@ -234,12 +241,13 @@ def main(
                 # Apply corrections if enabled
                 if not qc_report_only:
                     segments = qc.apply_corrections(segments, qc_report)
+            current_step += 1
         else:
-            console.print(f"\n[dim]Step 3/{total_steps}: Quality control skipped[/dim]")
+            console.print(f"\n[dim]Step {current_step}/{total_steps}: Quality control skipped[/dim]")
 
-        # Step 4 (or 3 if QC skipped): Analyze
-        step_num = 4 if not skip_qc else 3
-        console.print(f"\n[bold]Step {step_num}/{total_steps}:[/bold] Analyzing for bad takes and silences...")
+
+        # Analyze for bad takes and silences
+        console.print(f"\n[bold]Step {current_step}/{total_steps}:[/bold] Analyzing for bad takes and silences...")
         keep_ranges, kept_segments = analyzer.analyze(segments, video_duration)
         
         # Preview mode - just show what would be cut
@@ -248,10 +256,10 @@ def main(
             print_preview(keep_ranges, kept_segments, video_duration)
             console.print("\n[dim]Run without --preview to process the video.[/dim]")
             return
-        
-        # Step 5 (or 4 if QC skipped): Process video
-        step_num = 5 if not skip_qc else 4
-        console.print(f"\n[bold]Step {step_num}/{total_steps}:[/bold] Processing video...")
+
+        # Process video step
+        current_step += 1
+        console.print(f"\n[bold]Step {current_step}/{total_steps}:[/bold] Processing video...")
         
         # Cut video
         temp_cut = config.temp_dir / f"{input_path.stem}_cut.mp4" if config.temp_dir else Path(tempfile.gettempdir()) / f"{input_path.stem}_cut.mp4"
@@ -308,7 +316,7 @@ def main(
             # Clean up temp cut file
             if not keep_temp and temp_cut.exists():
                 temp_cut.unlink()
-        
+
         # Final summary
         new_duration = cutter.get_video_duration(output_path)
         console.print(Panel.fit(

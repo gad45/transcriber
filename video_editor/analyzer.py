@@ -508,11 +508,68 @@ Respond with ONLY the number (1, 2, 3, etc.) of the best take. Nothing else."""
                     break
 
             if not should_remove:
-                keep_ranges.append(TimeRange(seg.start, seg.end))
+                # Apply buffers to prevent word cutoff
+                buffered_start = max(0.0, seg.start - self.config.segment_start_buffer)
+                buffered_end = min(video_duration, seg.end + self.config.segment_end_buffer)
+                keep_ranges.append(TimeRange(buffered_start, buffered_end))
                 kept_segments.append(seg)
             else:
                 removed_count += 1
 
+        # Merge overlapping ranges that may have been created by buffering
+        keep_ranges, kept_segments = self._merge_overlapping_ranges(keep_ranges, kept_segments)
+
         console.print(f"[green]✓[/green] Keeping {len(keep_ranges)} segments, removing {removed_count} bad takes")
 
         return keep_ranges, kept_segments
+
+    def _merge_overlapping_ranges(
+        self,
+        ranges: list[TimeRange],
+        segments: list[Segment]
+    ) -> tuple[list[TimeRange], list[Segment]]:
+        """
+        Merge overlapping time ranges and their corresponding segments.
+
+        When buffers are applied, adjacent ranges may overlap. This merges them
+        to avoid duplicate content in the output video.
+        """
+        if not ranges:
+            return [], []
+
+        # Sort by start time
+        paired = sorted(zip(ranges, segments), key=lambda x: x[0].start)
+
+        merged_ranges = []
+        merged_segments = []
+
+        current_range, current_seg = paired[0]
+
+        for next_range, next_seg in paired[1:]:
+            # Check if ranges overlap or are adjacent (within 0.05s)
+            if next_range.start <= current_range.end + 0.05:
+                # Merge: extend current range to include next
+                current_range = TimeRange(
+                    current_range.start,
+                    max(current_range.end, next_range.end)
+                )
+                # Merge segment text
+                current_seg = Segment(
+                    start=current_seg.start,
+                    end=max(current_seg.end, next_seg.end),
+                    text=current_seg.text + " " + next_seg.text,
+                    confidence=min(current_seg.confidence, next_seg.confidence),
+                    tokens=None  # Tokens would need complex merging
+                )
+            else:
+                # No overlap, save current and start new
+                merged_ranges.append(current_range)
+                merged_segments.append(current_seg)
+                current_range = next_range
+                current_seg = next_seg
+
+        # Don't forget the last one
+        merged_ranges.append(current_range)
+        merged_segments.append(current_seg)
+
+        return merged_ranges, merged_segments

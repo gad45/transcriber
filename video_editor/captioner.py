@@ -297,12 +297,14 @@ class Captioner:
 
                 # This filter is active from when this word starts until the next word starts
                 # (or until chunk end for the last word)
-                word_start = chunk[word_idx].start
+                # Apply caption delay so captions appear slightly after the word is spoken
+                delay = self.config.caption_delay
+                word_start = chunk[word_idx].start + delay
 
                 if word_idx < len(chunk) - 1:
-                    word_end = chunk[word_idx + 1].start
+                    word_end = chunk[word_idx + 1].start + delay
                 else:
-                    word_end = chunk_end
+                    word_end = chunk_end + delay
 
                 # Build separate drawtext filter for each line
                 # Line 1 (always present)

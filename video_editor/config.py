@@ -99,6 +99,26 @@ class Config(BaseModel):
         description="Gemini model for QC (update when gemini-3-flash available)"
     )
 
+    # Timing buffer settings (to prevent word cutoff)
+    segment_start_buffer: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=0.5,
+        description="Buffer (seconds) added before segment start to prevent word cutoff"
+    )
+    segment_end_buffer: float = Field(
+        default=0.15,
+        ge=0.0,
+        le=0.5,
+        description="Buffer (seconds) added after segment end to prevent word cutoff"
+    )
+    caption_delay: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=0.5,
+        description="Delay (seconds) for caption appearance to better match speech"
+    )
+
 
 # Caption style presets
 CAPTION_STYLES = {
