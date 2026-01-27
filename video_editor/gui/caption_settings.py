@@ -3,7 +3,7 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox, QComboBox,
-    QSlider, QCheckBox, QGroupBox
+    QSlider, QCheckBox, QPushButton
 )
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtCore import Qt
@@ -15,6 +15,7 @@ class CaptionSettingsPanel(QWidget):
     """Widget for configuring caption appearance."""
 
     settings_changed = Signal(object)  # CaptionSettings
+    move_caption_requested = Signal(bool)  # True to enable move mode, False to disable
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -82,36 +83,42 @@ class CaptionSettingsPanel(QWidget):
 
         layout.addLayout(font_layout)
 
-        # Position
+        # Position section with move button
         pos_layout = QHBoxLayout()
         pos_label = QLabel("Position:")
         pos_label.setFixedWidth(80)
         pos_layout.addWidget(pos_label)
 
-        self._position_combo = QComboBox()
-        self._position_combo.addItems(["Bottom", "Center", "Top"])
-        pos_layout.addWidget(self._position_combo, stretch=1)
+        self._move_btn = QPushButton("Drag to Move")
+        self._move_btn.setCheckable(True)
+        self._move_btn.setToolTip("Click and drag the caption on the video to reposition it")
+        pos_layout.addWidget(self._move_btn, stretch=1)
 
         layout.addLayout(pos_layout)
 
-        # Vertical offset
-        offset_layout = QHBoxLayout()
-        offset_label = QLabel("Offset:")
-        offset_label.setFixedWidth(80)
-        offset_layout.addWidget(offset_label)
+        # Position display (read-only, shows normalized position)
+        pos_display_layout = QHBoxLayout()
+        pos_display_label = QLabel("")  # Empty label for alignment
+        pos_display_label.setFixedWidth(80)
+        pos_display_layout.addWidget(pos_display_label)
 
-        self._offset_spin = QSpinBox()
-        self._offset_spin.setRange(10, 300)
-        self._offset_spin.setValue(60)
-        self._offset_spin.setSuffix(" px")
-        offset_layout.addWidget(self._offset_spin)
+        self._pos_display = QLabel("Center: 50%, Bottom: 92%")
+        self._pos_display.setStyleSheet("color: #888; font-size: 11px;")
+        pos_display_layout.addWidget(self._pos_display, stretch=1)
 
-        self._offset_slider = QSlider(Qt.Orientation.Horizontal)
-        self._offset_slider.setRange(10, 300)
-        self._offset_slider.setValue(60)
-        offset_layout.addWidget(self._offset_slider, stretch=1)
+        layout.addLayout(pos_display_layout)
 
-        layout.addLayout(offset_layout)
+        # Reset position button
+        reset_layout = QHBoxLayout()
+        reset_label = QLabel("")
+        reset_label.setFixedWidth(80)
+        reset_layout.addWidget(reset_label)
+
+        self._reset_pos_btn = QPushButton("Reset Position")
+        self._reset_pos_btn.setToolTip("Reset caption to default centered bottom position")
+        reset_layout.addWidget(self._reset_pos_btn, stretch=1)
+
+        layout.addLayout(reset_layout)
 
         layout.addStretch()
 
@@ -153,6 +160,23 @@ class CaptionSettingsPanel(QWidget):
                 border: 2px solid #2196f3;
                 background: #2196f3;
             }
+            QPushButton {
+                background-color: #3d3d3d;
+                color: #fff;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 6px 12px;
+            }
+            QPushButton:hover {
+                background-color: #4d4d4d;
+            }
+            QPushButton:checked {
+                background-color: #2196f3;
+                border-color: #2196f3;
+            }
+            QPushButton:pressed {
+                background-color: #1976d2;
+            }
         """)
 
     def _connect_signals(self):
@@ -160,26 +184,45 @@ class CaptionSettingsPanel(QWidget):
         # Sync spinbox and slider
         self._size_spin.valueChanged.connect(self._size_slider.setValue)
         self._size_slider.valueChanged.connect(self._size_spin.setValue)
-        self._offset_spin.valueChanged.connect(self._offset_slider.setValue)
-        self._offset_slider.valueChanged.connect(self._offset_spin.setValue)
 
         # Emit settings changed
         self._preview_check.toggled.connect(self._on_setting_changed)
         self._size_spin.valueChanged.connect(self._on_setting_changed)
         self._font_combo.currentTextChanged.connect(self._on_setting_changed)
-        self._position_combo.currentTextChanged.connect(self._on_setting_changed)
-        self._offset_spin.valueChanged.connect(self._on_setting_changed)
+
+        # Move button
+        self._move_btn.toggled.connect(self._on_move_toggled)
+
+        # Reset position
+        self._reset_pos_btn.clicked.connect(self._on_reset_position)
 
     def _on_setting_changed(self):
         """Handle any setting change."""
-        self._settings = CaptionSettings(
-            font_size=self._size_spin.value(),
-            font_family=self._font_combo.currentText(),
-            position=self._position_combo.currentText().lower(),
-            vertical_offset=float(self._offset_spin.value()),
-            show_preview=self._preview_check.isChecked()
-        )
+        self._settings.font_size = self._size_spin.value()
+        self._settings.font_family = self._font_combo.currentText()
+        self._settings.show_preview = self._preview_check.isChecked()
         self.settings_changed.emit(self._settings)
+
+    def _on_move_toggled(self, checked: bool):
+        """Handle move button toggle."""
+        self.move_caption_requested.emit(checked)
+
+    def _on_reset_position(self):
+        """Reset caption position and size to default."""
+        self._settings.pos_x = 0.5
+        self._settings.pos_y = 0.92
+        self._settings.box_width = 0.6
+        self._settings.box_height = 0.07
+        self._update_position_display()
+        self.settings_changed.emit(self._settings)
+
+    def _update_position_display(self):
+        """Update the position display label."""
+        x_pct = int(self._settings.pos_x * 100)
+        y_pct = int(self._settings.pos_y * 100)
+        w_pct = int(self._settings.box_width * 100)
+        h_pct = int(self._settings.box_height * 100)
+        self._pos_display.setText(f"Pos: {x_pct}%, {y_pct}% | Size: {w_pct}% x {h_pct}%")
 
     def get_settings(self) -> CaptionSettings:
         """Get the current caption settings."""
@@ -193,9 +236,6 @@ class CaptionSettingsPanel(QWidget):
         self._size_spin.blockSignals(True)
         self._size_slider.blockSignals(True)
         self._font_combo.blockSignals(True)
-        self._position_combo.blockSignals(True)
-        self._offset_spin.blockSignals(True)
-        self._offset_slider.blockSignals(True)
         self._preview_check.blockSignals(True)
 
         self._size_spin.setValue(settings.font_size)
@@ -205,18 +245,24 @@ class CaptionSettingsPanel(QWidget):
         if font_idx >= 0:
             self._font_combo.setCurrentIndex(font_idx)
 
-        pos_map = {"bottom": 0, "center": 1, "top": 2}
-        self._position_combo.setCurrentIndex(pos_map.get(settings.position, 0))
-
-        self._offset_spin.setValue(int(settings.vertical_offset))
-        self._offset_slider.setValue(int(settings.vertical_offset))
         self._preview_check.setChecked(settings.show_preview)
+
+        # Update position display
+        self._update_position_display()
 
         # Unblock signals
         self._size_spin.blockSignals(False)
         self._size_slider.blockSignals(False)
         self._font_combo.blockSignals(False)
-        self._position_combo.blockSignals(False)
-        self._offset_spin.blockSignals(False)
-        self._offset_slider.blockSignals(False)
         self._preview_check.blockSignals(False)
+
+    def set_move_mode(self, enabled: bool):
+        """Set the move button state (called when mode changes externally)."""
+        self._move_btn.blockSignals(True)
+        self._move_btn.setChecked(enabled)
+        self._move_btn.blockSignals(False)
+
+    def update_position_from_drag(self, settings: CaptionSettings):
+        """Update settings and display when position is changed by dragging."""
+        self._settings = settings
+        self._update_position_display()

@@ -315,6 +315,8 @@ class MainWindow(QMainWindow):
         # Caption controls
         self._captions_btn.clicked.connect(self._on_captions_btn_clicked)
         self._caption_settings_panel.settings_changed.connect(self._on_caption_settings_changed)
+        self._caption_settings_panel.move_caption_requested.connect(self._on_caption_move_requested)
+        self._video_player.caption_settings_changed.connect(self._on_caption_position_changed)
 
     def _apply_dark_theme(self):
         """Apply dark theme styling."""
@@ -629,6 +631,11 @@ class MainWindow(QMainWindow):
         self._video_player.set_crop_mode(is_crop_mode)
         self._crop_btn.setChecked(is_crop_mode)
 
+        # Disable caption mode if crop mode is enabled
+        if is_crop_mode and self._video_player.is_caption_mode():
+            self._video_player.set_caption_mode(False)
+            self._caption_settings_panel.set_move_mode(False)
+
         if is_crop_mode:
             self._status_label.setText("Crop mode: Drag to select, drag edges/corners to adjust, drag inside to move")
         else:
@@ -716,6 +723,24 @@ class MainWindow(QMainWindow):
     def _on_caption_settings_changed(self, settings):
         """Handle caption settings changes."""
         self._video_player.set_caption_settings(settings)
+        if self._session:
+            self._session.caption_settings = settings
+            self._unsaved_changes = True
+
+    @Slot(bool)
+    def _on_caption_move_requested(self, enabled: bool):
+        """Handle caption move mode toggle from settings panel."""
+        self._video_player.set_caption_mode(enabled)
+        # Disable crop mode if caption mode is enabled
+        if enabled and self._crop_btn.isChecked():
+            self._crop_btn.setChecked(False)
+            self._video_player.set_crop_mode(False)
+
+    @Slot(object)
+    def _on_caption_position_changed(self, settings):
+        """Handle caption position changes from dragging on video."""
+        # Update the settings panel to reflect the new position
+        self._caption_settings_panel.update_position_from_drag(settings)
         if self._session:
             self._session.caption_settings = settings
             self._unsaved_changes = True
@@ -861,8 +886,20 @@ class MainWindow(QMainWindow):
             caption_settings = self._session.caption_settings
             self._config.caption_font_size = caption_settings.font_size
             self._config.caption_font = caption_settings.font_family
-            self._config.caption_position = caption_settings.position
-            self._config.caption_vertical_offset = caption_settings.vertical_offset
+
+            # Convert normalized position to old-style position/offset for FFmpeg
+            # pos_y: 0.0 = top, 0.5 = center, 1.0 = bottom
+            if caption_settings.pos_y < 0.35:
+                self._config.caption_position = "top"
+                # Calculate offset from top edge (assuming 1080p for estimation)
+                self._config.caption_vertical_offset = caption_settings.pos_y * 1080
+            elif caption_settings.pos_y < 0.65:
+                self._config.caption_position = "center"
+                self._config.caption_vertical_offset = 60.0  # Ignored for center
+            else:
+                self._config.caption_position = "bottom"
+                # Calculate offset from bottom edge
+                self._config.caption_vertical_offset = (1.0 - caption_settings.pos_y) * 1080
 
             cutter = Cutter(self._config)
             captioner = Captioner(self._config)

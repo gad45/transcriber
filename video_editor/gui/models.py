@@ -100,32 +100,70 @@ class CropConfig:
 
 @dataclass
 class CaptionSettings:
-    """Configuration for caption display and styling."""
+    """Configuration for caption display and styling.
+
+    Position is stored as normalized coordinates (0.0-1.0) relative to video dimensions.
+    The position represents the center-x and bottom-y of the caption box.
+    Box dimensions are also normalized (0.0-1.0) relative to video dimensions.
+    """
     font_size: int = 24
     font_family: str = "Arial"
-    position: str = "bottom"  # top, center, bottom
-    vertical_offset: float = 60.0  # pixels from edge
     show_preview: bool = True
+
+    # Normalized position (0.0-1.0) - center_x, bottom_y of caption box
+    pos_x: float = 0.5  # Centered horizontally
+    pos_y: float = 0.92  # Near bottom (92% down from top)
+
+    # Box dimensions as fraction of video dimensions (0.0-1.0)
+    # Default: 60% width, ~7% height (good for 2 lines at 24pt on 1080p)
+    box_width: float = 0.6
+    box_height: float = 0.07
 
     def to_dict(self) -> dict:
         """Serialize for JSON storage."""
         return {
             "font_size": self.font_size,
             "font_family": self.font_family,
-            "position": self.position,
-            "vertical_offset": self.vertical_offset,
-            "show_preview": self.show_preview
+            "show_preview": self.show_preview,
+            "pos_x": self.pos_x,
+            "pos_y": self.pos_y,
+            "box_width": self.box_width,
+            "box_height": self.box_height
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "CaptionSettings":
         """Deserialize from JSON."""
+        # Handle legacy format with position/vertical_offset
+        if "position" in data and "pos_x" not in data:
+            # Convert legacy format
+            position = data.get("position", "bottom")
+            offset = data.get("vertical_offset", 60.0)
+            # Approximate conversion (assuming 1080p)
+            if position == "top":
+                pos_y = offset / 1080.0 + 0.07
+            elif position == "center":
+                pos_y = 0.5
+            else:  # bottom
+                pos_y = 1.0 - offset / 1080.0
+            return cls(
+                font_size=data.get("font_size", 24),
+                font_family=data.get("font_family", "Arial"),
+                show_preview=data.get("show_preview", True),
+                pos_x=0.5,
+                pos_y=pos_y,
+                box_width=0.6,
+                box_height=0.07
+            )
+
         return cls(
             font_size=data.get("font_size", 24),
             font_family=data.get("font_family", "Arial"),
-            position=data.get("position", "bottom"),
-            vertical_offset=data.get("vertical_offset", 60.0),
-            show_preview=data.get("show_preview", True)
+            show_preview=data.get("show_preview", True),
+            pos_x=data.get("pos_x", 0.5),
+            pos_y=data.get("pos_y", 0.92),
+            box_width=data.get("box_width", 0.6),
+            box_height=data.get("box_height", 0.07)
         )
 
     def copy(self) -> "CaptionSettings":
@@ -133,10 +171,51 @@ class CaptionSettings:
         return CaptionSettings(
             font_size=self.font_size,
             font_family=self.font_family,
-            position=self.position,
-            vertical_offset=self.vertical_offset,
-            show_preview=self.show_preview
+            show_preview=self.show_preview,
+            pos_x=self.pos_x,
+            pos_y=self.pos_y,
+            box_width=self.box_width,
+            box_height=self.box_height
         )
+
+    def get_box_pixels(self, video_width: int, video_height: int) -> tuple[float, float, float, float]:
+        """Calculate the caption box rectangle in pixels.
+
+        Args:
+            video_width: Video width in pixels
+            video_height: Video height in pixels
+
+        Returns:
+            (x, y, width, height) pixel coordinates for the caption box
+        """
+        # Calculate box dimensions in pixels
+        width = self.box_width * video_width
+        height = self.box_height * video_height
+
+        # pos_x is center of caption, pos_y is bottom of caption
+        center_x = self.pos_x * video_width
+        bottom_y = self.pos_y * video_height
+
+        # Calculate top-left corner
+        x = center_x - width / 2
+        y = bottom_y - height
+
+        return x, y, width, height
+
+    def get_pixel_position(self, video_width: int, video_height: int, text_width: float, text_height: float) -> tuple[float, float]:
+        """Calculate pixel position for the caption box top-left corner.
+
+        Args:
+            video_width: Video width in pixels
+            video_height: Video height in pixels
+            text_width: Caption text width in pixels (ignored, uses box_width)
+            text_height: Caption text height in pixels (ignored, uses box_height)
+
+        Returns:
+            (x, y) pixel coordinates for the top-left corner of the caption box
+        """
+        x, y, _, _ = self.get_box_pixels(video_width, video_height)
+        return x, y
 
 
 @dataclass

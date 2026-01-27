@@ -25,16 +25,25 @@ def format_time(ms: int) -> str:
 
 
 class VideoView(QGraphicsView):
-    """Custom graphics view for video display with interactive crop selection and adjustment."""
+    """Custom graphics view for video display with interactive crop and caption adjustment."""
 
     # Signal emitted when crop rectangle changes during drag
     crop_rect_changed = Signal(float, float, float, float)  # x, y, width, height (in pixels)
     crop_drag_finished = Signal()
 
+    # Signal emitted when caption box changes during drag
+    caption_rect_changed = Signal(float, float, float, float)  # x, y, width, height (in pixels)
+    caption_drag_finished = Signal()
+
+    # Interaction modes
+    MODE_NONE = 0
+    MODE_CROP = 1
+    MODE_CAPTION = 2
+
     # Drag modes for different interactions
     DRAG_NONE = 0
     DRAG_NEW = 1        # Creating a new crop selection
-    DRAG_MOVE = 2       # Moving the entire crop region
+    DRAG_MOVE = 2       # Moving the entire region
     DRAG_EDGE_LEFT = 3
     DRAG_EDGE_RIGHT = 4
     DRAG_EDGE_TOP = 5
@@ -56,6 +65,9 @@ class VideoView(QGraphicsView):
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setMouseTracking(True)  # Enable mouse tracking for cursor updates
 
+        # Interaction mode
+        self._interaction_mode = self.MODE_NONE
+
         # Crop interaction state
         self._crop_mode = False
         self._drag_mode = self.DRAG_NONE
@@ -68,13 +80,36 @@ class VideoView(QGraphicsView):
         # Current crop rect (for adjustment operations)
         self._current_crop_rect: QRectF | None = None
 
+        # Caption interaction state
+        self._caption_mode = False
+        self._current_caption_rect: QRectF | None = None
+
     def set_crop_interaction(self, enabled: bool):
         """Enable or disable crop mouse interaction."""
         self._crop_mode = enabled
         if enabled:
+            self._interaction_mode = self.MODE_CROP
+            self._caption_mode = False
             self.setCursor(QCursor(Qt.CursorShape.CrossCursor))
         else:
-            self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+            if not self._caption_mode:
+                self._interaction_mode = self.MODE_NONE
+                self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+            self._drag_mode = self.DRAG_NONE
+            self._drag_start = None
+            self._drag_current = None
+
+    def set_caption_interaction(self, enabled: bool):
+        """Enable or disable caption mouse interaction."""
+        self._caption_mode = enabled
+        if enabled:
+            self._interaction_mode = self.MODE_CAPTION
+            self._crop_mode = False
+            self.setCursor(QCursor(Qt.CursorShape.SizeAllCursor))
+        else:
+            if not self._crop_mode:
+                self._interaction_mode = self.MODE_NONE
+                self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
             self._drag_mode = self.DRAG_NONE
             self._drag_start = None
             self._drag_current = None
@@ -92,6 +127,10 @@ class VideoView(QGraphicsView):
         """Set the current crop rectangle for adjustment operations."""
         self._current_crop_rect = rect
 
+    def set_current_caption_rect(self, rect: QRectF | None):
+        """Set the current caption rectangle for adjustment operations."""
+        self._current_caption_rect = rect
+
     def resizeEvent(self, event):
         """Fit the scene to the view when resized."""
         super().resizeEvent(event)
@@ -106,6 +145,57 @@ class VideoView(QGraphicsView):
         if scale > 0:
             return self.EDGE_THRESHOLD / scale
         return self.EDGE_THRESHOLD
+
+    def _hit_test_caption(self, pos: QPointF) -> int:
+        """Determine what part of the caption rect the position hits."""
+        if self._current_caption_rect is None or self._current_caption_rect.isEmpty():
+            return self.DRAG_NONE
+
+        rect = self._current_caption_rect
+        # Use a smaller threshold for captions (they're smaller than crop regions)
+        threshold = min(self._get_edge_threshold(), 10)
+
+        x, y = pos.x(), pos.y()
+        left, top = rect.left(), rect.top()
+        right, bottom = rect.right(), rect.bottom()
+
+        # First check if inside the rectangle at all
+        if not rect.contains(pos):
+            # Also check slightly outside for edge detection
+            if not (left - threshold < x < right + threshold and
+                    top - threshold < y < bottom + threshold):
+                return self.DRAG_NONE
+
+        on_left = abs(x - left) < threshold
+        on_right = abs(x - right) < threshold
+        on_top = abs(y - top) < threshold
+        on_bottom = abs(y - bottom) < threshold
+
+        # Check corners first (for resize)
+        if on_left and on_top:
+            return self.DRAG_CORNER_TL
+        if on_right and on_top:
+            return self.DRAG_CORNER_TR
+        if on_left and on_bottom:
+            return self.DRAG_CORNER_BL
+        if on_right and on_bottom:
+            return self.DRAG_CORNER_BR
+
+        # Check edges (all edges for full box resize)
+        if on_left:
+            return self.DRAG_EDGE_LEFT
+        if on_right:
+            return self.DRAG_EDGE_RIGHT
+        if on_top:
+            return self.DRAG_EDGE_TOP
+        if on_bottom:
+            return self.DRAG_EDGE_BOTTOM
+
+        # If inside the rectangle but not on an edge, it's a move
+        if rect.contains(pos):
+            return self.DRAG_MOVE
+
+        return self.DRAG_NONE
 
     def _hit_test(self, pos: QPointF) -> int:
         """Determine what part of the crop rect the position hits."""
@@ -171,34 +261,60 @@ class VideoView(QGraphicsView):
         self.setCursor(QCursor(cursors.get(mode, Qt.CursorShape.CrossCursor)))
 
     def mousePressEvent(self, event):
-        """Start crop selection or adjustment on mouse press."""
-        if self._crop_mode and event.button() == Qt.MouseButton.LeftButton:
+        """Start crop selection or caption adjustment on mouse press."""
+        if event.button() == Qt.MouseButton.LeftButton:
             scene_pos = self.mapToScene(event.pos())
             # Clamp to video bounds
             x = max(0, min(scene_pos.x(), self._video_width))
             y = max(0, min(scene_pos.y(), self._video_height))
 
-            self._drag_mode = self._hit_test(QPointF(x, y))
-            self._drag_start = QPointF(x, y)
-            self._drag_current = QPointF(x, y)
+            if self._caption_mode:
+                # Caption mode - only allow move/resize of existing caption
+                self._drag_mode = self._hit_test_caption(QPointF(x, y))
+                if self._drag_mode != self.DRAG_NONE:
+                    self._drag_start = QPointF(x, y)
+                    self._drag_current = QPointF(x, y)
+                    self._original_rect = QRectF(self._current_caption_rect) if self._current_caption_rect else None
+                    event.accept()
+                    return
+            elif self._crop_mode:
+                self._drag_mode = self._hit_test(QPointF(x, y))
+                self._drag_start = QPointF(x, y)
+                self._drag_current = QPointF(x, y)
 
-            # Store original rect for adjustment operations
-            if self._drag_mode != self.DRAG_NEW and self._current_crop_rect:
-                self._original_rect = QRectF(self._current_crop_rect)
-            else:
-                self._original_rect = None
+                # Store original rect for adjustment operations
+                if self._drag_mode != self.DRAG_NEW and self._current_crop_rect:
+                    self._original_rect = QRectF(self._current_crop_rect)
+                else:
+                    self._original_rect = None
 
-            event.accept()
-        else:
-            super().mousePressEvent(event)
+                event.accept()
+                return
+
+        super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        """Update crop selection/adjustment during drag or update cursor."""
+        """Update crop/caption adjustment during drag or update cursor."""
         scene_pos = self.mapToScene(event.pos())
         x = max(0, min(scene_pos.x(), self._video_width))
         y = max(0, min(scene_pos.y(), self._video_height))
 
-        if self._crop_mode and self._drag_start is not None:
+        if self._caption_mode and self._drag_start is not None:
+            self._drag_current = QPointF(x, y)
+            # Calculate caption rectangle based on drag mode
+            rect = self._calculate_caption_rect()
+            if rect:
+                self.caption_rect_changed.emit(rect[0], rect[1], rect[2], rect[3])
+            event.accept()
+        elif self._caption_mode:
+            # Update cursor based on hover position over caption
+            mode = self._hit_test_caption(QPointF(x, y))
+            if mode == self.DRAG_NONE:
+                self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+            else:
+                self._update_cursor_for_mode(mode)
+            super().mouseMoveEvent(event)
+        elif self._crop_mode and self._drag_start is not None:
             self._drag_current = QPointF(x, y)
 
             # Calculate rectangle based on drag mode
@@ -215,26 +331,41 @@ class VideoView(QGraphicsView):
             super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        """Finish crop selection/adjustment on mouse release."""
-        if self._crop_mode and event.button() == Qt.MouseButton.LeftButton and self._drag_start is not None:
+        """Finish crop/caption adjustment on mouse release."""
+        if event.button() == Qt.MouseButton.LeftButton and self._drag_start is not None:
             scene_pos = self.mapToScene(event.pos())
             x = max(0, min(scene_pos.x(), self._video_width))
             y = max(0, min(scene_pos.y(), self._video_height))
             self._drag_current = QPointF(x, y)
 
-            # Calculate final rectangle
-            rect = self._calculate_adjusted_rect()
-            if rect and rect[2] > 10 and rect[3] > 10:  # Minimum size threshold
-                self.crop_rect_changed.emit(rect[0], rect[1], rect[2], rect[3])
-                self.crop_drag_finished.emit()
+            if self._caption_mode:
+                # Calculate final caption rectangle
+                rect = self._calculate_caption_rect()
+                if rect and rect[2] > 10 and rect[3] > 10:
+                    self.caption_rect_changed.emit(rect[0], rect[1], rect[2], rect[3])
+                    self.caption_drag_finished.emit()
 
-            self._drag_mode = self.DRAG_NONE
-            self._drag_start = None
-            self._drag_current = None
-            self._original_rect = None
-            event.accept()
-        else:
-            super().mouseReleaseEvent(event)
+                self._drag_mode = self.DRAG_NONE
+                self._drag_start = None
+                self._drag_current = None
+                self._original_rect = None
+                event.accept()
+                return
+            elif self._crop_mode:
+                # Calculate final rectangle
+                rect = self._calculate_adjusted_rect()
+                if rect and rect[2] > 10 and rect[3] > 10:  # Minimum size threshold
+                    self.crop_rect_changed.emit(rect[0], rect[1], rect[2], rect[3])
+                    self.crop_drag_finished.emit()
+
+                self._drag_mode = self.DRAG_NONE
+                self._drag_start = None
+                self._drag_current = None
+                self._original_rect = None
+                event.accept()
+                return
+
+        super().mouseReleaseEvent(event)
 
     def _calculate_adjusted_rect(self) -> tuple[float, float, float, float] | None:
         """Calculate crop rectangle based on current drag mode."""
@@ -360,6 +491,71 @@ class VideoView(QGraphicsView):
 
         return (left, top, width, height)
 
+    def _calculate_caption_rect(self) -> tuple[float, float, float, float] | None:
+        """Calculate caption rectangle based on current drag mode (move or resize)."""
+        if self._drag_start is None or self._drag_current is None or self._original_rect is None:
+            return None
+
+        if self._drag_mode == self.DRAG_MOVE:
+            return self._calculate_caption_move_rect()
+        else:
+            return self._calculate_caption_resize_rect()
+
+    def _calculate_caption_move_rect(self) -> tuple[float, float, float, float] | None:
+        """Calculate caption rectangle for move operation."""
+        if self._original_rect is None:
+            return None
+
+        dx = self._drag_current.x() - self._drag_start.x()
+        dy = self._drag_current.y() - self._drag_start.y()
+
+        new_left = self._original_rect.left() + dx
+        new_top = self._original_rect.top() + dy
+        width = self._original_rect.width()
+        height = self._original_rect.height()
+
+        # Clamp to video bounds
+        new_left = max(0, min(new_left, self._video_width - width))
+        new_top = max(0, min(new_top, self._video_height - height))
+
+        return (new_left, new_top, width, height)
+
+    def _calculate_caption_resize_rect(self) -> tuple[float, float, float, float] | None:
+        """Calculate caption rectangle for resize operation (all edges and corners)."""
+        if self._original_rect is None:
+            return None
+
+        orig = self._original_rect
+        dx = self._drag_current.x() - self._drag_start.x()
+        dy = self._drag_current.y() - self._drag_start.y()
+
+        left, top = orig.left(), orig.top()
+        right, bottom = orig.right(), orig.bottom()
+
+        # Allow resizing from all edges and corners
+        if self._drag_mode in (self.DRAG_EDGE_LEFT, self.DRAG_CORNER_TL, self.DRAG_CORNER_BL):
+            left = min(orig.left() + dx, right - 100)  # Min width 100 for captions
+        if self._drag_mode in (self.DRAG_EDGE_RIGHT, self.DRAG_CORNER_TR, self.DRAG_CORNER_BR):
+            right = max(orig.right() + dx, left + 100)
+        if self._drag_mode in (self.DRAG_EDGE_TOP, self.DRAG_CORNER_TL, self.DRAG_CORNER_TR):
+            top = min(orig.top() + dy, bottom - 40)  # Min height 40 for captions
+        if self._drag_mode in (self.DRAG_EDGE_BOTTOM, self.DRAG_CORNER_BL, self.DRAG_CORNER_BR):
+            bottom = max(orig.bottom() + dy, top + 40)
+
+        # Clamp to video bounds
+        left = max(0, left)
+        top = max(0, top)
+        right = min(self._video_width, right)
+        bottom = min(self._video_height, bottom)
+
+        width = right - left
+        height = bottom - top
+
+        if width < 100 or height < 40:
+            return None
+
+        return (left, top, width, height)
+
 
 class VideoPlayer(QWidget):
     """
@@ -377,6 +573,7 @@ class VideoPlayer(QWidget):
     position_changed = Signal(int)
     duration_changed = Signal(int)
     crop_changed = Signal(object)  # CropConfig
+    caption_settings_changed = Signal(object)  # CaptionSettings - emitted when user drags caption
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -398,6 +595,7 @@ class VideoPlayer(QWidget):
         self._caption_tokens: list[Token] = []
         self._caption_chunks: list[list[Token]] = []
         self._caption_visible = True
+        self._caption_mode = False
 
         self._setup_ui()
         self._setup_media_player()
@@ -541,6 +739,10 @@ class VideoPlayer(QWidget):
         self._view.crop_rect_changed.connect(self._on_crop_rect_changed)
         self._view.crop_drag_finished.connect(self._on_crop_drag_finished)
 
+        # Caption interaction signals from view
+        self._view.caption_rect_changed.connect(self._on_caption_rect_changed)
+        self._view.caption_drag_finished.connect(self._on_caption_drag_finished)
+
     @Slot(QSizeF)
     def _on_native_size_changed(self, size: QSizeF):
         """Handle video size change when video loads."""
@@ -667,16 +869,20 @@ class VideoPlayer(QWidget):
         # Enable/disable mouse interaction on the view
         self._view.set_crop_interaction(enabled)
 
-        # Show/hide crop overlay
-        for overlay in [self._crop_overlay_top, self._crop_overlay_bottom,
-                        self._crop_overlay_left, self._crop_overlay_right]:
-            overlay.setVisible(enabled)
-        self._crop_border.setVisible(enabled)
-
         if enabled:
+            # In crop mode: show semi-transparent overlays for editing
+            overlay_brush = QBrush(QColor(0, 0, 0, 160))
+            for overlay in [self._crop_overlay_top, self._crop_overlay_bottom,
+                            self._crop_overlay_left, self._crop_overlay_right]:
+                overlay.setBrush(overlay_brush)
+                overlay.setVisible(True)
+            self._crop_border.setVisible(True)
+            # Show full video for editing
+            self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
             self._update_crop_overlay()
         else:
-            # When exiting crop mode, zoom to show only cropped region
+            # When exiting crop mode: hide border, apply opaque mask for preview
+            self._crop_border.setVisible(False)
             self._apply_crop_view()
 
     def is_crop_mode(self) -> bool:
@@ -697,15 +903,40 @@ class VideoPlayer(QWidget):
         return self._crop_config
 
     def _apply_crop_view(self):
-        """Apply crop by zooming the view to show only the cropped region."""
+        """Apply crop by masking out areas outside the crop region."""
         if self._crop_config.is_default:
-            # Show full video
+            # Show full video - hide all mask overlays
+            for overlay in [self._crop_overlay_top, self._crop_overlay_bottom,
+                            self._crop_overlay_left, self._crop_overlay_right]:
+                overlay.setVisible(False)
             self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
         else:
-            # Zoom to crop region
+            # Show crop preview with fully opaque black mask hiding non-cropped areas
             crop_x, crop_y, crop_w, crop_h = self._crop_config.get_crop_rect(
                 self._video_width, self._video_height
             )
+
+            # Use fully opaque black to completely hide non-cropped areas
+            mask_brush = QBrush(QColor(0, 0, 0, 255))
+
+            # Update overlay rectangles to mask out areas outside crop
+            self._crop_overlay_top.setBrush(mask_brush)
+            self._crop_overlay_top.setRect(0, 0, self._video_width, crop_y)
+            self._crop_overlay_top.setVisible(True)
+
+            self._crop_overlay_bottom.setBrush(mask_brush)
+            self._crop_overlay_bottom.setRect(0, crop_y + crop_h, self._video_width, self._video_height - crop_y - crop_h)
+            self._crop_overlay_bottom.setVisible(True)
+
+            self._crop_overlay_left.setBrush(mask_brush)
+            self._crop_overlay_left.setRect(0, crop_y, crop_x, crop_h)
+            self._crop_overlay_left.setVisible(True)
+
+            self._crop_overlay_right.setBrush(mask_brush)
+            self._crop_overlay_right.setRect(crop_x + crop_w, crop_y, self._video_width - crop_x - crop_w, crop_h)
+            self._crop_overlay_right.setVisible(True)
+
+            # Zoom to crop region
             crop_rect = QRectF(crop_x, crop_y, crop_w, crop_h)
             self._view.fitInView(crop_rect, Qt.AspectRatioMode.KeepAspectRatio)
 
@@ -953,6 +1184,7 @@ class VideoPlayer(QWidget):
         if not self._caption_chunks or not self._caption_visible:
             self._caption_text.setVisible(False)
             self._caption_bg.setVisible(False)
+            self._view.set_current_caption_rect(None)
             return
 
         # Find the current chunk and word index
@@ -961,43 +1193,99 @@ class VideoPlayer(QWidget):
         if not current_text:
             self._caption_text.setVisible(False)
             self._caption_bg.setVisible(False)
+            self._view.set_current_caption_rect(None)
             return
 
-        # Update text
+        # Get the fixed box dimensions from settings
+        box_x, box_y, box_w, box_h = self._caption_settings.get_box_pixels(
+            self._video_width, self._video_height
+        )
+
+        # Clamp to video bounds
+        box_x = max(0, min(box_x, self._video_width - box_w))
+        box_y = max(0, min(box_y, self._video_height - box_h))
+
+        # Set up text with word wrapping within the fixed box
+        padding = 10
+        text_width = box_w - padding * 2
+
+        # Set the text width for word wrapping
+        self._caption_text.setTextWidth(text_width)
         self._caption_text.setPlainText(current_text)
         self._caption_text.setVisible(True)
 
-        # Calculate position
-        text_rect = self._caption_text.boundingRect()
-        text_width = text_rect.width()
-        text_height = text_rect.height()
+        # Position text inside the box with padding
+        self._caption_text.setPos(box_x + padding, box_y + padding / 2)
 
-        # Center horizontally
-        x = (self._video_width - text_width) / 2
-
-        # Vertical position based on setting
-        offset = self._caption_settings.vertical_offset
-        position = self._caption_settings.position
-
-        if position == "top":
-            y = offset
-        elif position == "center":
-            y = (self._video_height - text_height) / 2
-        else:  # bottom
-            y = self._video_height - offset - text_height
-
-        self._caption_text.setPos(x, y)
-
-        # Update background
-        padding = 10
-        bg_rect = QRectF(
-            x - padding,
-            y - padding / 2,
-            text_width + padding * 2,
-            text_height + padding
-        )
+        # Update background to fixed size
+        bg_rect = QRectF(box_x, box_y, box_w, box_h)
         self._caption_bg.setRect(bg_rect)
         self._caption_bg.setVisible(True)
+
+        # Sync caption rect to view for drag interaction
+        self._view.set_current_caption_rect(bg_rect)
+
+    def set_caption_mode(self, enabled: bool) -> None:
+        """Enable or disable caption editing mode (drag to move/resize)."""
+        self._caption_mode = enabled
+        self._view.set_caption_interaction(enabled)
+
+        if enabled:
+            # Make sure caption is visible for editing
+            if self._caption_tokens and not self._caption_visible:
+                self._caption_visible = True
+                self.update_caption(self._player.position() / 1000.0)
+            # Show a blue border around caption to indicate it's draggable
+            self._caption_bg.setPen(QPen(QColor(33, 150, 243), 2))  # Blue border
+        else:
+            # Remove border when not in caption mode
+            self._caption_bg.setPen(QPen(Qt.PenStyle.NoPen))
+
+    def is_caption_mode(self) -> bool:
+        """Check if caption mode is active."""
+        return self._caption_mode
+
+    @Slot(float, float, float, float)
+    def _on_caption_rect_changed(self, x: float, y: float, width: float, height: float):
+        """Handle caption rectangle changes from mouse drag (live preview)."""
+        # Update the caption background and text position directly for smooth preview
+        padding = 10
+        text_x = x + padding
+        text_y = y + padding / 2
+
+        # Update text width for word wrapping when box is resized
+        text_width = width - padding * 2
+        self._caption_text.setTextWidth(text_width)
+        self._caption_text.setPos(text_x, text_y)
+        self._caption_bg.setRect(QRectF(x, y, width, height))
+
+        # Update the view's current caption rect for subsequent adjustments
+        self._view.set_current_caption_rect(QRectF(x, y, width, height))
+
+    @Slot()
+    def _on_caption_drag_finished(self):
+        """Handle caption drag completion - convert to CaptionSettings."""
+        # Get the current caption background rect and convert to normalized settings
+        rect = self._caption_bg.rect()
+        if rect.width() > 10 and rect.height() > 10:
+            # Calculate center_x (center of box) and bottom_y (bottom of box)
+            center_x = rect.x() + rect.width() / 2
+            bottom_y = rect.y() + rect.height()
+
+            # Convert to normalized coordinates
+            pos_x = center_x / self._video_width
+            pos_y = bottom_y / self._video_height
+            box_width = rect.width() / self._video_width
+            box_height = rect.height() / self._video_height
+
+            # Update settings
+            self._caption_settings.pos_x = max(0.0, min(1.0, pos_x))
+            self._caption_settings.pos_y = max(0.0, min(1.0, pos_y))
+            self._caption_settings.box_width = max(0.1, min(1.0, box_width))
+            self._caption_settings.box_height = max(0.03, min(0.3, box_height))
+
+            # Emit signal so main window can update the settings panel and session
+            self.caption_settings_changed.emit(self._caption_settings)
 
     def _get_caption_text_at_time(self, time_seconds: float) -> str:
         """Get the caption text to display at the given time."""
