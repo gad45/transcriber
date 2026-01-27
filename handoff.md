@@ -402,4 +402,101 @@ python -m video_editor test/test.mp4 -o output.mp4 --streaming-captions --skip-q
 
 # QC report only (no auto-corrections)
 python -m video_editor test/test.mp4 -o output.mp4 --streaming-captions --qc-report-only
+
+# Launch GUI
+python -m video_editor.gui_main test/test.mp4
+```
+
+---
+
+### 8. Graphical User Interface (GUI)
+
+**Feature:** Added PySide6-based GUI for interactive editing.
+
+**Location:** `video_editor/gui/` (new package)
+
+**Purpose:**
+- Edit transcript text manually (for words AI misrecognizes)
+- See before/after of video edit on a visual timeline
+- Re-enable cut segments that were incorrectly removed
+
+**Key Components:**
+
+```
+video_editor/gui/
+├── __init__.py           # Package exports
+├── main_window.py        # Main application window
+├── video_player.py       # Video playback with QMediaPlayer
+├── timeline.py           # Visual timeline with segment blocks
+├── transcript_editor.py  # Editable text for each segment
+├── segment_item.py       # Timeline segment graphics items
+└── models.py             # EditSession data model with save/load
+```
+
+**Features:**
+- **Video Player**: Play, pause, seek with keyboard shortcuts (Space, Left/Right arrows)
+- **Timeline**: Color-coded segments (green=keep, red=cut), click to seek, right-click to toggle
+- **Transcript Editor**: Editable text per segment, checkbox to toggle keep/cut
+- **Project Files**: Save/load editing sessions as `.vedproj` JSON files
+- **Keyboard Shortcuts**:
+  - Space: Play/Pause
+  - Left/Right: Jump ±5 seconds
+  - Up/Down: Previous/Next segment
+  - K: Toggle current segment keep/cut
+  - Ctrl+S: Save project
+
+**GUI Entry Points:**
+```bash
+# Module invocation
+python -m video_editor.gui_main test/test.mp4
+
+# After pip install
+video-editor-gui test/test.mp4
+```
+
+**Workflow:**
+1. Load video → Click "Analyze Video" to run transcription + analysis
+2. Review segments in timeline and transcript editor
+3. Toggle keep/cut for segments that were incorrectly classified
+4. Edit transcript text for misrecognized words
+5. Save project (Ctrl+S) to resume later
+6. Export final video
+
+---
+
+## Files Added (January 27, 2026 - GUI)
+
+1. **`video_editor/gui/__init__.py`** - Package exports
+2. **`video_editor/gui/main_window.py`** - Main application window with menu, toolbar, layout
+3. **`video_editor/gui/video_player.py`** - QMediaPlayer-based video playback widget
+4. **`video_editor/gui/timeline.py`** - QGraphicsView-based timeline with zoom
+5. **`video_editor/gui/transcript_editor.py`** - Scrollable list of editable segments
+6. **`video_editor/gui/segment_item.py`** - QGraphicsRectItem for timeline segments
+7. **`video_editor/gui/models.py`** - EditSession class with save/load JSON
+8. **`video_editor/gui_main.py`** - GUI entry point
+
+## Dependencies Added
+- `PySide6>=6.6.0` - Qt6 bindings for Python GUI
+
+---
+
+## Architecture Overview (Updated)
+
+```
+video_editor/
+├── main.py          # CLI entry point
+├── gui_main.py      # GUI entry point (NEW)
+├── gui/             # GUI package (NEW)
+│   ├── main_window.py
+│   ├── video_player.py
+│   ├── timeline.py
+│   ├── transcript_editor.py
+│   ├── segment_item.py
+│   └── models.py
+├── config.py        # Configuration and caption styles
+├── transcriber.py   # Soniox API integration, audio extraction
+├── analyzer.py      # Retake detection, silence detection, LLM take selection
+├── cutter.py        # FFmpeg video cutting and concatenation
+├── captioner.py     # SRT generation, caption burning (drawtext/ASS)
+└── qc.py            # Transcription quality control
 ```
