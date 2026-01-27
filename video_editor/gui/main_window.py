@@ -603,7 +603,7 @@ class MainWindow(QMainWindow):
         self._crop_btn.setChecked(is_crop_mode)
 
         if is_crop_mode:
-            self._status_label.setText("Crop mode: Use Shift+Arrows to pan, dropdown for aspect ratio")
+            self._status_label.setText("Crop mode: Click and drag to select crop region, Shift+Arrows to pan")
         else:
             crop = self._video_player.get_crop_config()
             if crop.is_default:
@@ -626,8 +626,12 @@ class MainWindow(QMainWindow):
         }
 
         ratio = aspect_ratios.get(index)
+
+        # Always update the video player's aspect ratio for mouse selection
+        self._video_player.set_aspect_ratio(ratio)
+
         if ratio is None:
-            return  # Free aspect ratio, don't change anything
+            return  # Free aspect ratio, don't change crop automatically
 
         video_w, video_h = self._video_player.get_video_dimensions()
         target_ratio = ratio[0] / ratio[1]

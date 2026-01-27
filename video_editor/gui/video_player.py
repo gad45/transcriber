@@ -2,14 +2,14 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal, Slot, QUrl, QRectF, QSizeF
+from PySide6.QtCore import Qt, Signal, Slot, QUrl, QRectF, QSizeF, QPointF
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSlider, QLabel,
     QStyle, QSizePolicy, QGraphicsScene, QGraphicsView, QGraphicsRectItem
 )
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
-from PySide6.QtGui import QBrush, QColor, QPen, QPainter
+from PySide6.QtGui import QBrush, QColor, QPen, QPainter, QCursor
 
 from .models import CropConfig
 
@@ -23,7 +23,11 @@ def format_time(ms: int) -> str:
 
 
 class VideoView(QGraphicsView):
-    """Custom graphics view for video display with crop overlay support."""
+    """Custom graphics view for video display with interactive crop selection."""
+
+    # Signal emitted when crop rectangle changes during drag
+    crop_rect_changed = Signal(float, float, float, float)  # x, y, width, height (in pixels)
+    crop_drag_finished = Signal()
 
     def __init__(self, scene: QGraphicsScene, parent=None):
         super().__init__(scene, parent)
@@ -33,11 +37,134 @@ class VideoView(QGraphicsView):
         self.setBackgroundBrush(QBrush(QColor(0, 0, 0)))
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
 
+        # Crop interaction state
+        self._crop_mode = False
+        self._drag_start: QPointF | None = None
+        self._drag_current: QPointF | None = None
+        self._aspect_ratio: tuple[int, int] | None = None  # e.g., (16, 9) or None for free
+        self._video_width = 1920
+        self._video_height = 1080
+
+    def set_crop_interaction(self, enabled: bool):
+        """Enable or disable crop mouse interaction."""
+        self._crop_mode = enabled
+        if enabled:
+            self.setCursor(QCursor(Qt.CursorShape.CrossCursor))
+        else:
+            self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+            self._drag_start = None
+            self._drag_current = None
+
+    def set_aspect_ratio(self, ratio: tuple[int, int] | None):
+        """Set the aspect ratio constraint for crop selection."""
+        self._aspect_ratio = ratio
+
+    def set_video_dimensions(self, width: int, height: int):
+        """Set video dimensions for coordinate calculations."""
+        self._video_width = width
+        self._video_height = height
+
     def resizeEvent(self, event):
         """Fit the scene to the view when resized."""
         super().resizeEvent(event)
         if self.scene():
             self.fitInView(self.scene().sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+
+    def mousePressEvent(self, event):
+        """Start crop selection on mouse press."""
+        if self._crop_mode and event.button() == Qt.MouseButton.LeftButton:
+            scene_pos = self.mapToScene(event.pos())
+            # Clamp to video bounds
+            x = max(0, min(scene_pos.x(), self._video_width))
+            y = max(0, min(scene_pos.y(), self._video_height))
+            self._drag_start = QPointF(x, y)
+            self._drag_current = QPointF(x, y)
+            event.accept()
+        else:
+            super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        """Update crop selection during drag."""
+        if self._crop_mode and self._drag_start is not None:
+            scene_pos = self.mapToScene(event.pos())
+            # Clamp to video bounds
+            x = max(0, min(scene_pos.x(), self._video_width))
+            y = max(0, min(scene_pos.y(), self._video_height))
+            self._drag_current = QPointF(x, y)
+
+            # Calculate rectangle
+            rect = self._calculate_crop_rect()
+            if rect:
+                self.crop_rect_changed.emit(rect[0], rect[1], rect[2], rect[3])
+            event.accept()
+        else:
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        """Finish crop selection on mouse release."""
+        if self._crop_mode and event.button() == Qt.MouseButton.LeftButton and self._drag_start is not None:
+            scene_pos = self.mapToScene(event.pos())
+            x = max(0, min(scene_pos.x(), self._video_width))
+            y = max(0, min(scene_pos.y(), self._video_height))
+            self._drag_current = QPointF(x, y)
+
+            # Calculate final rectangle
+            rect = self._calculate_crop_rect()
+            if rect and rect[2] > 10 and rect[3] > 10:  # Minimum size threshold
+                self.crop_rect_changed.emit(rect[0], rect[1], rect[2], rect[3])
+                self.crop_drag_finished.emit()
+
+            self._drag_start = None
+            self._drag_current = None
+            event.accept()
+        else:
+            super().mouseReleaseEvent(event)
+
+    def _calculate_crop_rect(self) -> tuple[float, float, float, float] | None:
+        """Calculate crop rectangle from drag points, applying aspect ratio constraint."""
+        if self._drag_start is None or self._drag_current is None:
+            return None
+
+        x1, y1 = self._drag_start.x(), self._drag_start.y()
+        x2, y2 = self._drag_current.x(), self._drag_current.y()
+
+        # Get raw dimensions
+        raw_width = abs(x2 - x1)
+        raw_height = abs(y2 - y1)
+
+        if raw_width < 1 or raw_height < 1:
+            return None
+
+        # Apply aspect ratio constraint if set
+        if self._aspect_ratio:
+            target_ratio = self._aspect_ratio[0] / self._aspect_ratio[1]
+            current_ratio = raw_width / raw_height
+
+            if current_ratio > target_ratio:
+                # Too wide, constrain width
+                raw_width = raw_height * target_ratio
+            else:
+                # Too tall, constrain height
+                raw_height = raw_width / target_ratio
+
+        # Calculate top-left corner
+        if x2 >= x1:
+            left = x1
+        else:
+            left = x1 - raw_width
+
+        if y2 >= y1:
+            top = y1
+        else:
+            top = y1 - raw_height
+
+        # Clamp to video bounds
+        left = max(0, min(left, self._video_width - raw_width))
+        top = max(0, min(top, self._video_height - raw_height))
+        raw_width = min(raw_width, self._video_width - left)
+        raw_height = min(raw_height, self._video_height - top)
+
+        return (left, top, raw_width, raw_height)
 
 
 class VideoPlayer(QWidget):
@@ -196,6 +323,10 @@ class VideoPlayer(QWidget):
         self._player.durationChanged.connect(self._on_duration_changed)
         self._player.playbackStateChanged.connect(self._on_playback_state_changed)
 
+        # Crop interaction signals from view
+        self._view.crop_rect_changed.connect(self._on_crop_rect_changed)
+        self._view.crop_drag_finished.connect(self._on_crop_drag_finished)
+
     @Slot(QSizeF)
     def _on_native_size_changed(self, size: QSizeF):
         """Handle video size change when video loads."""
@@ -208,6 +339,9 @@ class VideoPlayer(QWidget):
 
             # Update scene rect to match video
             self._scene.setSceneRect(0, 0, size.width(), size.height())
+
+            # Update view's video dimensions for crop interaction
+            self._view.set_video_dimensions(self._video_width, self._video_height)
 
             # Fit view to scene
             self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
@@ -313,6 +447,9 @@ class VideoPlayer(QWidget):
         """Enable or disable crop editing mode."""
         self._crop_mode = enabled
 
+        # Enable/disable mouse interaction on the view
+        self._view.set_crop_interaction(enabled)
+
         # Show/hide crop overlay
         for overlay in [self._crop_overlay_top, self._crop_overlay_bottom,
                         self._crop_overlay_left, self._crop_overlay_right]:
@@ -393,6 +530,83 @@ class VideoPlayer(QWidget):
             self._update_crop_overlay()
         self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
         self.crop_changed.emit(self._crop_config)
+
+    def set_aspect_ratio(self, ratio: tuple[int, int] | None) -> None:
+        """Set the aspect ratio constraint for crop selection.
+
+        Args:
+            ratio: Tuple of (width, height) e.g., (16, 9) or None for free aspect
+        """
+        self._view.set_aspect_ratio(ratio)
+
+    def set_crop_from_rect(self, x: float, y: float, width: float, height: float) -> None:
+        """Set crop configuration from pixel coordinates.
+
+        Args:
+            x: Left edge in pixels
+            y: Top edge in pixels
+            width: Width in pixels
+            height: Height in pixels
+        """
+        # Convert pixel coordinates to normalized CropConfig
+        norm_width = width / self._video_width
+        norm_height = height / self._video_height
+
+        # Calculate pan based on center position
+        # Center of crop in pixels
+        center_x = x + width / 2
+        center_y = y + height / 2
+
+        # Center of video
+        video_center_x = self._video_width / 2
+        video_center_y = self._video_height / 2
+
+        # Available pan range (how far center can move from video center)
+        max_pan_x = (self._video_width - width) / 2
+        max_pan_y = (self._video_height - height) / 2
+
+        # Calculate normalized pan (-1 to 1)
+        if max_pan_x > 0:
+            pan_x = (center_x - video_center_x) / max_pan_x
+        else:
+            pan_x = 0.0
+
+        if max_pan_y > 0:
+            pan_y = (center_y - video_center_y) / max_pan_y
+        else:
+            pan_y = 0.0
+
+        # Clamp values
+        pan_x = max(-1.0, min(1.0, pan_x))
+        pan_y = max(-1.0, min(1.0, pan_y))
+
+        self._crop_config = CropConfig(
+            width=norm_width,
+            height=norm_height,
+            pan_x=pan_x,
+            pan_y=pan_y
+        )
+
+        self._update_crop_overlay()
+        self.crop_changed.emit(self._crop_config)
+
+    @Slot(float, float, float, float)
+    def _on_crop_rect_changed(self, x: float, y: float, width: float, height: float):
+        """Handle crop rectangle changes from mouse drag (live preview)."""
+        # Update overlay directly from pixel coordinates for smooth preview
+        self._crop_overlay_top.setRect(0, 0, self._video_width, y)
+        self._crop_overlay_bottom.setRect(0, y + height, self._video_width, self._video_height - y - height)
+        self._crop_overlay_left.setRect(0, y, x, height)
+        self._crop_overlay_right.setRect(x + width, y, self._video_width - x - width, height)
+        self._crop_border.setRect(x, y, width, height)
+
+    @Slot()
+    def _on_crop_drag_finished(self):
+        """Handle crop drag completion - convert to CropConfig."""
+        # Get the current crop border rect and convert to CropConfig
+        rect = self._crop_border.rect()
+        if rect.width() > 10 and rect.height() > 10:
+            self.set_crop_from_rect(rect.x(), rect.y(), rect.width(), rect.height())
 
     # Private slots
 
