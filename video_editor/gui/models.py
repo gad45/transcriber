@@ -119,6 +119,11 @@ class CaptionSettings:
     box_width: float = 0.6
     box_height: float = 0.07
 
+    # Styling options
+    show_background: bool = True  # Show semi-transparent background behind text
+    text_color: str = "white"  # Text color: "white" or "black"
+    font_weight: str = "bold"  # Font weight: "regular", "medium", "semi-bold", "bold", "extra-bold"
+
     def to_dict(self) -> dict:
         """Serialize for JSON storage."""
         return {
@@ -128,7 +133,10 @@ class CaptionSettings:
             "pos_x": self.pos_x,
             "pos_y": self.pos_y,
             "box_width": self.box_width,
-            "box_height": self.box_height
+            "box_height": self.box_height,
+            "show_background": self.show_background,
+            "text_color": self.text_color,
+            "font_weight": self.font_weight
         }
 
     @classmethod
@@ -163,7 +171,10 @@ class CaptionSettings:
             pos_x=data.get("pos_x", 0.5),
             pos_y=data.get("pos_y", 0.92),
             box_width=data.get("box_width", 0.6),
-            box_height=data.get("box_height", 0.07)
+            box_height=data.get("box_height", 0.07),
+            show_background=data.get("show_background", True),
+            text_color=data.get("text_color", "white"),
+            font_weight=data.get("font_weight", "bold")
         )
 
     def copy(self) -> "CaptionSettings":
@@ -175,7 +186,10 @@ class CaptionSettings:
             pos_x=self.pos_x,
             pos_y=self.pos_y,
             box_width=self.box_width,
-            box_height=self.box_height
+            box_height=self.box_height,
+            show_background=self.show_background,
+            text_color=self.text_color,
+            font_weight=self.font_weight
         )
 
     def get_box_pixels(self, video_width: int, video_height: int) -> tuple[float, float, float, float]:

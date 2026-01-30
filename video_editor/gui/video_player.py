@@ -1176,8 +1176,24 @@ class VideoPlayer(QWidget):
     def _update_caption_style(self) -> None:
         """Update caption font and styling based on settings."""
         font = QFont(self._caption_settings.font_family, self._caption_settings.font_size)
-        font.setBold(True)
+
+        # Apply font weight
+        weight_map = {
+            "regular": QFont.Weight.Normal,
+            "medium": QFont.Weight.Medium,
+            "semi-bold": QFont.Weight.DemiBold,
+            "bold": QFont.Weight.Bold,
+            "extra-bold": QFont.Weight.ExtraBold,
+        }
+        weight = weight_map.get(self._caption_settings.font_weight, QFont.Weight.Bold)
+        font.setWeight(weight)
         self._caption_text.setFont(font)
+
+        # Apply text color
+        if self._caption_settings.text_color == "black":
+            self._caption_text.setDefaultTextColor(QColor(0, 0, 0))
+        else:
+            self._caption_text.setDefaultTextColor(QColor(255, 255, 255))
 
     def update_caption(self, time_seconds: float) -> None:
         """Update caption display based on current playback time."""
@@ -1220,7 +1236,7 @@ class VideoPlayer(QWidget):
         # Update background to fixed size
         bg_rect = QRectF(box_x, box_y, box_w, box_h)
         self._caption_bg.setRect(bg_rect)
-        self._caption_bg.setVisible(True)
+        self._caption_bg.setVisible(self._caption_settings.show_background)
 
         # Sync caption rect to view for drag interaction
         self._view.set_current_caption_rect(bg_rect)

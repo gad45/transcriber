@@ -79,7 +79,7 @@ class MainWindow(QMainWindow):
         # Caption settings panel (collapsible)
         self._caption_settings_panel = CaptionSettingsPanel()
         self._caption_settings_panel.setVisible(False)
-        self._caption_settings_panel.setMaximumHeight(180)
+        self._caption_settings_panel.setMaximumHeight(320)
         main_layout.addWidget(self._caption_settings_panel)
 
         # Main content splitter (video + transcript)
@@ -331,6 +331,7 @@ class MainWindow(QMainWindow):
         self._captions_btn.clicked.connect(self._on_captions_btn_clicked)
         self._caption_settings_panel.settings_changed.connect(self._on_caption_settings_changed)
         self._caption_settings_panel.move_caption_requested.connect(self._on_caption_move_requested)
+        self._caption_settings_panel.regenerate_requested.connect(self._on_regenerate_captions)
         self._video_player.caption_settings_changed.connect(self._on_caption_position_changed)
 
     def _apply_dark_theme(self):
@@ -797,6 +798,20 @@ class MainWindow(QMainWindow):
             self._session.caption_settings = settings
             self._unsaved_changes = True
 
+    @Slot()
+    def _on_regenerate_captions(self):
+        """Regenerate caption preview from edited transcript text."""
+        if not self._session:
+            return
+
+        # Get tokens with text edits applied
+        tokens = self._session.get_final_tokens()
+        if tokens:
+            self._video_player.set_caption_tokens(tokens)
+            # Force update at current position
+            pos = self._video_player.position_seconds()
+            self._video_player.update_caption(pos)
+
     def _toggle_selected_segment(self):
         """Toggle keep/cut for the currently selected segment."""
         if self._transcript_editor._selected_index >= 0:
@@ -1005,12 +1020,16 @@ class MainWindow(QMainWindow):
                 from ..main import _adjust_tokens_for_cuts
                 adjusted_tokens = _adjust_tokens_for_cuts(tokens, keep_ranges, Cutter.SEGMENT_GAP)
 
-                # Burn streaming captions
+                # Get caption settings from session
+                caption_settings_dict = self._session.caption_settings.to_dict()
+
+                # Burn streaming captions with GUI settings
                 captioner.burn_streaming_captions(
                     temp_cut,
                     adjusted_tokens,
                     Path(path),
-                    max_words=self._config.max_caption_words
+                    max_words=self._config.max_caption_words,
+                    caption_settings=caption_settings_dict
                 )
 
                 # Clean up temp file

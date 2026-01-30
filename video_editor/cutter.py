@@ -127,7 +127,7 @@ class Cutter:
 
             cmd1.extend([
                 "-c:v", "libx264",
-                "-preset", "fast",
+                "-preset", "medium",
                 "-crf", "18",
                 "-c:a", "aac",
                 "-b:a", "192k",
@@ -149,7 +149,7 @@ class Cutter:
                 "-vf", f"tpad=stop_mode=clone:stop_duration={self.SEGMENT_GAP}",
                 "-af", f"apad=pad_dur={self.SEGMENT_GAP + 0.5}",
                 "-c:v", "libx264",
-                "-preset", "fast",
+                "-preset", "medium",
                 "-crf", "18",
                 "-c:a", "aac",
                 "-b:a", "192k",
@@ -182,7 +182,7 @@ class Cutter:
 
             cmd.extend([
                 "-c:v", "libx264",
-                "-preset", "fast",
+                "-preset", "medium",
                 "-crf", "18",
                 "-c:a", "aac",
                 "-b:a", "192k",
@@ -248,7 +248,7 @@ class Cutter:
             "-f", "lavfi",
             "-i", f"anullsrc=r=48000:cl=stereo:d={duration}",
             "-c:v", "libx264",
-            "-preset", "fast",
+            "-preset", "medium",
             "-c:a", "aac",
             "-shortest",
             str(output_path)

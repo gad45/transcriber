@@ -224,6 +224,16 @@ class Captioner:
         text = text.replace("%", "\\%")
         return text
 
+    def _ensure_punctuation_spacing(self, text: str) -> str:
+        """Ensure there's a space after sentence-ending punctuation.
+
+        Fixes cases where tokens are concatenated without proper spacing,
+        e.g., "Hello.World" becomes "Hello. World".
+        """
+        # Add space after . ! ? if followed directly by a letter (handles Latin + accented chars)
+        text = re.sub(r'([.!?])([A-Za-zÀ-ÿ])', r'\1 \2', text)
+        return text
+
     def _split_into_lines(self, text: str, words_per_line: int = 8) -> list[str]:
         """
         Split text into multiple lines for better readability.
@@ -246,7 +256,7 @@ class Captioner:
             return [line1, line2]
         return [line1]
 
-    def _build_drawtext_filter(self, tokens: list[Token], max_words: int = 15) -> str:
+    def _build_drawtext_filter(self, tokens: list[Token], max_words: int = 15, caption_settings: dict = None) -> str:
         """
         Build FFmpeg drawtext filter chain for streaming captions.
 
@@ -258,6 +268,7 @@ class Captioner:
         Args:
             tokens: List of word-level tokens with timing
             max_words: Maximum words per display chunk (default: 15)
+            caption_settings: Optional dict with GUI caption settings
 
         Returns:
             FFmpeg filter string
@@ -269,28 +280,70 @@ class Captioner:
 
         filters = []
 
-        # Style settings
-        fontsize = self.config.caption_font_size
-        fontcolor = "white"
+        # Style settings - use GUI settings if provided, else fall back to config
+        if caption_settings:
+            fontsize = caption_settings.get("font_size", self.config.caption_font_size)
+            fontname = caption_settings.get("font_family", "Arial")
+            text_color = caption_settings.get("text_color", "white")
+            show_background = caption_settings.get("show_background", True)
+            font_weight = caption_settings.get("font_weight", "bold")
+            pos_x = caption_settings.get("pos_x", 0.5)
+            pos_y = caption_settings.get("pos_y", 0.92)
+            box_width = caption_settings.get("box_width", 0.6)
+        else:
+            fontsize = self.config.caption_font_size
+            fontname = "Arial"
+            text_color = "white"
+            show_background = True
+            font_weight = "bold"
+            pos_x = 0.5
+            pos_y = 0.92
+            box_width = 0.6
+
+        fontcolor = text_color
         borderw = 3
-        bordercolor = "black"
-        box = 1
-        boxcolor = "black@0.5"
-        boxborderw = 10
+        bordercolor = "white" if text_color == "black" else "black"
 
-        # Vertical positions based on position setting
-        offset = int(self.config.caption_vertical_offset)
-        position = self.config.caption_position
+        # Map font weight to FFmpeg font style suffix
+        # FFmpeg drawtext uses font family with style, e.g., "Roboto:style=SemiBold"
+        # Different fonts use different naming conventions (SemiBold vs Semibold, ExtraBold vs Heavy)
+        weight_style_map = {
+            "regular": "Regular",
+            "medium": "Medium",
+            "semi-bold": "Semibold",  # Use lowercase 'b' for broader compatibility (Lato uses this)
+            "bold": "Bold",
+            "extra-bold": "Black",  # Most fonts use "Black" for extra-bold weight
+        }
+        font_style = weight_style_map.get(font_weight, "Bold")
 
-        if position == "top":
-            line1_y = str(offset)
-            line2_y = str(offset + 50)
-        elif position == "center":
-            line1_y = "(h-text_h)/2-25"
-            line2_y = "(h-text_h)/2+25"
-        else:  # bottom (default)
-            line1_y = f"h-{offset + 50}"
-            line2_y = f"h-{offset}"
+        # Construct font specification with style
+        if font_style and font_style != "Regular":
+            font_spec = f"{fontname}\\:style={font_style}"
+        else:
+            font_spec = fontname
+
+        # Box settings based on show_background
+        if show_background:
+            box = 1
+            boxcolor = "black@0.7" if text_color == "white" else "white@0.7"
+            boxborderw = 10
+        else:
+            box = 0
+            boxcolor = "black@0.0"
+            boxborderw = 0
+
+        # Calculate position - pos_y is the bottom of the caption box (0.0 = top, 1.0 = bottom)
+        # We need to calculate the Y position for the text
+        # The caption box height is roughly 2 lines of text
+        line_height = fontsize + 10  # Approximate line height
+
+        # For bottom position: y = (pos_y * h) - line_height for line 2, - 2*line_height for line 1
+        # pos_y=0.92 means the bottom of the caption is at 92% of video height
+        line2_y = f"h*{pos_y}-{line_height}"
+        line1_y = f"h*{pos_y}-{line_height * 2}"
+
+        # X position - centered based on pos_x
+        x_expr = f"w*{pos_x}-text_w/2"
 
         for chunk in chunks:
             chunk_end = chunk[-1].end + 0.1  # Small buffer after last word
@@ -300,6 +353,7 @@ class Captioner:
             for word_idx in range(len(chunk)):
                 # Accumulate text from start of chunk to current word
                 accumulated_text = "".join(t.text for t in chunk[:word_idx + 1]).strip()
+                accumulated_text = self._ensure_punctuation_spacing(accumulated_text)
 
                 # Split into 2 lines for readability (roughly half the words per line)
                 words_per_line = max(4, (max_words + 1) // 2)  # e.g., 15 words -> 8 per line
@@ -321,6 +375,7 @@ class Captioner:
                 escaped_line1 = self._escape_drawtext(lines[0])
                 filter_str1 = (
                     f"drawtext=text='{escaped_line1}'"
+                    f":font='{font_spec}'"
                     f":fontsize={fontsize}"
                     f":fontcolor={fontcolor}"
                     f":borderw={borderw}"
@@ -328,7 +383,7 @@ class Captioner:
                     f":box={box}"
                     f":boxcolor={boxcolor}"
                     f":boxborderw={boxborderw}"
-                    f":x=(w-text_w)/2"
+                    f":x={x_expr}"
                     f":y={line1_y}"
                     f":enable='between(t,{word_start:.3f},{word_end:.3f})'"
                 )
@@ -339,6 +394,7 @@ class Captioner:
                     escaped_line2 = self._escape_drawtext(lines[1])
                     filter_str2 = (
                         f"drawtext=text='{escaped_line2}'"
+                        f":font='{font_spec}'"
                         f":fontsize={fontsize}"
                         f":fontcolor={fontcolor}"
                         f":borderw={borderw}"
@@ -346,7 +402,7 @@ class Captioner:
                         f":box={box}"
                         f":boxcolor={boxcolor}"
                         f":boxborderw={boxborderw}"
-                        f":x=(w-text_w)/2"
+                        f":x={x_expr}"
                         f":y={line2_y}"
                         f":enable='between(t,{word_start:.3f},{word_end:.3f})'"
                     )
@@ -439,7 +495,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         video_path: Path,
         tokens: list[Token],
         output_path: Path,
-        max_words: int = 20
+        max_words: int = 20,
+        caption_settings: dict = None
     ) -> Path:
         """
         Burn streaming captions into video using FFmpeg.
@@ -454,6 +511,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             tokens: List of word-level tokens with timing
             output_path: Path for output video
             max_words: Maximum words on screen at once (default: 20)
+            caption_settings: Optional dict with GUI caption settings
+                (font_size, font_family, font_weight, text_color, show_background,
+                 pos_x, pos_y, box_width, box_height)
 
         Returns:
             Path to the output video
@@ -475,6 +535,19 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         # Ensure output directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
+        # Get input video resolution to preserve it
+        probe_cmd = [
+            "ffprobe", "-v", "error", "-select_streams", "v:0",
+            "-show_entries", "stream=width,height", "-of", "csv=p=0", str(video_path)
+        ]
+        probe_result = subprocess.run(probe_cmd, capture_output=True, text=True)
+        if probe_result.returncode == 0 and probe_result.stdout.strip():
+            video_width, video_height = probe_result.stdout.strip().split(',')
+            resolution = f"{video_width}x{video_height}"
+            console.print(f"[dim]Preserving resolution: {resolution}[/dim]")
+        else:
+            resolution = None
+
         # Check for available filters
         has_drawtext = self._check_ffmpeg_filter("drawtext")
         has_ass = self._check_ffmpeg_filter(" ass ")  # Space-padded to avoid false matches
@@ -482,17 +555,20 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         if has_drawtext:
             # Use drawtext filter (best quality)
             console.print("[dim]Using drawtext filter for streaming captions[/dim]")
-            filter_chain = self._build_drawtext_filter(tokens, max_words)
+            filter_chain = self._build_drawtext_filter(tokens, max_words, caption_settings)
 
             cmd = [
                 "ffmpeg", "-y",
                 "-i", str(video_path),
                 "-vf", filter_chain,
                 "-c:v", "libx264",
-                "-preset", "fast",
-                "-c:a", "copy",
-                str(output_path)
+                "-preset", "medium",
+                "-crf", "18",
+                "-pix_fmt", "yuv420p",
             ]
+            if resolution:
+                cmd.extend(["-s", resolution])
+            cmd.extend(["-c:a", "copy", str(output_path)])
 
         elif has_ass:
             # Use ASS subtitles with karaoke effect
@@ -512,10 +588,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     "-i", str(video_path),
                     "-vf", f"ass={ass_path.name}",
                     "-c:v", "libx264",
-                    "-preset", "fast",
-                    "-c:a", "copy",
-                    str(output_path)
+                    "-preset", "medium",
+                    "-crf", "18",
+                    "-pix_fmt", "yuv420p",
                 ]
+                if resolution:
+                    cmd.extend(["-s", resolution])
+                cmd.extend(["-c:a", "copy", str(output_path)])
 
                 with Progress(
                     SpinnerColumn(),
@@ -577,6 +656,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             if not chunk:
                 continue
             text = "".join(t.text for t in chunk).strip()
+            text = self._ensure_punctuation_spacing(text)
             segments.append(Segment(
                 start=chunk[0].start,
                 end=chunk[-1].end,

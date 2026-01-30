@@ -8,6 +8,7 @@ load_dotenv()  # Load .env file automatically
 
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFontDatabase
 
 from .gui import MainWindow
 
@@ -20,6 +21,14 @@ def main():
     )
 
     app = QApplication(sys.argv)
+
+    # Load fonts from user's font directory (ensures newly installed fonts are available)
+    user_fonts_dir = Path.home() / "Library" / "Fonts"
+    if user_fonts_dir.exists():
+        for font_file in user_fonts_dir.glob("*.ttf"):
+            QFontDatabase.addApplicationFont(str(font_file))
+        for font_file in user_fonts_dir.glob("*.otf"):
+            QFontDatabase.addApplicationFont(str(font_file))
     app.setApplicationName("Video Editor")
     app.setOrganizationName("VideoEditorAgent")
 
