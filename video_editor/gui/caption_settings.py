@@ -30,10 +30,11 @@ class CaptionSettingsPanel(QWidget):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(12)
 
-        # Preview toggle
+        # Enable captions toggle
         preview_layout = QHBoxLayout()
-        self._preview_check = QCheckBox("Show caption preview")
+        self._preview_check = QCheckBox("Enable captions")
         self._preview_check.setChecked(True)
+        self._preview_check.setToolTip("Enable captions in preview and export")
         preview_layout.addWidget(self._preview_check)
         preview_layout.addStretch()
         layout.addLayout(preview_layout)
@@ -257,7 +258,7 @@ class CaptionSettingsPanel(QWidget):
         self._settings.font_size = self._size_spin.value()
         self._settings.font_family = self._font_combo.currentText()
         self._settings.font_weight = self._weight_combo.currentText().lower()
-        self._settings.show_preview = self._preview_check.isChecked()
+        self._settings.enabled = self._preview_check.isChecked()
         self._settings.text_color = self._color_combo.currentText().lower()
         self._settings.show_background = self._bg_check.isChecked()
         self.settings_changed.emit(self._settings)
@@ -313,7 +314,7 @@ class CaptionSettingsPanel(QWidget):
         if weight_idx >= 0:
             self._weight_combo.setCurrentIndex(weight_idx)
 
-        self._preview_check.setChecked(settings.show_preview)
+        self._preview_check.setChecked(settings.enabled)
 
         # Set text color
         color_idx = self._color_combo.findText(settings.text_color.capitalize())

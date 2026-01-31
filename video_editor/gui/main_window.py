@@ -1052,7 +1052,8 @@ class MainWindow(QMainWindow):
             # Get tokens with text edits applied
             tokens = self._session.get_final_tokens()
 
-            if tokens:
+            # Only burn captions if enabled and tokens exist
+            if tokens and self._session.caption_settings.enabled:
                 # Adjust token times for the cut video (accounting for gaps between segments)
                 from ..main import _adjust_tokens_for_cuts
                 adjusted_tokens = _adjust_tokens_for_cuts(tokens, keep_ranges, Cutter.SEGMENT_GAP)
@@ -1073,7 +1074,7 @@ class MainWindow(QMainWindow):
                 if temp_cut.exists():
                     temp_cut.unlink()
             else:
-                # No tokens - just copy the cut video
+                # No tokens or captions disabled - just copy the cut video
                 import shutil
                 shutil.move(str(temp_cut), path)
 

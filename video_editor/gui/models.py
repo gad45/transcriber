@@ -108,7 +108,7 @@ class CaptionSettings:
     """
     font_size: int = 24
     font_family: str = "Arial"
-    show_preview: bool = True
+    enabled: bool = True  # Master toggle for captions (preview + export)
 
     # Normalized position (0.0-1.0) - center_x, bottom_y of caption box
     pos_x: float = 0.5  # Centered horizontally
@@ -129,7 +129,7 @@ class CaptionSettings:
         return {
             "font_size": self.font_size,
             "font_family": self.font_family,
-            "show_preview": self.show_preview,
+            "enabled": self.enabled,
             "pos_x": self.pos_x,
             "pos_y": self.pos_y,
             "box_width": self.box_width,
@@ -157,7 +157,7 @@ class CaptionSettings:
             return cls(
                 font_size=data.get("font_size", 24),
                 font_family=data.get("font_family", "Arial"),
-                show_preview=data.get("show_preview", True),
+                enabled=data.get("enabled", data.get("show_preview", True)),
                 pos_x=0.5,
                 pos_y=pos_y,
                 box_width=0.6,
@@ -167,7 +167,7 @@ class CaptionSettings:
         return cls(
             font_size=data.get("font_size", 24),
             font_family=data.get("font_family", "Arial"),
-            show_preview=data.get("show_preview", True),
+            enabled=data.get("enabled", data.get("show_preview", True)),
             pos_x=data.get("pos_x", 0.5),
             pos_y=data.get("pos_y", 0.92),
             box_width=data.get("box_width", 0.6),
@@ -182,7 +182,7 @@ class CaptionSettings:
         return CaptionSettings(
             font_size=self.font_size,
             font_family=self.font_family,
-            show_preview=self.show_preview,
+            enabled=self.enabled,
             pos_x=self.pos_x,
             pos_y=self.pos_y,
             box_width=self.box_width,

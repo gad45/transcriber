@@ -1152,7 +1152,7 @@ class VideoPlayer(QWidget):
     def set_caption_settings(self, settings: CaptionSettings) -> None:
         """Set caption display settings."""
         self._caption_settings = settings
-        self._caption_visible = settings.show_preview
+        self._caption_visible = settings.enabled
         self._update_caption_style()
 
         # Update visibility
