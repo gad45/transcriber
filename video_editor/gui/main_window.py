@@ -7,16 +7,18 @@ from PySide6.QtCore import Qt, Slot, QTimer
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QMenuBar, QMenu, QToolBar, QPushButton, QLabel, QStatusBar,
-    QFileDialog, QMessageBox, QProgressDialog, QApplication, QComboBox
+    QFileDialog, QMessageBox, QProgressDialog, QApplication, QComboBox,
+    QTabWidget
 )
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 
 from .video_player import VideoPlayer
 from .timeline import Timeline
 from .transcript_editor import TranscriptEditor
-from .models import EditSession, CropConfig, CaptionSettings
+from .models import EditSession, CropConfig, CaptionSettings, RecordingConfig
 from .caption_settings import CaptionSettingsPanel
 from .settings_dialog import SettingsDialog
+from .recorder import RecorderTab
 from ..transcriber import Transcriber, Segment
 from ..analyzer import Analyzer, AnalyzedSegment, SegmentAction
 from ..cutter import Cutter
@@ -62,25 +64,28 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(100, lambda: self._load_video(video_path))
 
     def _setup_ui(self):
-        """Set up the main UI layout."""
-        central = QWidget()
-        self.setCentralWidget(central)
+        """Set up the main UI layout with tabs."""
+        # Create tab widget as central widget
+        self._tab_widget = QTabWidget()
+        self.setCentralWidget(self._tab_widget)
 
-        main_layout = QVBoxLayout(central)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        # --- Editor Tab ---
+        editor_tab = QWidget()
+        editor_layout = QVBoxLayout(editor_tab)
+        editor_layout.setContentsMargins(0, 0, 0, 0)
+        editor_layout.setSpacing(0)
 
         # Toolbar
         self._toolbar = QToolBar()
         self._toolbar.setMovable(False)
         self._setup_toolbar()
-        main_layout.addWidget(self._toolbar)
+        editor_layout.addWidget(self._toolbar)
 
         # Caption settings panel (collapsible)
         self._caption_settings_panel = CaptionSettingsPanel()
         self._caption_settings_panel.setVisible(False)
         self._caption_settings_panel.setMaximumHeight(320)
-        main_layout.addWidget(self._caption_settings_panel)
+        editor_layout.addWidget(self._caption_settings_panel)
 
         # Main content splitter (video + transcript)
         content_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -94,17 +99,26 @@ class MainWindow(QMainWindow):
         content_splitter.addWidget(self._transcript_editor)
 
         content_splitter.setSizes([600, 400])
-        main_layout.addWidget(content_splitter, stretch=1)
+        editor_layout.addWidget(content_splitter, stretch=1)
 
         # Timeline (bottom)
         self._timeline = Timeline()
-        main_layout.addWidget(self._timeline)
+        editor_layout.addWidget(self._timeline)
+
+        self._tab_widget.addTab(editor_tab, "Editor")
+
+        # --- Recorder Tab ---
+        self._recorder_tab = RecorderTab()
+        self._tab_widget.addTab(self._recorder_tab, "Recorder")
 
         # Status bar
         self._status_bar = QStatusBar()
         self._status_label = QLabel("No video loaded")
         self._status_bar.addPermanentWidget(self._status_label)
         self.setStatusBar(self._status_bar)
+
+        # Connect tab switching
+        self._tab_widget.currentChanged.connect(self._on_tab_changed)
 
     def _setup_toolbar(self):
         """Set up the toolbar buttons."""
@@ -334,6 +348,9 @@ class MainWindow(QMainWindow):
         self._caption_settings_panel.regenerate_requested.connect(self._on_regenerate_captions)
         self._video_player.caption_settings_changed.connect(self._on_caption_position_changed)
 
+        # Recorder tab
+        self._recorder_tab.open_in_editor_requested.connect(self._on_recording_open_requested)
+
     def _apply_dark_theme(self):
         """Apply dark theme styling."""
         self.setStyleSheet("""
@@ -409,6 +426,26 @@ class MainWindow(QMainWindow):
                 background-color: #3d3d3d;
                 color: #fff;
                 selection-background-color: #2196f3;
+            }
+            QTabWidget::pane {
+                border: none;
+                background-color: #1e1e1e;
+            }
+            QTabBar::tab {
+                background-color: #2d2d2d;
+                color: #888;
+                border: none;
+                padding: 10px 24px;
+                min-width: 100px;
+            }
+            QTabBar::tab:selected {
+                background-color: #1e1e1e;
+                color: #fff;
+                border-bottom: 2px solid #2196f3;
+            }
+            QTabBar::tab:hover:!selected {
+                background-color: #3d3d3d;
+                color: #aaa;
             }
         """)
 
@@ -1068,3 +1105,18 @@ class MainWindow(QMainWindow):
                 event.ignore()
         else:
             event.accept()
+
+    # Tab handling
+
+    @Slot(int)
+    def _on_tab_changed(self, index: int):
+        """Handle tab switching."""
+        # Pause video playback when leaving Editor tab
+        if index != 0:  # Not on Editor tab
+            self._video_player.pause()
+
+    @Slot(Path)
+    def _on_recording_open_requested(self, recording_path: Path):
+        """Handle request to open a recording in the editor."""
+        self._tab_widget.setCurrentIndex(0)  # Switch to Editor tab
+        self._load_video(recording_path)

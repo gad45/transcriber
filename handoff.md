@@ -599,3 +599,350 @@ video_editor/
 
 5. **`video_editor/config.py`**
    - Added `caption_position` and `caption_vertical_offset` for CLI export
+
+---
+
+## Session Date: January 31, 2026
+
+### 12. Screen and Audio Recording Feature
+
+**Feature:** Added a separate "Recorder" tab for screen and audio recording directly in the video editor.
+
+**Location:** `video_editor/gui/recorder/` (new package)
+
+**Purpose:**
+- Record screen content with optional aspect ratio cropping
+- Capture audio from selected input device
+- Preview the recording area before starting
+- See live audio level feedback during setup
+
+**Key Components:**
+
+```
+video_editor/gui/recorder/
+├── __init__.py               # Package exports
+├── recording_controller.py   # Core recording logic with Qt multimedia
+├── recorder_tab.py           # Main UI combining all components
+├── recording_preview.py      # Live preview widget with crop overlay
+├── recording_settings.py     # Settings panel (screen, audio, quality)
+└── audio_level_meter.py      # Visual audio level indicator
+```
+
+**RecordingConfig Dataclass:**
+```python
+@dataclass
+class RecordingConfig:
+    screen_index: int = 0
+    capture_full_screen: bool = True
+    target_aspect_ratio: tuple[int, int] | None = None
+    crop_offset_x: float = 0.5  # Normalized 0-1
+    crop_offset_y: float = 0.5  # Normalized 0-1
+    audio_device_id: str = ""
+    audio_enabled: bool = True
+    audio_volume: float = 1.0
+    output_directory: str = ""
+    video_quality: str = "high"
+    audio_sample_rate: int = 48000
+```
+
+**Features Implemented:**
+
+1. **Screen Recording** - Uses `QScreenCapture` + `QMediaRecorder` to record screen
+2. **Live Preview** (WORKING) - Screen capture activates on tab show for real-time preview
+3. **Draggable Crop Overlay** - Position recording region for specific aspect ratios
+4. **Audio Device Selection** - List and select from available input devices
+5. **Audio Level Meter** (WORKING) - Real-time VU meter using `QAudioSource` for monitoring
+6. **Pause/Resume** - Pause and resume recording
+7. **FFmpeg Post-Processing** - Crop filter applied after recording for aspect ratio
+
+**Technical Implementation:**
+
+- **Preview System**: `start_preview()` / `stop_preview()` methods control screen capture independently of recording
+- **Audio Monitoring**: Separate `QAudioSource` for level metering (16kHz mono, 20Hz update rate)
+- **RMS Level Calculation**: Reads 16-bit audio samples, calculates RMS, normalizes to 0.0-1.0
+- **Tab Lifecycle**: `showEvent()` starts preview, `hideEvent()` stops it to save resources
+
+---
+
+### 13. Audio Recording Fix (January 31, 2026 - Continued)
+
+**Problem:** Audio was not being recorded, and the audio level meter wasn't responding.
+
+**Root Cause:** macOS requires microphone permission granted to the **Terminal app** (not the Python script). Qt's `QMicrophonePermission` API doesn't properly detect Terminal's permission status.
+
+**Solution:**
+1. Added `QMicrophonePermission` check with fallback - if status is "Denied", proceed anyway since Terminal may have access
+2. Added `_permission_checked` flag to avoid repeated permission checks
+3. Added diagnostic logging throughout audio setup
+
+**Audio Quality Improvements:**
+- Changed quality from `HighQuality` to `VeryHighQuality`
+- Set explicit audio settings:
+  - Sample rate: 48000 Hz (professional standard)
+  - Channels: 2 (stereo)
+  - Bit rate: 256 kbps (high quality AAC)
+
+**Key Code Changes in `recording_controller.py`:**
+```python
+# High-quality audio settings
+self._recorder.setQuality(QMediaRecorder.Quality.VeryHighQuality)
+self._recorder.setAudioSampleRate(48000)
+self._recorder.setAudioChannelCount(2)
+self._recorder.setAudioBitRate(256000)
+```
+
+**macOS Permission Note:** Users must grant microphone access to Terminal (or their terminal app) in System Settings > Privacy & Security > Microphone.
+
+---
+
+### 14. Raw Recording Preservation (January 31, 2026 - Continued)
+
+**Problem:** If the app crashed during post-processing (cropping), the raw recording could be lost.
+
+**Solution:** Raw recordings are now saved to a dedicated subdirectory and **never deleted**.
+
+**New File Structure:**
+```
+~/Movies/Recordings/
+├── raw/                              # Raw recordings - NEVER deleted
+│   ├── recording_20260131_123456.mp4
+│   └── recording_20260131_124530.mp4
+├── recording_20260131_123456.mp4     # Cropped versions (if cropping applied)
+└── recording_20260131_124530.mp4
+```
+
+**Safety Guarantees:**
+1. Raw files saved to `~/Movies/Recordings/raw/` subdirectory
+2. App never deletes raw recordings automatically
+3. Crash-safe: raw file is on disk before any post-processing begins
+4. Clear messaging shows both raw and processed file locations
+
+**Key Code Changes:**
+- `recording_controller.py`: `_get_output_path()` now saves to `raw/` subdirectory
+- `recorder_tab.py`: `_process_crop()` saves cropped file to parent directory, keeps raw file
+
+---
+
+## Files Added (January 31, 2026 - Recorder)
+
+1. **`video_editor/gui/recorder/__init__.py`** - Package exports
+2. **`video_editor/gui/recorder/recording_controller.py`** - Core recording logic
+   - `RecordingController` class wrapping Qt multimedia
+   - `start_preview()` / `stop_preview()` for live preview
+   - `_start_audio_monitoring()` / `_update_audio_level()` for level meter
+   - `RecordingState` enum (IDLE, RECORDING, PAUSED, PROCESSING)
+3. **`video_editor/gui/recorder/recorder_tab.py`** - Main recorder UI
+   - Toolbar with Record/Stop/Pause buttons
+   - Splitter layout with preview and settings
+   - `showEvent()` / `hideEvent()` for preview lifecycle
+4. **`video_editor/gui/recorder/recording_preview.py`** - Live preview widget
+   - `QGraphicsView` with `QGraphicsVideoItem`
+   - Draggable crop overlay for aspect ratio selection
+5. **`video_editor/gui/recorder/recording_settings.py`** - Settings panel
+   - Screen selection dropdown
+   - Aspect ratio selection
+   - Audio device dropdown with level meter
+   - Volume slider
+6. **`video_editor/gui/recorder/audio_level_meter.py`** - VU meter widget
+   - Custom `paintEvent` with green/yellow/red gradient
+   - Animated level display
+
+## Files Modified (January 31, 2026 - Recorder)
+
+1. **`video_editor/gui/models.py`**
+   - Added `RecordingConfig` dataclass
+   - Methods: `get_crop_rect()`, `to_ffmpeg_crop_filter()`, `to_dict()`, `from_dict()`
+
+2. **`video_editor/gui/main_window.py`**
+   - Changed from single widget to `QTabWidget`
+   - Added "Editor" and "Recorder" tabs
+   - Tab change handler pauses video when switching away
+
+3. **`video_editor/gui/__init__.py`**
+   - Added exports for `RecorderTab`, `RecordingController`
+
+---
+
+## Architecture Overview (Updated)
+
+```
+video_editor/
+├── main.py              # CLI entry point
+├── gui_main.py          # GUI entry point
+├── gui/
+│   ├── main_window.py   # Tab-based main window (Editor + Recorder)
+│   ├── video_player.py
+│   ├── timeline.py
+│   ├── transcript_editor.py
+│   ├── segment_item.py
+│   ├── caption_settings.py
+│   ├── models.py        # EditSession, RecordingConfig, CropConfig, CaptionSettings
+│   └── recorder/        # NEW - Screen recording package
+│       ├── recording_controller.py
+│       ├── recorder_tab.py
+│       ├── recording_preview.py
+│       ├── recording_settings.py
+│       └── audio_level_meter.py
+├── config.py
+├── transcriber.py
+├── analyzer.py
+├── cutter.py
+├── captioner.py
+└── qc.py
+```
+
+---
+
+## Current Status (January 31, 2026)
+
+**Working Features:**
+- Screen recording with optional aspect ratio cropping
+- Audio recording with high quality (48kHz, stereo, 256kbps AAC)
+- Live screen preview before recording
+- Audio device selection
+- Raw file preservation (crash-safe)
+
+**Known Limitations:**
+- Audio level meter may not respond (Qt permission API issue with Terminal)
+- Users must manually grant Terminal microphone access in System Settings
+- Raw files accumulate in `~/Movies/Recordings/raw/` - manual cleanup needed
+
+---
+
+## Session Date: January 31, 2026 (Continued)
+
+### 15. Fixed Resolution Recording Support
+
+**Feature:** Added support for fixed resolution recording presets (e.g., 1920x1080) in addition to aspect ratios.
+
+**Problem:** Previously, the recorder only supported aspect ratios (16:9, 9:16) that scaled to fill the screen height. Users wanted to record a specific resolution like 1920x1080.
+
+**Solution:** Added `target_resolution` field to `RecordingConfig` and updated UI with resolution presets.
+
+**New Crop Presets:**
+```python
+CROP_PRESETS = [
+    ("Full Screen", None, None),
+    ("1920x1080 (1080p)", (1920, 1080), None),
+    ("1280x720 (720p)", (1280, 720), None),
+    ("1080x1920 (Vertical 1080p)", (1080, 1920), None),
+    ("720x1280 (Vertical 720p)", (720, 1280), None),
+    ("1080x1080 (Square)", (1080, 1080), None),
+    ("16:9 (Fit Height)", None, (16, 9)),
+    ("9:16 (Fit Height)", None, (9, 16)),
+    ("4:3 (Fit Height)", None, (4, 3)),
+    ("21:9 (Fit Height)", None, (21, 9)),
+]
+```
+
+**Key Changes:**
+- `RecordingConfig.target_resolution: tuple[int, int] | None` - New field for fixed resolution
+- `get_crop_rect()` - Resolution mode scales down proportionally if larger than screen
+- `CropOverlayItem.set_resolution()` - Shows fixed-size overlay in preview
+- `RecordingSettingsPanel.crop_mode_changed` signal - Emits both resolution and aspect ratio
+
+**Files Modified:**
+1. `video_editor/gui/models.py` - Added `target_resolution` field
+2. `video_editor/gui/recorder/recording_settings.py` - Added resolution presets
+3. `video_editor/gui/recorder/recording_preview.py` - Fixed-size overlay support
+4. `video_editor/gui/recorder/recorder_tab.py` - Connected new signals
+5. `video_editor/gui/recorder/recording_controller.py` - Added `set_crop_mode()` method
+
+---
+
+### 16. Preview-to-Recording Crop Mismatch Fix
+
+**Problem:** The blue crop overlay in the preview showed a different region than what actually got cropped in the final recording.
+
+**Root Cause:** Coordinate system mismatch:
+- Preview overlay used `_container_rect` (video item's display size) for normalization
+- FFmpeg used actual screen size for crop calculations
+- When these differed (e.g., video item at 1280x720, screen at 2560x1440), offsets mapped to different pixel positions
+
+**Example of the Bug:**
+```
+Screen: 2560x1440
+Video Item: 1280x720 (half size preview)
+Crop: 1920x1080
+
+User drags to position → Preview normalizes to container (1280x720 space)
+FFmpeg applies offset → Uses screen (2560x1440 space)
+Result: Different crop region!
+```
+
+**Solution:** Updated `CropOverlayItem` coordinate conversion methods:
+
+1. **`_get_screen_crop_size()`** - New method to calculate crop size in screen pixels
+2. **`get_normalized_offset()`** - Now converts container coordinates to screen coordinates before normalizing
+3. **`set_normalized_offset()`** - Now converts screen coordinates to container coordinates for display
+
+**Key Insight:** Normalized offsets must always be calculated relative to **screen size**, not the preview's display size. The preview can scale the visual representation, but the offset values must map correctly to screen pixels for FFmpeg.
+
+**Files Modified:**
+- `video_editor/gui/recorder/recording_preview.py` - Fixed coordinate conversion in `CropOverlayItem`
+
+---
+
+## Files Modified (January 31, 2026 - Resolution & Crop Fix)
+
+1. **`video_editor/gui/models.py`**
+   - Added `target_resolution: tuple[int, int] | None` to `RecordingConfig`
+   - Updated `get_crop_rect()` to handle fixed resolutions with proportional scaling
+   - Updated `to_ffmpeg_crop_filter()`, `to_dict()`, `from_dict()`, `copy()`
+
+2. **`video_editor/gui/recorder/recording_settings.py`**
+   - Replaced `ASPECT_RATIOS` with `CROP_PRESETS`
+   - Renamed signal to `crop_mode_changed`
+   - Updated handlers for new preset format
+
+3. **`video_editor/gui/recorder/recording_preview.py`**
+   - Added `_get_screen_crop_size()` method
+   - Fixed `get_normalized_offset()` to use screen coordinates
+   - Fixed `set_normalized_offset()` to convert between coordinate systems
+   - Added `set_resolution()` to `CropOverlayItem`
+   - Added `set_crop_mode()` to `RecordingPreview`
+
+4. **`video_editor/gui/recorder/recorder_tab.py`**
+   - Updated to use `crop_mode_changed` signal
+   - Added `_on_crop_mode_changed()` handler
+   - Initialize screen size on preview
+
+5. **`video_editor/gui/recorder/recording_controller.py`**
+   - Added `set_crop_mode()` method
+   - Updated `_finalize_recording()` to check both resolution and aspect ratio
+
+---
+
+### 17. Recording Crop Margin Workaround
+
+**Problem:** Despite the coordinate conversion fix, a ~20-30px mismatch persisted between the preview crop overlay and the actual recording crop. The offset appeared consistently to the right and lower.
+
+**Root Cause:** Likely a combination of:
+- macOS Retina display scaling (logical points vs physical pixels)
+- Menu bar or notch offset differences between Qt's screen geometry and actual capture
+- Device pixel ratio not being accounted for in all coordinate conversions
+
+**Solution (Workaround):** Instead of fixing the complex coordinate system mismatch, added a 50px margin around the selected crop area. This captures more than the preview shows, allowing users to fine-tune the exact crop during the editing phase.
+
+**Implementation in `RecordingConfig.get_crop_rect()`:**
+```python
+def get_crop_rect(self, screen_width: int, screen_height: int, margin: int = 50):
+    # ... calculate crop_x, crop_y, crop_width, crop_height ...
+
+    # Apply margin - expand the crop area to capture more than selected
+    if margin > 0:
+        crop_x = max(0, crop_x - margin)
+        crop_y = max(0, crop_y - margin)
+        crop_width = min(screen_width - crop_x, crop_width + 2 * margin)
+        crop_height = min(screen_height - crop_y, crop_height + 2 * margin)
+
+    return (crop_x, crop_y, crop_width, crop_height)
+```
+
+**Result:**
+- Selecting 1920x1080 now captures ~2020x1180 (with margins clamped to screen bounds)
+- User can precisely crop to exact dimensions during editing
+- No more content cutoff due to coordinate mismatch
+
+**Files Modified:**
+- `video_editor/gui/models.py` - Added `margin` parameter to `get_crop_rect()`

@@ -233,6 +233,178 @@ class CaptionSettings:
 
 
 @dataclass
+class RecordingConfig:
+    """Configuration for screen and audio recording.
+
+    Stores settings for the recorder tab including screen selection,
+    aspect ratio cropping, audio input, and output quality.
+    """
+    # Screen capture settings
+    screen_index: int = 0  # Which screen to capture (for multi-monitor)
+    capture_full_screen: bool = True  # True for full screen, False for aspect ratio crop
+
+    # Aspect ratio crop settings (used when capture_full_screen is False)
+    # Common ratios: (16, 9) landscape, (9, 16) portrait, (1, 1) square, (4, 3) standard
+    target_aspect_ratio: tuple[int, int] | None = None
+
+    # Fixed resolution crop settings (takes precedence over aspect ratio)
+    # e.g., (1920, 1080) for 1080p, (1280, 720) for 720p
+    # If resolution exceeds screen size, it will be scaled down proportionally
+    target_resolution: tuple[int, int] | None = None
+
+    # Crop region position (normalized 0.0-1.0)
+    # Represents where the crop region is positioned on the screen
+    crop_offset_x: float = 0.5  # 0.0 = left edge, 0.5 = center, 1.0 = right edge
+    crop_offset_y: float = 0.5  # 0.0 = top edge, 0.5 = center, 1.0 = bottom edge
+
+    # Audio settings
+    audio_device_id: str = ""  # Empty string = system default
+    audio_enabled: bool = True
+    audio_volume: float = 1.0  # 0.0-1.0
+
+    # Output settings
+    output_directory: str = ""  # Empty = user's Videos folder
+    filename_pattern: str = "recording_{timestamp}"
+    video_quality: str = "high"  # "low", "medium", "high", "very_high"
+    audio_sample_rate: int = 48000  # Professional quality
+    container_format: str = "mp4"
+
+    def get_crop_rect(self, screen_width: int, screen_height: int, margin: int = 50) -> tuple[int, int, int, int]:
+        """Calculate the crop rectangle in pixels for FFmpeg post-processing.
+
+        Args:
+            screen_width: Screen width in pixels
+            screen_height: Screen height in pixels
+            margin: Extra pixels to capture on each side (default 50px).
+                    This compensates for coordinate system mismatches between
+                    the preview overlay and the actual screen capture.
+
+        Returns:
+            (x, y, width, height) in pixels
+        """
+        if self.capture_full_screen:
+            return (0, 0, screen_width, screen_height)
+
+        # Fixed resolution mode (takes precedence over aspect ratio)
+        if self.target_resolution is not None:
+            req_w, req_h = self.target_resolution
+
+            # Scale down proportionally if larger than screen
+            scale = min(1.0, screen_width / req_w, screen_height / req_h)
+            crop_width = int(req_w * scale)
+            crop_height = int(req_h * scale)
+
+        # Aspect ratio mode
+        elif self.target_aspect_ratio is not None:
+            target_w, target_h = self.target_aspect_ratio
+            target_ratio = target_w / target_h
+            screen_ratio = screen_width / screen_height
+
+            if target_ratio > screen_ratio:
+                # Target is wider than screen - use full width, crop height
+                crop_width = screen_width
+                crop_height = int(screen_width / target_ratio)
+            else:
+                # Target is taller than screen - use full height, crop width
+                crop_height = screen_height
+                crop_width = int(screen_height * target_ratio)
+        else:
+            # No crop specified
+            return (0, 0, screen_width, screen_height)
+
+        # Calculate position based on offset
+        max_x = screen_width - crop_width
+        max_y = screen_height - crop_height
+        crop_x = int(max_x * self.crop_offset_x)
+        crop_y = int(max_y * self.crop_offset_y)
+
+        # Apply margin - expand the crop area to capture more than selected
+        # This compensates for preview-to-recording coordinate mismatches
+        if margin > 0:
+            # Expand crop area
+            crop_x = max(0, crop_x - margin)
+            crop_y = max(0, crop_y - margin)
+            crop_width = min(screen_width - crop_x, crop_width + 2 * margin)
+            crop_height = min(screen_height - crop_y, crop_height + 2 * margin)
+
+        return (crop_x, crop_y, crop_width, crop_height)
+
+    def to_ffmpeg_crop_filter(self, screen_width: int, screen_height: int) -> str | None:
+        """Generate FFmpeg crop filter string if cropping is needed.
+
+        Returns:
+            FFmpeg crop filter string, e.g., "crop=1920:1080:320:0", or None if no crop
+        """
+        if self.capture_full_screen:
+            return None
+        if self.target_resolution is None and self.target_aspect_ratio is None:
+            return None
+
+        x, y, w, h = self.get_crop_rect(screen_width, screen_height)
+        return f"crop={w}:{h}:{x}:{y}"
+
+    def to_dict(self) -> dict:
+        """Serialize for JSON storage."""
+        return {
+            "screen_index": self.screen_index,
+            "capture_full_screen": self.capture_full_screen,
+            "target_aspect_ratio": list(self.target_aspect_ratio) if self.target_aspect_ratio else None,
+            "target_resolution": list(self.target_resolution) if self.target_resolution else None,
+            "crop_offset_x": self.crop_offset_x,
+            "crop_offset_y": self.crop_offset_y,
+            "audio_device_id": self.audio_device_id,
+            "audio_enabled": self.audio_enabled,
+            "audio_volume": self.audio_volume,
+            "output_directory": self.output_directory,
+            "filename_pattern": self.filename_pattern,
+            "video_quality": self.video_quality,
+            "audio_sample_rate": self.audio_sample_rate,
+            "container_format": self.container_format,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "RecordingConfig":
+        """Deserialize from JSON."""
+        aspect = data.get("target_aspect_ratio")
+        resolution = data.get("target_resolution")
+        return cls(
+            screen_index=data.get("screen_index", 0),
+            capture_full_screen=data.get("capture_full_screen", True),
+            target_aspect_ratio=tuple(aspect) if aspect else None,
+            target_resolution=tuple(resolution) if resolution else None,
+            crop_offset_x=data.get("crop_offset_x", 0.5),
+            crop_offset_y=data.get("crop_offset_y", 0.5),
+            audio_device_id=data.get("audio_device_id", ""),
+            audio_enabled=data.get("audio_enabled", True),
+            audio_volume=data.get("audio_volume", 1.0),
+            output_directory=data.get("output_directory", ""),
+            filename_pattern=data.get("filename_pattern", "recording_{timestamp}"),
+            video_quality=data.get("video_quality", "high"),
+            audio_sample_rate=data.get("audio_sample_rate", 48000),
+            container_format=data.get("container_format", "mp4"),
+        )
+
+    def copy(self) -> "RecordingConfig":
+        """Create a copy of this config."""
+        return RecordingConfig(
+            screen_index=self.screen_index,
+            capture_full_screen=self.capture_full_screen,
+            target_aspect_ratio=self.target_aspect_ratio,
+            target_resolution=self.target_resolution,
+            crop_offset_x=self.crop_offset_x,
+            crop_offset_y=self.crop_offset_y,
+            audio_device_id=self.audio_device_id,
+            audio_enabled=self.audio_enabled,
+            audio_volume=self.audio_volume,
+            output_directory=self.output_directory,
+            filename_pattern=self.filename_pattern,
+            video_quality=self.video_quality,
+            audio_sample_rate=self.audio_sample_rate,
+            container_format=self.container_format,
+        )
+
+
+@dataclass
 class HighlightRegion:
     """A user-defined region to force-include in export (for non-speech content)."""
     start: float
