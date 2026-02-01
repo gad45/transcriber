@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AI-powered video editing tool for Hungarian spoken content. Automatically removes bad takes, silences, and adds captions using Whisper AI for transcription and LLMs (Gemini/OpenAI) for take selection.
+AI-powered video editing tool for Hungarian spoken content. Automatically removes bad takes, silences, and adds captions using Soniox API for transcription and LLMs (Gemini) for take selection. Also includes screen recording with crop/aspect ratio selection.
 
 ## Common Commands
 
@@ -32,13 +32,14 @@ pytest
 
 ## Environment Variables
 
-Create a `.env` file in the project root:
+Create a `.env` file in the project root (or use GUI Settings menu):
 
 ```bash
-GEMINI_API_KEY=your_key_here     # Primary LLM for take selection (Gemini 2.0 Flash)
-OPENAI_API_KEY=your_key_here     # Fallback LLM for take selection
-WHISPER_FORCE_CPU=1              # Force CPU for transcription (MPS/Apple Silicon has known issues)
+SONIOX_API_KEY=your_key_here     # Required for speech transcription (Soniox API)
+GEMINI_API_KEY=your_key_here     # Required for intelligent take selection (Gemini 2.0 Flash)
 ```
+
+API keys can also be configured via GUI: Menu → Settings. Keys are stored in `~/.video_editor_settings`.
 
 ## Architecture
 
@@ -46,7 +47,7 @@ WHISPER_FORCE_CPU=1              # Force CPU for transcription (MPS/Apple Silico
 
 The processing pipeline flows through four main components:
 
-1. **Transcriber** (`video_editor/transcriber.py`) - Extracts audio via FFmpeg, runs Whisper for Hungarian speech-to-text. Returns timestamped `Segment` and `Token` objects.
+1. **Transcriber** (`video_editor/transcriber.py`) - Extracts audio via FFmpeg, uploads to Soniox API for Hungarian speech-to-text. Returns timestamped `Segment` and `Token` objects.
 
 2. **Analyzer** (`video_editor/analyzer.py`) - Detects silences, identifies retakes using fuzzy matching (rapidfuzz), and selects best takes via LLM. Returns `TimeRange` objects marking segments to keep.
 
@@ -56,54 +57,41 @@ The processing pipeline flows through four main components:
 
 ### GUI Application
 
-The GUI is built with PySide6 (Qt6) and provides:
+The GUI is built with PySide6 (Qt6) and provides two main tabs:
 
-- **MainWindow** (`video_editor/gui/main_window.py`) - Main application orchestrating all components
-- **VideoPlayer** (`video_editor/gui/video_player.py`) - QMediaPlayer-based video playback
-- **Timeline** (`video_editor/gui/timeline.py`) - QGraphicsView-based segment visualization
-- **TranscriptEditor** (`video_editor/gui/transcript_editor.py`) - Text editing for transcription
-- **SegmentItem** (`video_editor/gui/segment_item.py`) - Graphics items for timeline (segments, highlights, playhead)
-- **Models** (`video_editor/gui/models.py`) - EditSession state management
+**Editor Tab:**
+- **MainWindow** (`gui/main_window.py`) - Main application orchestrating all components
+- **VideoPlayer** (`gui/video_player.py`) - QMediaPlayer-based video playback with crop/caption overlay
+- **Timeline** (`gui/timeline.py`) - QGraphicsView-based segment visualization
+- **TranscriptEditor** (`gui/transcript_editor.py`) - Text editing for transcription
+- **CaptionSettingsPanel** (`gui/caption_settings.py`) - Caption styling configuration
+- **SettingsDialog** (`gui/settings_dialog.py`) - API key management
+
+**Recorder Tab:**
+- **RecorderTab** (`gui/recorder/recorder_tab.py`) - Main recording interface
+- **RecordingController** (`gui/recorder/recording_controller.py`) - FFmpeg-based screen/audio capture
+- **RecordingPreview** (`gui/recorder/recording_preview.py`) - Live screen preview with crop overlay
+- **RecordingSettingsPanel** (`gui/recorder/recording_settings.py`) - Recording configuration
 
 ### Key Data Structures
 
-**Core:**
+**Core (`transcriber.py`, `analyzer.py`):**
 - `Segment` - Transcribed speech segment with start/end times, text, confidence
 - `Token` - Word-level timing for streaming captions
 - `TimeRange` - Start/end times for video cutting
 - `RetakeGroup` - Multiple segments that are retakes of each other
 - `AnalyzedSegment` - Segment with action (KEEP/REMOVE) and reason
 
-**GUI:**
-- `EditSession` - Complete editing state (segments, tokens, user edits, highlights)
+**GUI (`gui/models.py`):**
+- `EditSession` - Complete editing state (segments, tokens, user edits, highlights, crop, captions)
 - `HighlightRegion` - User-defined force-include region for non-speech content
+- `CropConfig` - Crop dimensions and pan position (normalized 0-1 coordinates)
+- `CaptionSettings` - Caption font, position, box dimensions, styling options
+- `RecordingConfig` - Screen capture settings, aspect ratio, audio device, output quality
 
 ### LLM Integration
 
-Take selection prefers Gemini 2.0 Flash (via `google-genai` package), falls back to OpenAI, then to duration-based selection if no API keys are available.
-
-## File Structure
-
-```
-video_editor/
-├── __init__.py
-├── main.py              # CLI entry point
-├── config.py            # Configuration management
-├── transcriber.py       # Whisper transcription
-├── analyzer.py          # Retake detection & take selection
-├── cutter.py            # FFmpeg video cutting
-├── captioner.py         # Caption generation & burning
-├── qc.py                # Quality control checks
-├── gui_main.py          # GUI entry point
-└── gui/
-    ├── __init__.py
-    ├── main_window.py   # Main application window
-    ├── video_player.py  # Video playback widget
-    ├── timeline.py      # Timeline visualization
-    ├── segment_item.py  # Graphics items (SegmentItem, HighlightItem, PlayheadItem)
-    ├── transcript_editor.py  # Text editing panel
-    └── models.py        # Data models (EditSession, HighlightRegion)
-```
+Take selection uses Gemini 2.0 Flash (via `google-genai` package), falling back to duration-based selection if no API key is available.
 
 ## GUI Signal Flow
 
@@ -124,19 +112,24 @@ User toggles segment → TranscriptEditor checkbox
                      → MainWindow._on_segment_keep_changed
                      → EditSession.set_segment_kept
                      → Timeline.update_segment
+
+User changes caption settings → CaptionSettingsPanel.settings_changed
+                              → MainWindow._on_caption_settings_changed
+                              → VideoPlayer.update_caption_settings
 ```
 
 ## FFmpeg Notes
 
-- Audio extraction uses 16kHz mono WAV (optimal for Whisper)
+- Audio extraction uses MP3 format for Soniox API upload
 - Video cutting uses stream copy (`-c copy`) for speed
 - Caption burning requires re-encoding with libx264
 - Segment gap is 0.05s between cuts to avoid audio glitches
+- Screen recording uses `avfoundation` on macOS with post-processing crop
 
 ## Common Tasks
 
 ### Adding a new timeline feature
-1. Add data model to `gui/models.py` (with save/load support)
+1. Add data model to `gui/models.py` (with `to_dict`/`from_dict` for save/load)
 2. Add graphics item to `gui/segment_item.py`
 3. Add signals and handlers to `gui/timeline.py`
 4. Connect signals in `gui/main_window.py`
@@ -151,6 +144,11 @@ User toggles segment → TranscriptEditor checkbox
 1. Add to `gui/main_window.py:_setup_shortcuts()`
 2. Use `QShortcut(QKeySequence(...), self)`
 3. Connect to appropriate handler
+
+### Adding a new recording feature
+1. Update `RecordingConfig` in `gui/models.py` with new settings
+2. Update `RecordingSettingsPanel` in `gui/recorder/recording_settings.py` for UI
+3. Update `RecordingController` in `gui/recorder/recording_controller.py` for FFmpeg integration
 
 ## Testing the GUI
 
@@ -168,7 +166,7 @@ python -m video_editor.gui_main test/test.mp4
 
 ## Troubleshooting
 
-- **API key errors**: Ensure `.env` file exists and `load_dotenv()` is called
-- **Slow Whisper on Mac**: Set `WHISPER_FORCE_CPU=1`
+- **API key errors**: Use GUI Settings menu to configure keys, or ensure `.env` file exists
 - **GUI import errors**: Install PySide6: `pip install PySide6`
-- **Export no captions**: Check tokens exist and segments are kept
+- **Export no captions**: Check tokens exist, segments are kept, and captions are enabled in settings panel
+- **Recording crop mismatch**: The recorder applies a 50px margin to compensate for coordinate system differences between preview and capture

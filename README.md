@@ -1,14 +1,15 @@
 # AI Video Editor
 
-An AI-powered video editing tool for spoken content. Automatically removes bad takes, silences, and adds captions using Whisper AI for transcription and LLMs (Gemini/OpenAI) for intelligent take selection.
+An AI-powered video editing tool for spoken content. Automatically removes bad takes, silences, and adds captions using Soniox API for transcription and LLMs (Gemini/OpenAI) for intelligent take selection.
 
 ## Features
 
-- **Automatic Transcription**: Uses Whisper AI for accurate speech-to-text (optimized for Hungarian)
+- **Automatic Transcription**: Uses Soniox API for accurate speech-to-text (optimized for Hungarian)
 - **Intelligent Take Selection**: LLM-powered detection of retakes, selecting the best version automatically
 - **Silence Removal**: Configurable silence detection and removal
 - **Streaming Captions**: Word-by-word captions burned into video with draggable positioning
 - **Video Cropping & Panning**: Interactive crop selection with aspect ratio constraints
+- **Screen Recording**: Built-in screen capture with aspect ratio selection and audio input
 - **GUI Editor**: Full graphical interface for reviewing and adjusting edits
 - **Timeline Highlights**: Mark non-speech regions to force-include (for screencasts)
 - **Project Files**: Save/load editing sessions for later refinement
@@ -62,22 +63,21 @@ choco install ffmpeg
 
 ### 5. Set Up API Keys
 
-Create a `.env` file in the project root:
+You can configure API keys via the GUI Settings menu, or create a `.env` file in the project root:
 
 ```bash
-# Required for intelligent take selection (choose one or both)
-GEMINI_API_KEY=your_gemini_api_key_here
-OPENAI_API_KEY=your_openai_api_key_here
+# Required for speech transcription
+SONIOX_API_KEY=your_soniox_api_key_here
 
-# Optional: Force CPU for Whisper (recommended for Apple Silicon)
-WHISPER_FORCE_CPU=1
+# Required for intelligent take selection (recommended)
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 **Getting API Keys:**
+- Soniox: https://soniox.com
 - Gemini: https://makersuite.google.com/app/apikey
-- OpenAI: https://platform.openai.com/api-keys
 
-If no API keys are provided, the tool falls back to duration-based take selection.
+If no Gemini API key is provided, the tool falls back to duration-based take selection.
 
 ## Usage
 
@@ -97,7 +97,6 @@ python -m video_editor input.mp4 --preview
 ```bash
 python -m video_editor input.mp4 \
     --output output.mp4 \
-    --model medium \
     --silence-threshold 1.5 \
     --caption-style modern
 ```
@@ -132,12 +131,14 @@ Double-click `launch_gui.bat` in Explorer.
 
 ## GUI Features
 
-### Video Player
+### Editor Tab
+
+#### Video Player
 - Play/pause with spacebar
 - Seek with left/right arrow keys (5 second jumps)
 - Click timeline to seek to any position
 
-### Timeline
+#### Timeline
 - **Green segments**: Kept in final video
 - **Red segments**: Cut from final video
 - **Blue highlights**: User-defined force-include regions
@@ -145,13 +146,13 @@ Double-click `launch_gui.bat` in Explorer.
 - **Yellow border**: Retake candidates
 - Ctrl+scroll to zoom in/out
 
-### Transcript Editor
+#### Transcript Editor
 - View all transcribed segments
 - Edit text to correct transcription errors
 - Toggle keep/cut with checkbox or double-click
 - Navigate with up/down arrow keys
 
-### Video Cropping
+#### Video Cropping
 Adjust the frame to focus on specific areas:
 1. Click "Crop" button in toolbar to enter crop mode
 2. Select aspect ratio (16:9, 9:16, 4:3, 1:1, or free)
@@ -160,21 +161,31 @@ Adjust the frame to focus on specific areas:
 5. Click "Crop" again to exit and preview the result
 6. Crop is applied during export
 
-### Caption Styling
+#### Caption Styling
 Customize how captions appear in the video:
 1. Click "Captions" button (available after analysis)
-2. Adjust font size and font family
-3. Click "Drag to Move" to reposition the caption box
-4. Drag the caption box edges/corners to resize
-5. Caption box maintains fixed size with word wrapping
+2. Toggle "Enable captions" to show/hide in preview and export
+3. Adjust font size, font family, weight, and colors
+4. Click "Drag to Move" to reposition the caption box
+5. Drag the caption box edges/corners to resize
 6. Click "Reset Position" to restore defaults
 
-### Highlight Regions
+#### Highlight Regions
 For screencasts or videos with important visual content without speech:
 1. Click and drag on empty timeline space (minimum 0.5 seconds)
 2. Blue highlight region appears
 3. Right-click highlight to remove
 4. Highlighted regions are force-included in export
+
+### Recorder Tab
+
+Built-in screen recording with:
+- Live preview of screen being captured
+- Aspect ratio selection (16:9, 9:16, 4:3, 1:1, or full screen)
+- Draggable crop overlay for region selection
+- Audio device selection and volume control
+- Record/Stop/Pause controls
+- Automatic transition to editor after recording
 
 ### Keyboard Shortcuts
 
@@ -197,6 +208,7 @@ Save your editing session as a `.vedproj` file to:
 - Preserve all text edits
 - Keep segment keep/cut decisions
 - Store highlight regions
+- Store crop and caption settings
 - Resume editing later
 
 ## Configuration
@@ -205,15 +217,13 @@ Save your editing session as a `.vedproj` file to:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `GEMINI_API_KEY` | Google Gemini API key for take selection | None |
-| `OPENAI_API_KEY` | OpenAI API key (fallback) | None |
-| `WHISPER_FORCE_CPU` | Force CPU for Whisper (set to `1`) | None |
+| `SONIOX_API_KEY` | Soniox API key for transcription | None (required) |
+| `GEMINI_API_KEY` | Google Gemini API key for take selection | None (optional) |
 
 ### CLI Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--model` | Whisper model size (tiny/base/small/medium/large) | medium |
 | `--silence-threshold` | Minimum silence duration to remove (seconds) | 1.5 |
 | `--retake-similarity` | Text similarity threshold for retake detection (0-1) | 0.8 |
 | `--caption-style` | Caption style (minimal/modern/bold) | modern |
@@ -238,7 +248,7 @@ video_editor/
 ├── __init__.py
 ├── main.py              # CLI entry point
 ├── config.py            # Configuration management
-├── transcriber.py       # Whisper transcription
+├── transcriber.py       # Soniox API transcription
 ├── analyzer.py          # Retake detection & take selection
 ├── cutter.py            # FFmpeg video cutting
 ├── captioner.py         # Caption generation & burning
@@ -251,21 +261,27 @@ video_editor/
     ├── segment_item.py      # Timeline graphics items
     ├── transcript_editor.py # Text editing panel
     ├── caption_settings.py  # Caption styling panel
-    └── models.py            # Data models (EditSession, CropConfig, CaptionSettings)
+    ├── settings_dialog.py   # API key configuration
+    ├── models.py            # Data models (EditSession, CropConfig, CaptionSettings)
+    └── recorder/            # Screen recording module
+        ├── recorder_tab.py
+        ├── recording_controller.py
+        ├── recording_preview.py
+        └── recording_settings.py
 ```
 
 ### Processing Pipeline
 
 1. **Transcription** (`transcriber.py`)
-   - Extracts audio via FFmpeg (16kHz mono WAV)
-   - Runs Whisper for speech-to-text
+   - Extracts audio via FFmpeg (MP3)
+   - Uploads to Soniox API for speech-to-text
    - Returns timestamped segments and word-level tokens
 
 2. **Analysis** (`analyzer.py`)
    - Detects silences in audio
    - Identifies retakes using fuzzy text matching (rapidfuzz)
-   - Selects best takes via LLM (Gemini preferred, OpenAI fallback)
-   - Falls back to duration-based selection if no API keys
+   - Selects best takes via LLM (Gemini)
+   - Falls back to duration-based selection if no API key
    - Returns time ranges to keep
 
 3. **Cutting** (`cutter.py`)
@@ -286,17 +302,12 @@ video_editor/
 - `HighlightRegion`: User-defined force-include region
 - `CropConfig`: Crop dimensions and pan position (normalized 0-1)
 - `CaptionSettings`: Caption font, position, and box dimensions
+- `RecordingConfig`: Screen capture settings, aspect ratio, audio device
 
 ## Troubleshooting
 
-### "SONIOX_API_KEY not set" or similar API errors
-This error appears if environment variables aren't loaded. Ensure:
-1. `.env` file exists in project root with your API keys
-2. Running from project directory
-3. Virtual environment is activated
-
-### Whisper runs slowly on Apple Silicon
-Set `WHISPER_FORCE_CPU=1` in your `.env` file. MPS (Metal) has known issues with Whisper.
+### "SONIOX_API_KEY not set" error
+Configure your API key via GUI Settings menu or ensure `.env` file exists with your key.
 
 ### FFmpeg not found
 Ensure FFmpeg is installed and in your PATH:
@@ -312,17 +323,21 @@ pip install PySide6
 
 ### No speech detected
 - Check audio levels in source video
-- Try a larger Whisper model (`--model large`)
 - Ensure the video has actual speech content
+- Verify Soniox API key is valid
 
 ### Export has no captions
 - Verify transcription completed successfully
 - Check that segments are marked as "kept" (green)
+- Ensure "Enable captions" is checked in Caption Settings panel
 - Ensure tokens exist in the session
 
 ### Video playback issues in GUI
 - Ensure video codecs are supported by Qt
 - Try converting to H.264 MP4 format first
+
+### Recording crop doesn't match preview
+The recorder applies a 50px margin to compensate for coordinate system differences between preview and capture. This is expected behavior.
 
 ## Development
 
