@@ -1,6 +1,7 @@
 """Analysis module for detecting bad takes, pauses, and retakes."""
 
 import os
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -11,6 +12,63 @@ from .config import Config
 from .transcriber import Segment
 
 console = Console()
+
+# Hungarian-specific speech quality markers
+HUNGARIAN_HESITATION_MARKERS = {
+    # Filled pauses
+    "öö": "filled_pause",
+    "ööö": "filled_pause",
+    "öööö": "filled_pause",
+    "hmm": "filled_pause",
+    "hm": "filled_pause",
+    "aha": "filled_pause",
+    "ő": "filled_pause",
+    # Hedge words (when used as fillers)
+    "szóval": "hedge",
+    "tehát": "hedge",
+    "hát": "hedge",
+    "ugye": "hedge",
+    # Placeholder words (like English "um, thing")
+    "izé": "placeholder",
+    "izélni": "placeholder",
+    "hogyishívják": "placeholder",
+    # Restart signals
+    "na": "restart_signal",
+    "nos": "restart_signal",
+    "oké": "restart_signal",
+    # Self-correction markers
+    "nem": "correction_signal",
+    "azaz": "correction_signal",
+    "vagyis": "correction_signal",
+    "helyesebben": "correction_signal",
+    "bocsánat": "correction_signal",
+    "várj": "correction_signal",
+}
+
+# Patterns indicating incomplete sentences
+HUNGARIAN_INCOMPLETE_PATTERNS = [
+    r"\bés\s*$",      # ends with "és" (and)
+    r"\bde\s*$",      # ends with "de" (but)
+    r"\bhogy\s*$",    # ends with "hogy" (that)
+    r"\bami\s*$",     # ends with "ami" (which)
+    r"\bakkor\s*$",   # ends with "akkor" (then)
+    r"\bmert\s*$",    # ends with "mert" (because)
+    r"\bvagy\s*$",    # ends with "vagy" (or)
+    r"\bha\s*$",      # ends with "ha" (if)
+    r"\bmint\s*$",    # ends with "mint" (like/as)
+    r"\bahol\s*$",    # ends with "ahol" (where)
+]
+
+# Patterns indicating complete sentences
+HUNGARIAN_COMPLETION_MARKERS = [
+    r"\.\s*$",        # proper sentence ending
+    r"!\s*$",         # exclamation
+    r"\?\s*$",        # question
+    r"köszönöm\s*$",  # "thank you"
+    r"rendben\s*$",   # "alright"
+    r"ennyi\s*$",     # "that's it"
+    r"vége\s*$",      # "the end"
+]
 
 # Try importing Gemini (primary) - new package
 try:
@@ -60,6 +118,19 @@ class RetakeGroup:
     id: int
     segments: list[AnalyzedSegment] = field(default_factory=list)
     best_index: int | None = None
+
+
+@dataclass
+class TakeMetrics:
+    """Objective metrics computed for a single take."""
+    word_count: int
+    duration: float
+    hesitation_count: int
+    hesitation_types: dict[str, int]
+    incomplete_sentence: bool
+    has_completion_marker: bool
+    correction_signals: int
+    position: int  # chronological order (0-indexed)
 
 
 class Analyzer:
@@ -371,34 +442,226 @@ class Analyzer:
         
         return filler_indices
     
-    def select_best_take_llm(self, group: RetakeGroup) -> int:
+    def _compute_take_metrics(self, segment: Segment, position: int) -> TakeMetrics:
         """
-        Use LLM to select the best take from a retake group.
-        
+        Compute objective metrics for a single take.
+
+        Args:
+            segment: The segment to analyze
+            position: Chronological position (0-indexed)
+
+        Returns:
+            TakeMetrics with computed values
+        """
+        text = segment.text.lower()
+        words = text.split()
+
+        # Count hesitation markers by type
+        hesitation_types: dict[str, int] = {}
+        hesitation_count = 0
+        correction_signals = 0
+
+        for marker, marker_type in HUNGARIAN_HESITATION_MARKERS.items():
+            # Use word boundary matching for more accurate detection
+            pattern = r'\b' + re.escape(marker) + r'\b'
+            matches = len(re.findall(pattern, text))
+            if matches > 0:
+                hesitation_types[marker_type] = hesitation_types.get(marker_type, 0) + matches
+                if marker_type == "correction_signal":
+                    correction_signals += matches
+                else:
+                    hesitation_count += matches
+
+        # Check for incomplete sentence patterns
+        incomplete_sentence = any(
+            re.search(pattern, text) for pattern in HUNGARIAN_INCOMPLETE_PATTERNS
+        )
+
+        # Check for completion markers
+        has_completion_marker = any(
+            re.search(pattern, text) for pattern in HUNGARIAN_COMPLETION_MARKERS
+        )
+
+        return TakeMetrics(
+            word_count=len(words),
+            duration=segment.duration,
+            hesitation_count=hesitation_count,
+            hesitation_types=hesitation_types,
+            incomplete_sentence=incomplete_sentence,
+            has_completion_marker=has_completion_marker,
+            correction_signals=correction_signals,
+            position=position
+        )
+
+    def _format_take_with_metrics(self, segment: Segment, metrics: TakeMetrics, is_last: bool) -> str:
+        """Format a take with its metrics for the LLM prompt."""
+        position_label = "final attempt - most recent" if is_last else f"attempt {metrics.position + 1}"
+
+        # Build indicators list
+        indicators = []
+        if metrics.hesitation_count > 0:
+            indicators.append(f"{metrics.hesitation_count} hesitation(s)")
+        if metrics.correction_signals > 0:
+            indicators.append(f"{metrics.correction_signals} self-correction(s)")
+        if metrics.incomplete_sentence:
+            indicators.append("incomplete sentence")
+        if metrics.has_completion_marker:
+            indicators.append("complete sentence")
+
+        indicators_str = ", ".join(indicators) if indicators else "no issues detected"
+
+        return (
+            f"Take {metrics.position + 1} ({position_label}):\n"
+            f"Text: \"{segment.text}\"\n"
+            f"Duration: {metrics.duration:.1f}s | Indicators: {indicators_str}"
+        )
+
+    def _build_enhanced_prompt(self, group: RetakeGroup, metrics_list: list[TakeMetrics]) -> str:
+        """Build the enhanced LLM prompt with metrics and context."""
+        num_takes = len(group.segments)
+
+        # Format each take with metrics
+        takes_text = "\n\n".join(
+            self._format_take_with_metrics(
+                seg.segment,
+                metrics,
+                is_last=(i == num_takes - 1)
+            )
+            for i, (seg, metrics) in enumerate(zip(group.segments, metrics_list))
+        )
+
+        prompt = f"""You are a Hungarian speech quality analyst evaluating multiple takes.
+
+## RECORDING CONTEXT
+Takes are in CHRONOLOGICAL ORDER (1=first, {num_takes}=most recent).
+The speaker re-recorded to improve. Later takes are usually the speaker's preferred version.
+
+## HUNGARIAN SPEECH QUALITY INDICATORS
+**Hesitation markers**: "öö", "hmm", "hát", "izé" (indicate uncertainty)
+**Self-correction**: "nem, ...", "azaz", "vagyis" (speaker correcting themselves)
+**Incomplete**: ends with conjunctions (és, de, hogy, mert) without completing thought
+**Restart signals**: "na", "nos" at beginning often indicate fresh attempt
+
+## TAKES TO EVALUATE
+{takes_text}
+
+## EVALUATION INSTRUCTIONS
+For each take, consider:
+1. COMPLETENESS: Does it express a complete thought?
+2. FLUENCY: Natural flow without excessive hesitation?
+3. SELF-CORRECTIONS: Mid-sentence corrections present?
+4. INTENT: Signs of being abandoned (trailing off)?
+
+IMPORTANT: Prefer the LAST take unless it has a clear problem (incomplete, more hesitations than earlier takes, obvious mistake).
+
+## RESPONSE FORMAT
+REASONING: [One sentence explaining your choice. If NOT selecting the last take, explain what problem it has.]
+DECISION: [number]"""
+
+        return prompt
+
+    def _parse_structured_response(self, response: str, num_takes: int) -> tuple[int, str]:
+        """
+        Parse the structured LLM response.
+
+        Returns:
+            Tuple of (selected_index, reasoning)
+        """
+        lines = response.strip().split('\n')
+
+        decision = None
+        reasoning = ""
+
+        for line in lines:
+            line_stripped = line.strip()
+
+            if line_stripped.upper().startswith("DECISION:"):
+                try:
+                    # Extract number from "DECISION: 3" or "DECISION:3"
+                    num_str = line_stripped.split(":", 1)[1].strip()
+                    # Handle cases like "3 (final take)" by taking first number
+                    num_match = re.search(r'\d+', num_str)
+                    if num_match:
+                        decision = int(num_match.group()) - 1  # Convert to 0-indexed
+                except (ValueError, IndexError):
+                    pass
+            elif line_stripped.upper().startswith("REASONING:"):
+                reasoning = line_stripped.split(":", 1)[1].strip() if ":" in line_stripped else ""
+
+        # Validate decision
+        if decision is None or not (0 <= decision < num_takes):
+            decision = num_takes - 1  # Default to last take
+            reasoning = "Fallback: defaulting to last take"
+
+        return decision, reasoning
+
+    def _validate_decision(self, decision: int, metrics_list: list[TakeMetrics]) -> tuple[int, str | None]:
+        """
+        Apply validation rules to catch obvious LLM errors.
+
+        Returns:
+            Tuple of (validated_decision, override_reason or None)
+        """
+        if not metrics_list:
+            return decision, None
+
+        selected = metrics_list[decision]
+        last = metrics_list[-1]
+        last_index = len(metrics_list) - 1
+
+        # Rule 1: If selecting non-last take, verify the last take actually has issues
+        if decision != last_index:
+            # Check if last take is objectively better
+            if (last.has_completion_marker and
+                not selected.has_completion_marker and
+                last.hesitation_count <= selected.hesitation_count):
+                return last_index, "last take is complete with fewer/equal hesitations"
+
+        # Rule 2: Never select an incomplete sentence if complete alternatives exist
+        if selected.incomplete_sentence:
+            # Prefer last complete take
+            for i in range(len(metrics_list) - 1, -1, -1):
+                if not metrics_list[i].incomplete_sentence:
+                    return i, "avoiding incomplete take"
+
+        return decision, None
+
+    def _fallback_selection(self, metrics_list: list[TakeMetrics]) -> int:
+        """
+        Fallback selection when LLM unavailable.
+        Selects the last complete take.
+        """
+        # Find the last take that is complete
+        for i in range(len(metrics_list) - 1, -1, -1):
+            if metrics_list[i].has_completion_marker and not metrics_list[i].incomplete_sentence:
+                return i
+
+        # If none explicitly complete, return the last one
+        return len(metrics_list) - 1
+
+    def select_best_take_llm(self, group: RetakeGroup) -> tuple[int, str]:
+        """
+        Use LLM to select the best take from a retake group with enhanced understanding.
+
         Args:
             group: RetakeGroup with multiple takes
-            
+
         Returns:
-            Index of the best take within the group
+            Tuple of (index of best take, reason for selection)
         """
-        # Build prompt
-        segments_text = "\n".join(
-            f"{i + 1}. \"{seg.segment.text}\" (duration: {seg.segment.duration:.1f}s)"
+        num_takes = len(group.segments)
+
+        # Stage 1: Compute metrics for all takes
+        metrics_list = [
+            self._compute_take_metrics(seg.segment, i)
             for i, seg in enumerate(group.segments)
-        )
-        
-        prompt = f"""You are analyzing multiple takes of the same spoken content in Hungarian.
-Select the best take based on:
-1. Completeness of the thought
-2. Natural flow and clarity
-3. Absence of hesitation or filler words
-4. Proper pronunciation and delivery
+        ]
 
-Here are the takes:
-{segments_text}
+        # Stage 2: Build enhanced prompt and query LLM
+        prompt = self._build_enhanced_prompt(group, metrics_list)
 
-Respond with ONLY the number (1, 2, 3, etc.) of the best take. Nothing else."""
-
+        decision = None
+        reasoning = ""
 
         # Try Gemini first (primary)
         if self._gemini_client:
@@ -407,43 +670,43 @@ Respond with ONLY the number (1, 2, 3, etc.) of the best take. Nothing else."""
                     model="gemini-2.0-flash",
                     contents=prompt
                 )
-                answer = response.text.strip()
-                best_index = int(answer) - 1  # Convert to 0-indexed
-                
-                if 0 <= best_index < len(group.segments):
-                    return best_index
+                decision, reasoning = self._parse_structured_response(response.text, num_takes)
             except Exception as e:
                 console.print(f"[yellow]Gemini failed: {e}. Trying fallback...[/yellow]")
-        
+
         # Try OpenAI as fallback
-        if self._openai_client:
+        if decision is None and self._openai_client:
             try:
                 response = self._openai_client.chat.completions.create(
                     model=self.config.llm_model,
                     messages=[{"role": "user", "content": prompt}],
-                    max_tokens=10,
+                    max_tokens=200,
                     temperature=0
                 )
-                
-                answer = response.choices[0].message.content.strip()
-                best_index = int(answer) - 1  # Convert to 0-indexed
-                
-                if 0 <= best_index < len(group.segments):
-                    return best_index
+                answer = response.choices[0].message.content
+                decision, reasoning = self._parse_structured_response(answer, num_takes)
             except Exception as e:
-                console.print(f"[red]OpenAI fallback failed: {e}. Using duration-based selection.[/red]")
-        
-        # Final fallback: pick the longest take
-        return max(range(len(group.segments)), 
-                  key=lambda i: group.segments[i].segment.duration)
+                console.print(f"[yellow]OpenAI failed: {e}. Using rule-based selection.[/yellow]")
+
+        # Stage 3: Validate decision or use fallback
+        if decision is None:
+            decision = self._fallback_selection(metrics_list)
+            reasoning = "rule-based: selected last complete take"
+        else:
+            validated_decision, override_reason = self._validate_decision(decision, metrics_list)
+            if override_reason:
+                decision = validated_decision
+                reasoning = f"override: {override_reason}"
+
+        return decision, reasoning
     
     def select_best_takes(self, groups: list[RetakeGroup]) -> list[RetakeGroup]:
         """
         Select the best take from each retake group.
-        
+
         Args:
             groups: List of retake groups
-            
+
         Returns:
             Groups with best_index set
         """
@@ -451,12 +714,24 @@ Respond with ONLY the number (1, 2, 3, etc.) of the best take. Nothing else."""
             if len(group.segments) == 1:
                 group.best_index = 0
             else:
-                group.best_index = self.select_best_take_llm(group)
-                console.print(
-                    f"[green]Retake group {group.id}: selected take {group.best_index + 1} "
-                    f"of {len(group.segments)}[/green]"
-                )
-        
+                best_index, reasoning = self.select_best_take_llm(group)
+                group.best_index = best_index
+
+                # Summary output (1 line per group)
+                num_takes = len(group.segments)
+                is_last = (best_index == num_takes - 1)
+
+                if is_last:
+                    console.print(
+                        f"[blue]Retake group {group.id}: selected take {best_index + 1} of {num_takes} "
+                        f"({reasoning})[/blue]"
+                    )
+                else:
+                    console.print(
+                        f"[yellow]Retake group {group.id}: selected take {best_index + 1} of {num_takes} "
+                        f"({reasoning})[/yellow]"
+                    )
+
         return groups
     
     def analyze(self, segments: list[Segment], video_duration: float) -> tuple[list[TimeRange], list[Segment]]:
