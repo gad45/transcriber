@@ -1,6 +1,6 @@
 """Main recorder tab widget combining all recording components."""
 
-import subprocess
+import threading
 from pathlib import Path
 from datetime import datetime
 
@@ -8,14 +8,16 @@ from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QToolBar, QPushButton, QLabel, QMessageBox,
-    QProgressDialog, QApplication
+    QProgressDialog
 )
-from PySide6.QtGui import QIcon, QGuiApplication
+from PySide6.QtGui import QGuiApplication
 
 from .recording_controller import RecordingController, RecordingState
 from .recording_preview import RecordingPreview
 from .recording_settings import RecordingSettingsPanel
+from .ffmpeg_worker import FFmpegCropWorker
 from ..models import RecordingConfig
+from ...encoder import get_encoder_args
 
 
 class RecorderTab(QWidget):
@@ -35,6 +37,7 @@ class RecorderTab(QWidget):
 
     recording_completed = Signal(Path)
     open_in_editor_requested = Signal(Path)
+    _crop_result_ready = Signal(bool, Path, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -42,6 +45,10 @@ class RecorderTab(QWidget):
         self._controller = RecordingController()
         self._recording_start_time: datetime | None = None
         self._timer_update = QTimer(self)
+        self._crop_thread: threading.Thread | None = None
+        self._crop_worker: FFmpegCropWorker | None = None
+        self._crop_progress: QProgressDialog | None = None
+        self._crop_auto_open = False
 
         self._setup_ui()
         self._connect_signals()
@@ -98,8 +105,8 @@ class RecorderTab(QWidget):
         # Initialize preview with screen size
         screens = QGuiApplication.screens()
         if screens:
-            geo = screens[0].geometry()
-            self._preview.set_screen_size(geo.width(), geo.height())
+            screen_w, screen_h = RecordingController.get_screen_pixel_size(screens[0])
+            self._preview.set_screen_size(screen_w, screen_h)
 
         # Start preview immediately so users can see what they'll record
         self._controller.start_preview()
@@ -211,6 +218,7 @@ class RecorderTab(QWidget):
         self._controller.recording_started.connect(self._on_recording_started)
         self._controller.recording_stopped.connect(self._on_recording_stopped)
         self._controller.recording_error.connect(self._on_recording_error)
+        self._controller.recording_warning.connect(self._on_recording_warning)
         self._controller.duration_changed.connect(self._on_duration_changed)
         self._controller.state_changed.connect(self._on_state_changed)
         self._controller.audio_level_changed.connect(self._settings_panel.set_audio_level)
@@ -218,6 +226,7 @@ class RecorderTab(QWidget):
 
         # Timer for updating display
         self._timer_update.timeout.connect(self._update_timer_display)
+        self._crop_result_ready.connect(self._on_crop_finished)
 
     def _on_record_clicked(self):
         """Handle record button click."""
@@ -234,6 +243,11 @@ class RecorderTab(QWidget):
 
     def _on_stop_clicked(self):
         """Handle stop button click."""
+        self._stop_btn.setEnabled(False)
+        self._pause_btn.setEnabled(False)
+        self._pause_btn.setChecked(False)
+        self._status_label.setText("Stopping...")
+        self._timer_update.stop()
         self._controller.stop_recording()
 
     def _on_pause_toggled(self, checked: bool):
@@ -253,8 +267,8 @@ class RecorderTab(QWidget):
         # Update preview with screen size for resolution scaling
         screens = QGuiApplication.screens()
         if index < len(screens):
-            geo = screens[index].geometry()
-            self._preview.set_screen_size(geo.width(), geo.height())
+            screen_w, screen_h = RecordingController.get_screen_pixel_size(screens[index])
+            self._preview.set_screen_size(screen_w, screen_h)
 
     def _on_crop_mode_changed(self, resolution, aspect_ratio):
         """Handle crop mode change (resolution or aspect ratio)."""
@@ -297,29 +311,26 @@ class RecorderTab(QWidget):
     def _on_recording_stopped(self, output_path: Path, needs_crop: bool):
         """Handle recording stopped."""
         self._timer_update.stop()
-        self._record_btn.setEnabled(True)
-        self._stop_btn.setEnabled(False)
-        self._pause_btn.setEnabled(False)
-        self._pause_btn.setChecked(False)
-        self._settings_panel.setEnabled(True)
-        self._status_label.setText("Ready to record")
+        config = self._controller.get_last_recording_config()
+        auto_open = bool(config and not config.capture_full_screen)
 
         if needs_crop:
-            self._process_crop(output_path)
+            self._set_ui_processing()
+            self._process_crop(output_path, config, auto_open=auto_open)
         else:
-            self._show_completion_dialog(output_path)
+            self._set_ui_idle()
+            self._show_completion_dialog(output_path, auto_open=auto_open)
 
     def _on_recording_error(self, error: str):
         """Handle recording error."""
         self._timer_update.stop()
-        self._record_btn.setEnabled(True)
-        self._stop_btn.setEnabled(False)
-        self._pause_btn.setEnabled(False)
-        self._pause_btn.setChecked(False)
-        self._settings_panel.setEnabled(True)
-        self._status_label.setText("Ready to record")
+        self._set_ui_idle()
 
         QMessageBox.critical(self, "Recording Error", error)
+
+    def _on_recording_warning(self, message: str):
+        """Handle recording warning (non-fatal)."""
+        QMessageBox.warning(self, "Recording Warning", message)
 
     def _on_duration_changed(self, duration_ms: int):
         """Handle duration update."""
@@ -342,21 +353,25 @@ class RecorderTab(QWidget):
             minutes, seconds = divmod(remainder, 60)
             self._timer_label.setText(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
 
-    def _process_crop(self, input_path: Path):
+    def _process_crop(
+        self,
+        input_path: Path,
+        config: RecordingConfig | None = None,
+        auto_open: bool = False,
+    ):
         """Process the recording with FFmpeg crop filter.
 
         The raw recording in the 'raw' subdirectory is NEVER deleted.
         The cropped version is saved to the parent directory.
         """
-        config = self._settings_panel.get_config()
+        if config is None:
+            config = self._settings_panel.get_config()
 
         # Get screen dimensions for crop calculation
         screens = QGuiApplication.screens()
         if config.screen_index < len(screens):
             screen = screens[config.screen_index]
-            geo = screen.geometry()
-            screen_width = geo.width()
-            screen_height = geo.height()
+            screen_width, screen_height = RecordingController.get_screen_pixel_size(screen)
         else:
             # Fallback
             screen_width = 1920
@@ -364,67 +379,72 @@ class RecorderTab(QWidget):
 
         crop_filter = config.to_ffmpeg_crop_filter(screen_width, screen_height)
         if not crop_filter:
-            self._show_completion_dialog(input_path)
+            self._set_ui_idle()
+            self._show_completion_dialog(input_path, auto_open=auto_open)
             return
 
         # Cropped file goes to parent directory (raw stays in raw/)
         # e.g., raw/recording_123.mp4 -> Recordings/recording_123.mp4
         output_path = input_path.parent.parent / input_path.name
 
-        # Show progress dialog
-        progress = QProgressDialog("Cropping video...", "Cancel", 0, 0, self)
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.setAutoClose(True)
-        progress.show()
-        QApplication.processEvents()
+        self._crop_auto_open = auto_open
+        self._start_crop_worker(input_path, output_path, crop_filter)
 
-        try:
-            cmd = [
-                "ffmpeg", "-y",
-                "-i", str(input_path),
-                "-vf", crop_filter,
-                "-c:a", "copy",
-                "-preset", "medium",
-                str(output_path)
-            ]
+    def _start_crop_worker(self, input_path: Path, output_path: Path, crop_filter: str) -> None:
+        """Start the FFmpeg crop worker in a background thread."""
+        if self._crop_thread and self._crop_thread.is_alive():
+            return
 
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True
-            )
+        worker = FFmpegCropWorker(
+            input_path=input_path,
+            output_path=output_path,
+            crop_filter=crop_filter,
+            encoder_args=get_encoder_args(),
+        )
+        self._crop_worker = worker
 
-            progress.close()
+        def run_crop() -> None:
+            success, result_path, message = worker.run()
+            self._crop_result_ready.emit(success, result_path, message)
 
-            if result.returncode == 0 and output_path.exists():
-                # Success! Raw file is kept, cropped file is in parent directory
-                QMessageBox.information(
-                    self,
-                    "Recording Complete",
-                    f"Cropped video saved to:\n{output_path}\n\n"
-                    f"Raw recording preserved at:\n{input_path}"
-                )
-                self._show_completion_dialog(output_path)
-            else:
-                QMessageBox.warning(
-                    self,
-                    "Crop Warning",
-                    f"Cropping failed. Raw recording saved at:\n{input_path}"
-                )
-                self._show_completion_dialog(input_path)
+        self._crop_thread = threading.Thread(target=run_crop, name="ffmpeg-crop", daemon=True)
+        self._crop_thread.start()
 
-        except Exception as e:
-            progress.close()
-            QMessageBox.warning(
-                self,
-                "Crop Warning",
-                f"Cropping failed: {e}\nRaw recording saved at:\n{input_path}"
-            )
-            self._show_completion_dialog(input_path)
+        self._crop_progress = QProgressDialog("Cropping video...", "Cancel", 0, 0, self)
+        self._crop_progress.setWindowModality(Qt.WindowModality.WindowModal)
+        self._crop_progress.setAutoClose(True)
+        self._crop_progress.setAutoReset(False)
+        self._crop_progress.canceled.connect(self._on_crop_canceled)
+        self._crop_progress.show()
 
-    def _show_completion_dialog(self, output_path: Path):
-        """Show recording completion dialog."""
+    def _on_crop_canceled(self) -> None:
+        if self._crop_worker:
+            self._crop_worker.cancel()
+        if self._crop_progress:
+            self._crop_progress.setLabelText("Canceling...")
+
+    def _on_crop_finished(self, success: bool, result_path: Path, message: str) -> None:
+        if self._crop_progress:
+            self._crop_progress.close()
+            self._crop_progress = None
+
+        self._crop_worker = None
+        self._crop_thread = None
+
+        self._set_ui_idle()
+
+        if not success and message:
+            QMessageBox.warning(self, "Crop Warning", message)
+
+        self._show_completion_dialog(result_path, auto_open=self._crop_auto_open)
+
+    def _show_completion_dialog(self, output_path: Path, auto_open: bool = False):
+        """Show recording completion dialog or auto-open."""
         self.recording_completed.emit(output_path)
+
+        if auto_open:
+            self.open_in_editor_requested.emit(output_path)
+            return
 
         reply = QMessageBox.question(
             self,
@@ -436,6 +456,22 @@ class RecorderTab(QWidget):
 
         if reply == QMessageBox.StandardButton.Yes:
             self.open_in_editor_requested.emit(output_path)
+
+    def _set_ui_processing(self) -> None:
+        self._record_btn.setEnabled(False)
+        self._stop_btn.setEnabled(False)
+        self._pause_btn.setEnabled(False)
+        self._pause_btn.setChecked(False)
+        self._settings_panel.setEnabled(False)
+        self._status_label.setText("Processing...")
+
+    def _set_ui_idle(self) -> None:
+        self._record_btn.setEnabled(True)
+        self._stop_btn.setEnabled(False)
+        self._pause_btn.setEnabled(False)
+        self._pause_btn.setChecked(False)
+        self._settings_panel.setEnabled(True)
+        self._status_label.setText("Ready to record")
 
     def get_config(self) -> RecordingConfig:
         """Get current recording configuration."""
