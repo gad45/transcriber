@@ -129,6 +129,12 @@ class Config(BaseModel):
         description="Vertical offset in pixels from the caption position edge"
     )
 
+    # Hardware encoding settings
+    use_hardware_encoding: bool = Field(
+        default=True,
+        description="Use VideoToolbox hardware encoding if available (macOS)"
+    )
+
 
 # Caption style presets
 CAPTION_STYLES = {

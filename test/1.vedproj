@@ -1,0 +1,7739 @@
+{
+  "version": "1.1",
+  "video_path": "/Users/gorogadam/project/FFMPEG/test/test.mp4",
+  "video_duration": 749.461,
+  "segments": [
+    {
+      "start": 4.02,
+      "end": 5.7,
+      "text": "Ebben a videóban végre összejöttek a szálak,",
+      "confidence": 1.0
+    },
+    {
+      "start": 5.76,
+      "end": 6.54,
+      "text": "és megnézzük azt,",
+      "confidence": 1.0
+    },
+    {
+      "start": 6.66,
+      "end": 11.46,
+      "text": "hogy hogyan tudjuk az összes olyan kreatív folyamatot ellátni AI segítségével,",
+      "confidence": 1.0
+    },
+    {
+      "start": 11.7,
+      "end": 14.16,
+      "text": "ami szükséges a hirdetések futtatásához.",
+      "confidence": 1.0
+    },
+    {
+      "start": 14.64,
+      "end": 18.72,
+      "text": "A korábbiakban készítettünk egy sor különböző kontextfragmentet,",
+      "confidence": 1.0
+    },
+    {
+      "start": 19.02,
+      "end": 24.12,
+      "text": "ami ugye vagy specifikus adatokat tartalmazott a mi vállalkozásunkra vonatkozóan,",
+      "confidence": 1.0
+    },
+    {
+      "start": 24.48,
+      "end": 25.5,
+      "text": "lehetővé téve azt,",
+      "confidence": 1.0
+    },
+    {
+      "start": 25.56,
+      "end": 28.14,
+      "text": "hogy sokkal jobban tudjuk fókuszálni az AI figyelmét,",
+      "confidence": 1.0
+    },
+    {
+      "start": 28.2,
+      "end": 29.46,
+      "text": "sokkal konkrétabb,",
+      "confidence": 1.0
+    },
+    {
+      "start": 29.46,
+      "end": 33.06,
+      "text": "kézzelfoghatóbb és pontosabb megoldásokat készítsen a számunkra,",
+      "confidence": 1.0
+    },
+    {
+      "start": 33.66,
+      "end": 35.16,
+      "text": "vagy pedig olyan módszereket,",
+      "confidence": 1.0
+    },
+    {
+      "start": 35.4,
+      "end": 36.9,
+      "text": "metódusokat tartalmaztak,",
+      "confidence": 1.0
+    },
+    {
+      "start": 37.08,
+      "end": 38.4,
+      "text": "amikről azt akartuk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 38.4,
+      "end": 40.02,
+      "text": "hogy az AI ezeket kövesse.",
+      "confidence": 1.0
+    },
+    {
+      "start": 40.74,
+      "end": 43.74,
+      "text": "Ezek közül kiválasztjuk most az ad angle-öket,",
+      "confidence": 1.0
+    },
+    {
+      "start": 43.74,
+      "end": 46.32,
+      "text": "vagyis hirdetési megközelítéseket tartalmazót.",
+      "confidence": 1.0
+    },
+    {
+      "start": 46.56,
+      "end": 50.52,
+      "text": "Ugye készítettünk egy sor különböző lehetséges megközelítést,",
+      "confidence": 1.0
+    },
+    {
+      "start": 50.82,
+      "end": 53.34,
+      "text": "ahogyan el lehet adni a termékünket,",
+      "confidence": 1.0
+    },
+    {
+      "start": 53.4,
+      "end": 55.32,
+      "text": "ami a példában a matcha tea,",
+      "confidence": 1.0
+    },
+    {
+      "start": 55.62,
+      "end": 56.58,
+      "text": "és léteznek ugye",
+      "confidence": 1.0
+    },
+    {
+      "start": 57.18,
+      "end": 59.7,
+      "text": "racionális érveket tartalmazó megközelítések,",
+      "confidence": 1.0
+    },
+    {
+      "start": 59.94,
+      "end": 62.46,
+      "text": "érzelmi érveket tartalmazó megközelítések,",
+      "confidence": 1.0
+    },
+    {
+      "start": 62.88,
+      "end": 65.28,
+      "text": "és hogyha majd élesben tesztelünk hirdetéseket,",
+      "confidence": 1.0
+    },
+    {
+      "start": 65.34,
+      "end": 66.78,
+      "text": "akkor egyszerűen az lesz a dolgunk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 66.84,
+      "end": 71.04,
+      "text": "hogy minden egyes megközelítéshez elvégezzük azt a folyamatot,",
+      "confidence": 1.0
+    },
+    {
+      "start": 71.46,
+      "end": 73.26,
+      "text": "amit ebben a videóban bemutatok.",
+      "confidence": 1.0
+    },
+    {
+      "start": 73.5,
+      "end": 74.82,
+      "text": "Én előzetesen úgy döntöttem,",
+      "confidence": 1.0
+    },
+    {
+      "start": 74.88,
+      "end": 77.88,
+      "text": "hogy most ezt a kettőt fogom bemutatni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 78.36,
+      "end": 79.92,
+      "text": "ami a délután kétórás",
+      "confidence": 1.0
+    },
+    {
+      "start": 80.46,
+      "end": 81.72,
+      "text": "falat jelképezi.",
+      "confidence": 1.0
+    },
+    {
+      "start": 81.84,
+      "end": 83.64,
+      "text": "Ugye mindenki ismeri ezt,",
+      "confidence": 1.0
+    },
+    {
+      "start": 84.48,
+      "end": 86.4,
+      "text": "ahogy már halad a munkanapunk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 86.64,
+      "end": 89.28,
+      "text": "délután kettő körül az ember beleütközik egy falba,",
+      "confidence": 1.0
+    },
+    {
+      "start": 89.58,
+      "end": 90.24,
+      "text": "fáradtabb lesz,",
+      "confidence": 1.0
+    },
+    {
+      "start": 90.3,
+      "end": 92.04,
+      "text": "kevesebb lesz a mentális energiája,",
+      "confidence": 1.0
+    },
+    {
+      "start": 92.22,
+      "end": 97.8,
+      "text": "és ugye ez a hirdetés megközelítés arra vonatkozó hirdetéseket fog majd tartalmazni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 97.98,
+      "end": 100.26,
+      "text": "hogy a matcha hogyan segít ezt leküzdeni.",
+      "confidence": 1.0
+    },
+    {
+      "start": 137.04,
+      "end": 139.14,
+      "text": "Minden hirdetés két főelemből fog állni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 139.32,
+      "end": 140.94,
+      "text": "egyrészt lesz egy szöveges része,",
+      "confidence": 1.0
+    },
+    {
+      "start": 141.12,
+      "end": 142.08,
+      "text": "másrészt pedig lesz...",
+      "confidence": 1.0
+    },
+    {
+      "start": 162.18,
+      "end": 163.8,
+      "text": "Ebben a példában mi most szeretnénk",
+      "confidence": 1.0
+    },
+    {
+      "start": 165.3,
+      "end": 168.18,
+      "text": "Ebben a példában mi most olyan hirdetést szeretnénk készíteni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 168.42,
+      "end": 171.0,
+      "text": "ami egy statikus képet tartalmaz,",
+      "confidence": 1.0
+    },
+    {
+      "start": 171.0,
+      "end": 173.94,
+      "text": "és ehhez kapcsolódik egy hirdetésszöveg.",
+      "confidence": 1.0
+    },
+    {
+      "start": 174.12,
+      "end": 178.02,
+      "text": "Ezeket tipikusan ugye Instagramon vagy Facebookon szoktok futtatni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 178.32,
+      "end": 180.0,
+      "text": "és ennek nyilván két komponense van,",
+      "confidence": 1.0
+    },
+    {
+      "start": 180.0,
+      "end": 181.08,
+      "text": "a szöveg és a kép.",
+      "confidence": 1.0
+    },
+    {
+      "start": 181.26,
+      "end": 183.24,
+      "text": "Először készítsük el a szöveget,",
+      "confidence": 1.0
+    },
+    {
+      "start": 183.54,
+      "end": 185.16,
+      "text": "tehát a következő lépés az lesz,",
+      "confidence": 1.0
+    },
+    {
+      "start": 185.28,
+      "end": 187.5,
+      "text": "hogy ezt a hirdetés megközelítést,",
+      "confidence": 1.0
+    },
+    {
+      "start": 187.56,
+      "end": 190.02,
+      "text": "ezt a koncepciót alakítsuk át,",
+      "confidence": 1.0
+    },
+    {
+      "start": 190.32,
+      "end": 191.22,
+      "text": "konkretizáljuk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 191.22,
+      "end": 194.16,
+      "text": "és készítsünk hozzá egy hirdetési szöveget.",
+      "confidence": 1.0
+    },
+    {
+      "start": 194.76,
+      "end": 196.14,
+      "text": "Ehhez a következőt fogjuk csinálni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 196.26,
+      "end": 197.88,
+      "text": "ugye korábban mutattam már nektek",
+      "confidence": 1.0
+    },
+    {
+      "start": 199.38,
+      "end": 201.66,
+      "text": "Structured Expert Prompting megközelítést,",
+      "confidence": 1.0
+    },
+    {
+      "start": 201.66,
+      "end": 205.74,
+      "text": "aminek a segítségével most létre fogunk hozni egy olyan AI megoldást,",
+      "confidence": 1.0
+    },
+    {
+      "start": 205.74,
+      "end": 207.66,
+      "text": "ami segít ilyeneket generálni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 207.72,
+      "end": 209.58,
+      "text": "ilyen szövegeket generálni a számunkra.",
+      "confidence": 1.0
+    },
+    {
+      "start": 209.94,
+      "end": 211.68,
+      "text": "Tehát egyszerűen csak ezt bemásoljuk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 211.68,
+      "end": 213.6,
+      "text": "és itt van egy kis kitöltendő rész,",
+      "confidence": 1.0
+    },
+    {
+      "start": 213.78,
+      "end": 217.02,
+      "text": "amit behelyettesítünk egyszerűen a feladatunkkal,",
+      "confidence": 1.0
+    },
+    {
+      "start": 217.26,
+      "end": 218.64,
+      "text": "ami ebben az esetben az lesz,",
+      "confidence": 1.0
+    },
+    {
+      "start": 218.7,
+      "end": 219.54,
+      "text": "hogy szeretnénk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 219.6,
+      "end": 225.6,
+      "text": "hogyha hirdetési szövegeket generálna a számunkra a Facebook és Instagram hirdetéseinkhez,",
+      "confidence": 1.0
+    },
+    {
+      "start": 225.84,
+      "end": 226.98,
+      "text": "és meg fogom azt adni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 227.1,
+      "end": 230.28,
+      "text": "hogy egy 100 és 300 szó közötti",
+      "confidence": 1.0
+    },
+    {
+      "start": 230.82,
+      "end": 232.56,
+      "text": "tartalomformátumot keresünk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 232.98,
+      "end": 234.3,
+      "text": "ami azért szükséges,",
+      "confidence": 1.0
+    },
+    {
+      "start": 234.48,
+      "end": 237.66,
+      "text": "mert nyilván nagyon sokfajta hirdetési szöveg létezik.",
+      "confidence": 1.0
+    },
+    {
+      "start": 237.66,
+      "end": 238.92,
+      "text": "Hogyha ezeket nem adjuk meg,",
+      "confidence": 1.0
+    },
+    {
+      "start": 238.98,
+      "end": 240.0,
+      "text": "akkor elképzelhető,",
+      "confidence": 1.0
+    },
+    {
+      "start": 240.0,
+      "end": 242.82,
+      "text": "hogy egy TikTok videónak a forgatókönyvét,",
+      "confidence": 1.0
+    },
+    {
+      "start": 242.82,
+      "end": 244.2,
+      "text": "a scriptjét generálná le.",
+      "confidence": 1.0
+    },
+    {
+      "start": 245.34,
+      "end": 247.62,
+      "text": "hogy Facebookon szeretném futtatni a hirdetéseket,",
+      "confidence": 1.0
+    },
+    {
+      "start": 247.86,
+      "end": 252.18,
+      "text": "és 100 és 300 szó közötti tartalomformátumot keresek,",
+      "confidence": 1.0
+    },
+    {
+      "start": 252.48,
+      "end": 254.58,
+      "text": "így nem fogja nagyon rövidre zárni",
+      "confidence": 1.0
+    },
+    {
+      "start": 255.18,
+      "end": 256.02,
+      "text": "a tartalmat,",
+      "confidence": 1.0
+    },
+    {
+      "start": 256.26,
+      "end": 258.78,
+      "text": "nem is fogja iszonyatosan hosszan kifejteni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 259.08,
+      "end": 261.12,
+      "text": "hanem egy olyan hirdetést fog készíteni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 261.18,
+      "end": 262.14,
+      "text": "olyan hirdetésszöveget,",
+      "confidence": 1.0
+    },
+    {
+      "start": 262.32,
+      "end": 265.2,
+      "text": "ami pár dolgot elárul ugye az ajánlatunkról,",
+      "confidence": 1.0
+    },
+    {
+      "start": 265.5,
+      "end": 266.1,
+      "text": "alkalmas arra,",
+      "confidence": 1.0
+    },
+    {
+      "start": 266.1,
+      "end": 267.84,
+      "text": "hogy megragadja az embereknek a figyelmét,",
+      "confidence": 1.0
+    },
+    {
+      "start": 268.08,
+      "end": 270.6,
+      "text": "de nem is kell hosszasan olvasni.",
+      "confidence": 1.0
+    },
+    {
+      "start": 287.4,
+      "end": 288.54,
+      "text": "Tehát kitöltöttem ennyivel,",
+      "confidence": 1.0
+    },
+    {
+      "start": 288.66,
+      "end": 290.28,
+      "text": "hogy segítségre van szükségem ebben,",
+      "confidence": 1.0
+    },
+    {
+      "start": 290.34,
+      "end": 297.48,
+      "text": "hogy a matcha márkámhoz szeretnék a megadott hirdetési megközelítés alapján hirdetésszövegeket generálni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 298.62,
+      "end": 301.74,
+      "text": "a hirdetésszövegek statikus képekhez",
+      "confidence": 1.0
+    },
+    {
+      "start": 302.34,
+      "end": 304.5,
+      "text": "tartoznak a meta felületén,",
+      "confidence": 1.0
+    },
+    {
+      "start": 304.62,
+      "end": 307.02,
+      "text": "és öt darab példányt szeretnénk készíteni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 307.14,
+      "end": 308.28,
+      "text": "100 és 300",
+      "confidence": 1.0
+    },
+    {
+      "start": 309.0,
+      "end": 311.22,
+      "text": "szó közötti tartalommennyiséget.",
+      "confidence": 1.0
+    },
+    {
+      "start": 311.4,
+      "end": 313.44,
+      "text": "Ezek alapján el fog készíteni egy promptot,",
+      "confidence": 1.0
+    },
+    {
+      "start": 313.68,
+      "end": 315.06,
+      "text": "amit majd a későbbiekben,",
+      "confidence": 1.0
+    },
+    {
+      "start": 315.06,
+      "end": 317.28,
+      "text": "egy új beszélgetésben fel tudunk használni.",
+      "confidence": 1.0
+    },
+    {
+      "start": 347.88,
+      "end": 350.94,
+      "text": "Rövidesen el is készül a mi kis system promptunk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 351.0,
+      "end": 351.78,
+      "text": "amit fel tud...",
+      "confidence": 1.0
+    },
+    {
+      "start": 355.02,
+      "end": 357.3,
+      "text": "Rövidesen el is készült ez a system prompt,",
+      "confidence": 1.0
+    },
+    {
+      "start": 357.36,
+      "end": 359.22,
+      "text": "amit egyszerűen szeretnénk kimásolni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 359.58,
+      "end": 360.42,
+      "text": "és láthatjuk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 364.56,
+      "end": 366.72,
+      "text": "Rövidesen el is készült ez a system prompt,",
+      "confidence": 1.0
+    },
+    {
+      "start": 366.78,
+      "end": 369.36,
+      "text": "amit fel tudunk használni a későbbiekben.",
+      "confidence": 1.0
+    },
+    {
+      "start": 369.96,
+      "end": 371.04,
+      "text": "Ne bohóckodjunk már,",
+      "confidence": 1.0
+    },
+    {
+      "start": 379.14,
+      "end": 381.3,
+      "text": "Rövidesen el is készült ez a system prompt,",
+      "confidence": 1.0
+    },
+    {
+      "start": 381.36,
+      "end": 383.22,
+      "text": "amit egyszerűen csak ki kell másolnunk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 383.4,
+      "end": 386.7,
+      "text": "és majd egy másik beszélgetésben szeretném felhasználni.",
+      "confidence": 1.0
+    },
+    {
+      "start": 387.18,
+      "end": 389.22,
+      "text": "Ugyanis a következő lépésünk az lesz,",
+      "confidence": 1.0
+    },
+    {
+      "start": 390.0,
+      "end": 392.88,
+      "text": "feltöltjük azokat a hirdetési.",
+      "confidence": 1.0
+    },
+    {
+      "start": 403.8,
+      "end": 405.48,
+      "text": "Rövidesen el is készült ez a prompt,",
+      "confidence": 1.0
+    },
+    {
+      "start": 405.54,
+      "end": 406.98,
+      "text": "amit szeretnénk majd felhasználni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 407.1,
+      "end": 408.48,
+      "text": "most egyelőre csak kimásolom,",
+      "confidence": 1.0
+    },
+    {
+      "start": 408.72,
+      "end": 410.4,
+      "text": "és egy új beszélgetést indítok,",
+      "confidence": 1.0
+    },
+    {
+      "start": 410.46,
+      "end": 412.26,
+      "text": "ami kifejezetten arra fog koncentrálni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 412.32,
+      "end": 414.72,
+      "text": "hogy létre tudjuk hozni majd a hirdetésszövegeket.",
+      "confidence": 1.0
+    },
+    {
+      "start": 415.2,
+      "end": 417.66,
+      "text": "Szeretnénk feltölteni azokat a kontextfragmenteket,",
+      "confidence": 1.0
+    },
+    {
+      "start": 417.72,
+      "end": 419.4,
+      "text": "amiket korábban létrehoztunk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 419.82,
+      "end": 421.44,
+      "text": "én most fel fogom tölteni",
+      "confidence": 1.0
+    },
+    {
+      "start": 422.04,
+      "end": 423.3,
+      "text": "az avatár sheet-et,",
+      "confidence": 1.0
+    },
+    {
+      "start": 423.36,
+      "end": 424.44,
+      "text": "ami ugye megadja,",
+      "confidence": 1.0
+    },
+    {
+      "start": 443.16,
+      "end": 445.02,
+      "text": "Rövidesen el is készült a promptunk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 445.02,
+      "end": 446.46,
+      "text": "amit szeretnénk majd felhasználni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 446.76,
+      "end": 448.5,
+      "text": "én most ezt egyelőre csak kimásolom,",
+      "confidence": 1.0
+    },
+    {
+      "start": 448.74,
+      "end": 450.66,
+      "text": "és indítok egy új beszélgetést,",
+      "confidence": 1.0
+    },
+    {
+      "start": 451.08,
+      "end": 454.14,
+      "text": "ugyanis szeretnénk feltölteni azokat a kontextfragmenteket,",
+      "confidence": 1.0
+    },
+    {
+      "start": 454.38,
+      "end": 456.24,
+      "text": "amiket korábban elkészítettünk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 456.42,
+      "end": 458.76,
+      "text": "elsőként az avatár sheet-et töltöm fel,",
+      "confidence": 1.0
+    },
+    {
+      "start": 459.06,
+      "end": 464.88,
+      "text": "ami ugye betekintést enged a vállalkozásunk vásárlóinak a pszichológiájába,",
+      "confidence": 1.0
+    },
+    {
+      "start": 465.12,
+      "end": 468.36,
+      "text": "hogy mit tartanak egy fontos haszonnak a maguk számára,",
+      "confidence": 1.0
+    },
+    {
+      "start": 468.48,
+      "end": 470.64,
+      "text": "milyen fájdalmakat szeretnének megoldani,",
+      "confidence": 1.0
+    },
+    {
+      "start": 470.76,
+      "end": 475.14,
+      "text": "és ez nyilván nagyon sokat segít az értékesítési szövegeknek a generálásában,",
+      "confidence": 1.0
+    },
+    {
+      "start": 475.5,
+      "end": 478.2,
+      "text": "illetve feltöltök egy új kontextfragmentet,",
+      "confidence": 1.0
+    },
+    {
+      "start": 478.62,
+      "end": 480.72,
+      "text": "ami kifejezetten arra koncentrál,",
+      "confidence": 1.0
+    },
+    {
+      "start": 480.72,
+      "end": 483.42,
+      "text": "hogy összegyűjtöttem ebben egy sor olyan megoldást,",
+      "confidence": 1.0
+    },
+    {
+      "start": 483.54,
+      "end": 484.62,
+      "text": "ami alkalmas arra,",
+      "confidence": 1.0
+    },
+    {
+      "start": 484.68,
+      "end": 486.72,
+      "text": "hogy az embereknek a figyelmét megragadja.",
+      "confidence": 1.0
+    },
+    {
+      "start": 487.26,
+      "end": 491.34,
+      "text": "És ezek mellé szeretnénk bemásolni az imént kikopizott",
+      "confidence": 1.0
+    },
+    {
+      "start": 492.18,
+      "end": 492.72,
+      "text": "promptunkat,",
+      "confidence": 1.0
+    },
+    {
+      "start": 493.86,
+      "end": 495.72,
+      "text": "néhány dolgot kitörlök igazából,",
+      "confidence": 1.0
+    },
+    {
+      "start": 495.78,
+      "end": 496.8,
+      "text": "mert fölösleges.",
+      "confidence": 1.0
+    },
+    {
+      "start": 497.58,
+      "end": 499.2,
+      "text": "Úgyhogy ha ezek megvannak...",
+      "confidence": 1.0
+    },
+    {
+      "start": 499.68,
+      "end": 500.4,
+      "text": "Sebaztam.",
+      "confidence": 1.0
+    },
+    {
+      "start": 511.74,
+      "end": 513.3,
+      "text": "Rövidesen el is készült a prompt,",
+      "confidence": 1.0
+    },
+    {
+      "start": 513.42,
+      "end": 514.68,
+      "text": "amit fel fogunk majd használni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 514.74,
+      "end": 516.12,
+      "text": "ezt egyelőre csak kimásolom,",
+      "confidence": 1.0
+    },
+    {
+      "start": 516.36,
+      "end": 517.92,
+      "text": "és indítok egy új beszélgetést,",
+      "confidence": 1.0
+    },
+    {
+      "start": 518.1,
+      "end": 521.04,
+      "text": "hiszen fel szeretnénk tölteni azokat a kontextfragmenteket,",
+      "confidence": 1.0
+    },
+    {
+      "start": 521.1,
+      "end": 523.02,
+      "text": "amiket korábban elkészítettünk...",
+      "confidence": 1.0
+    },
+    {
+      "start": 551.1,
+      "end": 552.54,
+      "text": "Rövidesen el is készül a promptunk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 552.54,
+      "end": 553.86,
+      "text": "amit szeretnénk felhasználni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 554.04,
+      "end": 555.78,
+      "text": "én egyelőre csak kimásolom ezt,",
+      "confidence": 1.0
+    },
+    {
+      "start": 555.84,
+      "end": 557.94,
+      "text": "és utána indítok egy új beszélgetést,",
+      "confidence": 1.0
+    },
+    {
+      "start": 558.24,
+      "end": 562.5,
+      "text": "hiszen fel szeretnénk használni a korábban elkészített kontextfragmenteket.",
+      "confidence": 1.0
+    },
+    {
+      "start": 563.04,
+      "end": 565.68,
+      "text": "A jó büdös kurva anyádért nem működik már,",
+      "confidence": 1.0
+    },
+    {
+      "start": 565.68,
+      "end": 566.64,
+      "text": "ez nem hiszem el,",
+      "confidence": 1.0
+    },
+    {
+      "start": 566.7,
+      "end": 567.3,
+      "text": "bazdmeg.",
+      "confidence": 1.0
+    },
+    {
+      "start": 571.62,
+      "end": 573.54,
+      "text": "Rövidesen el is készült a promptunk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 573.54,
+      "end": 574.8,
+      "text": "amit szeretnénk felhasználni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 575.1,
+      "end": 576.78,
+      "text": "én most ezt egyelőre csak kimásolom,",
+      "confidence": 1.0
+    },
+    {
+      "start": 576.9,
+      "end": 578.52,
+      "text": "és indítok egy új beszélgetést,",
+      "confidence": 1.0
+    },
+    {
+      "start": 578.64,
+      "end": 581.46,
+      "text": "hiszen fel szeretnénk használni azokat a kontextfragmenteket,",
+      "confidence": 1.0
+    },
+    {
+      "start": 581.58,
+      "end": 583.38,
+      "text": "amiket korábban létrehoztunk.",
+      "confidence": 1.0
+    },
+    {
+      "start": 583.86,
+      "end": 586.32,
+      "text": "Elsőként feltöltöm azt az avatár sheet-et,",
+      "confidence": 1.0
+    },
+    {
+      "start": 586.68,
+      "end": 591.24,
+      "text": "ami ugye összegyűjti a vállalkozásunk vásárlóinak a pszichológiáját,",
+      "confidence": 1.0
+    },
+    {
+      "start": 591.48,
+      "end": 593.34,
+      "text": "hogy mit tartanak egy értéknek,",
+      "confidence": 1.0
+    },
+    {
+      "start": 593.4,
+      "end": 594.9,
+      "text": "egy haszonnak a maguk számára,",
+      "confidence": 1.0
+    },
+    {
+      "start": 595.2,
+      "end": 597.42,
+      "text": "milyen fájdalmakat szeretnének megoldani,",
+      "confidence": 1.0
+    },
+    {
+      "start": 597.66,
+      "end": 602.04,
+      "text": "és ez nyilván nagyon hasznos az értékesítési szövegnek a készítésében.",
+      "confidence": 1.0
+    },
+    {
+      "start": 602.58,
+      "end": 603.9,
+      "text": "Egy másik avatár sheet...",
+      "confidence": 1.0
+    },
+    {
+      "start": 605.4,
+      "end": 606.18,
+      "text": "Faszomat már,",
+      "confidence": 1.0
+    },
+    {
+      "start": 606.24,
+      "end": 606.78,
+      "text": "bazdmeg.",
+      "confidence": 1.0
+    },
+    {
+      "start": 612.0,
+      "end": 613.68,
+      "text": "Rövidesen el is készül a promptunk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 613.68,
+      "end": 615.18,
+      "text": "amit szeretnénk majd felhasználni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 615.48,
+      "end": 617.34,
+      "text": "ugye ez egy betekint...",
+      "confidence": 1.0
+    },
+    {
+      "start": 632.46,
+      "end": 633.9,
+      "text": "Rövidesen el is készül a promptunk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 633.9,
+      "end": 635.34,
+      "text": "amit szeretnénk majd felhasználni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 635.76,
+      "end": 637.44,
+      "text": "ugye ez majd lehetővé teszi azt,",
+      "confidence": 1.0
+    },
+    {
+      "start": 637.5,
+      "end": 638.76,
+      "text": "hogy sokkal pontosabb,",
+      "confidence": 1.0
+    },
+    {
+      "start": 638.82,
+      "end": 642.3,
+      "text": "sokkal jobb minőségű hirdetésszövegeket készítsen az AI a számunkra,",
+      "confidence": 1.0
+    },
+    {
+      "start": 642.72,
+      "end": 644.22,
+      "text": "én ezt egyelőre csak kimásolom,",
+      "confidence": 1.0
+    },
+    {
+      "start": 644.4,
+      "end": 646.26,
+      "text": "és indítok egy új beszélgetést,",
+      "confidence": 1.0
+    },
+    {
+      "start": 646.5,
+      "end": 650.52,
+      "text": "ugyanis szeretnénk feltölteni azokat a kontextfragmenteket,",
+      "confidence": 1.0
+    },
+    {
+      "start": 650.58,
+      "end": 652.26,
+      "text": "amiket a korábbiakban készítettünk,",
+      "confidence": 1.0
+    },
+    {
+      "start": 652.38,
+      "end": 654.36,
+      "text": "elsőként az avatár sheet-et.",
+      "confidence": 1.0
+    },
+    {
+      "start": 654.78,
+      "end": 657.18,
+      "text": "Ugye ez tartalmazza azokat az információkat,",
+      "confidence": 1.0
+    },
+    {
+      "start": 657.36,
+      "end": 661.26,
+      "text": "amiket összegyűjtöttünk a vállalkozásunk vásárlóival kapcsolatban,",
+      "confidence": 1.0
+    },
+    {
+      "start": 661.98,
+      "end": 663.96,
+      "text": "amit értéknek vagy haszonnak tartanak,",
+      "confidence": 1.0
+    },
+    {
+      "start": 664.26,
+      "end": 666.18,
+      "text": "milyen fájdalmakat szeretnének megoldani,",
+      "confidence": 1.0
+    },
+    {
+      "start": 666.42,
+      "end": 670.74,
+      "text": "és ez nyilvánóriási segítség az értékesítési szövegnek a készítésekor.",
+      "confidence": 1.0
+    },
+    {
+      "start": 671.28,
+      "end": 672.54,
+      "text": "Egy másik kontextfragment,",
+      "confidence": 1.0
+    },
+    {
+      "start": 672.54,
+      "end": 673.74,
+      "text": "amit szeretnék feltölteni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 673.98,
+      "end": 675.3,
+      "text": "amit még nem láttatok eddig,",
+      "confidence": 1.0
+    },
+    {
+      "start": 675.84,
+      "end": 678.48,
+      "text": "ez segít olyan üzeneteket megfogalmazni,",
+      "confidence": 1.0
+    },
+    {
+      "start": 678.6,
+      "end": 679.86,
+      "text": "amik alkalmasak arra,",
+      "confidence": 1.0
+    },
+    {
+      "start": 680.04,
+      "end": 682.08,
+      "text": "hogy megragadják az emberek figyelmét,",
+      "confidence": 1.0
+    },
+    {
+      "start": 682.08,
+      "end": 683.46,
+      "text": "az úgynevezett hook-okat,",
+      "confidence": 1.0
+    },
+    {
+      "start": 683.94,
+      "end": 685.56,
+      "text": "tehát ez kifejezetten arra szolgál,",
+      "confidence": 1.0
+    },
+    {
+      "start": 685.62,
+      "end": 687.78,
+      "text": "hogy megállítsa az embereket a görgetésben,",
+      "confidence": 1.0
+    },
+    {
+      "start": 687.84,
+      "end": 689.16,
+      "text": "megragadja a fantáziájukat,",
+      "confidence": 1.0
+    },
+    {
+      "start": 689.4,
+      "end": 691.74,
+      "text": "és így több energiát szenteljenek",
+      "confidence": 1.0
+    },
+    {
+      "start": 692.34,
+      "end": 694.14,
+      "text": "az üzenetünk elolvasására.",
+      "confidence": 1.0
+    },
+    {
+      "start": 701.94,
+      "end": 704.4,
+      "text": "I want you to carefully examine these docs.",
+      "confidence": 1.0
+    },
+    {
+      "start": 745.02,
+      "end": 747.36,
+      "text": "Miután az AI feldolgozta ezeket az információkat,",
+      "confidence": 1.0
+    },
+    {
+      "start": 747.54,
+      "end": 749.04,
+      "text": "szeretnénk ismét hozzáadni...",
+      "confidence": 1.0
+    }
+  ],
+  "tokens": [
+    {
+      "text": "Ebben",
+      "start": 4.02,
+      "end": 4.2
+    },
+    {
+      "text": " a",
+      "start": 4.2,
+      "end": 4.26
+    },
+    {
+      "text": " videóban",
+      "start": 4.32,
+      "end": 4.56
+    },
+    {
+      "text": " végre",
+      "start": 4.62,
+      "end": 4.8
+    },
+    {
+      "text": " összejöttek",
+      "start": 4.86,
+      "end": 5.28
+    },
+    {
+      "text": " a",
+      "start": 5.28,
+      "end": 5.34
+    },
+    {
+      "text": " szálak,",
+      "start": 5.4,
+      "end": 5.7
+    },
+    {
+      "text": " és",
+      "start": 5.76,
+      "end": 5.82
+    },
+    {
+      "text": " megnézzük",
+      "start": 5.88,
+      "end": 6.36
+    },
+    {
+      "text": " azt,",
+      "start": 6.36,
+      "end": 6.54
+    },
+    {
+      "text": " hogy",
+      "start": 6.66,
+      "end": 6.72
+    },
+    {
+      "text": " hogyan",
+      "start": 6.9,
+      "end": 7.14
+    },
+    {
+      "text": " tudjuk",
+      "start": 7.2,
+      "end": 7.5
+    },
+    {
+      "text": " az",
+      "start": 7.56,
+      "end": 7.62
+    },
+    {
+      "text": " összes",
+      "start": 7.86,
+      "end": 8.16
+    },
+    {
+      "text": " olyan",
+      "start": 8.28,
+      "end": 8.52
+    },
+    {
+      "text": " kreatív",
+      "start": 8.64,
+      "end": 8.94
+    },
+    {
+      "text": " folyamatot",
+      "start": 9.12,
+      "end": 9.6
+    },
+    {
+      "text": " ellátni",
+      "start": 9.9,
+      "end": 10.26
+    },
+    {
+      "text": " AI",
+      "start": 10.38,
+      "end": 10.56
+    },
+    {
+      "text": " segítségével,",
+      "start": 10.68,
+      "end": 11.46
+    },
+    {
+      "text": " ami",
+      "start": 11.7,
+      "end": 11.94
+    },
+    {
+      "text": " szükséges",
+      "start": 12.0,
+      "end": 12.42
+    },
+    {
+      "text": " a",
+      "start": 12.48,
+      "end": 12.54
+    },
+    {
+      "text": " hirdetések",
+      "start": 12.66,
+      "end": 13.14
+    },
+    {
+      "text": " futtatásához.",
+      "start": 13.2,
+      "end": 14.16
+    },
+    {
+      "text": " A",
+      "start": 14.64,
+      "end": 14.7
+    },
+    {
+      "text": " korábbiakban",
+      "start": 14.82,
+      "end": 15.36
+    },
+    {
+      "text": " készítettünk",
+      "start": 15.42,
+      "end": 16.08
+    },
+    {
+      "text": " egy",
+      "start": 16.14,
+      "end": 16.2
+    },
+    {
+      "text": " sor",
+      "start": 16.5,
+      "end": 16.56
+    },
+    {
+      "text": " különböző",
+      "start": 16.8,
+      "end": 17.34
+    },
+    {
+      "text": " kontextfragmentet,",
+      "start": 17.76,
+      "end": 18.72
+    },
+    {
+      "text": " ami",
+      "start": 19.02,
+      "end": 19.2
+    },
+    {
+      "text": " ugye",
+      "start": 19.26,
+      "end": 19.44
+    },
+    {
+      "text": " vagy",
+      "start": 19.56,
+      "end": 19.62
+    },
+    {
+      "text": " specifikus",
+      "start": 19.86,
+      "end": 20.4
+    },
+    {
+      "text": " adatokat",
+      "start": 20.52,
+      "end": 21.12
+    },
+    {
+      "text": " tartalmazott",
+      "start": 21.36,
+      "end": 22.02
+    },
+    {
+      "text": " a",
+      "start": 22.26,
+      "end": 22.32
+    },
+    {
+      "text": " mi",
+      "start": 22.38,
+      "end": 22.44
+    },
+    {
+      "text": " vállalkozásunkra",
+      "start": 22.56,
+      "end": 23.4
+    },
+    {
+      "text": " vonatkozóan,",
+      "start": 23.46,
+      "end": 24.12
+    },
+    {
+      "text": " lehetővé",
+      "start": 24.48,
+      "end": 24.96
+    },
+    {
+      "text": " téve",
+      "start": 25.08,
+      "end": 25.26
+    },
+    {
+      "text": " azt,",
+      "start": 25.38,
+      "end": 25.5
+    },
+    {
+      "text": " hogy",
+      "start": 25.56,
+      "end": 25.62
+    },
+    {
+      "text": " sokkal",
+      "start": 25.8,
+      "end": 25.98
+    },
+    {
+      "text": " jobban",
+      "start": 26.04,
+      "end": 26.22
+    },
+    {
+      "text": " tudjuk",
+      "start": 26.28,
+      "end": 26.52
+    },
+    {
+      "text": " fókuszálni",
+      "start": 26.58,
+      "end": 27.12
+    },
+    {
+      "text": " az",
+      "start": 27.18,
+      "end": 27.24
+    },
+    {
+      "text": " AI",
+      "start": 27.3,
+      "end": 27.48
+    },
+    {
+      "text": " figyelmét,",
+      "start": 27.6,
+      "end": 28.14
+    },
+    {
+      "text": " sokkal",
+      "start": 28.2,
+      "end": 28.44
+    },
+    {
+      "text": " konkrétabb,",
+      "start": 28.8,
+      "end": 29.46
+    },
+    {
+      "text": " kézzelfoghatóbb",
+      "start": 29.46,
+      "end": 30.36
+    },
+    {
+      "text": " és",
+      "start": 30.48,
+      "end": 30.54
+    },
+    {
+      "text": " pontosabb",
+      "start": 30.84,
+      "end": 31.26
+    },
+    {
+      "text": " megoldásokat",
+      "start": 31.32,
+      "end": 31.98
+    },
+    {
+      "text": " készítsen",
+      "start": 32.04,
+      "end": 32.52
+    },
+    {
+      "text": " a",
+      "start": 32.52,
+      "end": 32.58
+    },
+    {
+      "text": " számunkra,",
+      "start": 32.64,
+      "end": 33.06
+    },
+    {
+      "text": " vagy",
+      "start": 33.66,
+      "end": 33.72
+    },
+    {
+      "text": " pedig",
+      "start": 33.9,
+      "end": 33.96
+    },
+    {
+      "text": " olyan",
+      "start": 34.14,
+      "end": 34.38
+    },
+    {
+      "text": " módszereket,",
+      "start": 34.56,
+      "end": 35.16
+    },
+    {
+      "text": " metódusokat",
+      "start": 35.4,
+      "end": 36.0
+    },
+    {
+      "text": " tartalmaztak,",
+      "start": 36.12,
+      "end": 36.9
+    },
+    {
+      "text": " amikről",
+      "start": 37.08,
+      "end": 37.62
+    },
+    {
+      "text": " azt",
+      "start": 37.74,
+      "end": 37.92
+    },
+    {
+      "text": " akartuk,",
+      "start": 37.98,
+      "end": 38.4
+    },
+    {
+      "text": " hogy",
+      "start": 38.4,
+      "end": 38.46
+    },
+    {
+      "text": " az",
+      "start": 38.46,
+      "end": 38.52
+    },
+    {
+      "text": " AI",
+      "start": 38.64,
+      "end": 38.82
+    },
+    {
+      "text": " ezeket",
+      "start": 39.0,
+      "end": 39.3
+    },
+    {
+      "text": " kövesse.",
+      "start": 39.48,
+      "end": 40.02
+    },
+    {
+      "text": " Ezek",
+      "start": 40.74,
+      "end": 41.04
+    },
+    {
+      "text": " közül",
+      "start": 41.1,
+      "end": 41.28
+    },
+    {
+      "text": " kiválasztjuk",
+      "start": 41.52,
+      "end": 42.0
+    },
+    {
+      "text": " most",
+      "start": 42.12,
+      "end": 42.18
+    },
+    {
+      "text": " az",
+      "start": 42.36,
+      "end": 42.42
+    },
+    {
+      "text": " ad",
+      "start": 42.9,
+      "end": 42.96
+    },
+    {
+      "text": " angle-öket,",
+      "start": 43.2,
+      "end": 43.74
+    },
+    {
+      "text": " vagyis",
+      "start": 43.74,
+      "end": 43.92
+    },
+    {
+      "text": " hirdetési",
+      "start": 43.98,
+      "end": 44.4
+    },
+    {
+      "text": " megközelítéseket",
+      "start": 44.58,
+      "end": 45.54
+    },
+    {
+      "text": " tartalmazót.",
+      "start": 45.66,
+      "end": 46.32
+    },
+    {
+      "text": " Ugye",
+      "start": 46.56,
+      "end": 46.74
+    },
+    {
+      "text": " készítettünk",
+      "start": 46.86,
+      "end": 47.52
+    },
+    {
+      "text": " egy",
+      "start": 47.58,
+      "end": 47.64
+    },
+    {
+      "text": " sor",
+      "start": 47.82,
+      "end": 47.88
+    },
+    {
+      "text": " különböző",
+      "start": 48.12,
+      "end": 48.6
+    },
+    {
+      "text": " lehetséges",
+      "start": 48.96,
+      "end": 49.44
+    },
+    {
+      "text": " megközelítést,",
+      "start": 49.56,
+      "end": 50.52
+    },
+    {
+      "text": " ahogyan",
+      "start": 50.82,
+      "end": 51.18
+    },
+    {
+      "text": " el",
+      "start": 51.54,
+      "end": 51.6
+    },
+    {
+      "text": " lehet",
+      "start": 51.66,
+      "end": 51.84
+    },
+    {
+      "text": " adni",
+      "start": 51.96,
+      "end": 52.2
+    },
+    {
+      "text": " a",
+      "start": 52.38,
+      "end": 52.44
+    },
+    {
+      "text": " termékünket,",
+      "start": 52.62,
+      "end": 53.34
+    },
+    {
+      "text": " ami",
+      "start": 53.4,
+      "end": 53.58
+    },
+    {
+      "text": " a",
+      "start": 53.58,
+      "end": 53.64
+    },
+    {
+      "text": " példában",
+      "start": 53.7,
+      "end": 54.18
+    },
+    {
+      "text": " a",
+      "start": 54.48,
+      "end": 54.54
+    },
+    {
+      "text": " matcha",
+      "start": 54.72,
+      "end": 55.02
+    },
+    {
+      "text": " tea,",
+      "start": 55.14,
+      "end": 55.32
+    },
+    {
+      "text": " és",
+      "start": 55.62,
+      "end": 55.68
+    },
+    {
+      "text": " léteznek",
+      "start": 55.86,
+      "end": 56.28
+    },
+    {
+      "text": " ugye",
+      "start": 56.34,
+      "end": 56.58
+    },
+    {
+      "text": " racionális",
+      "start": 57.18,
+      "end": 57.66
+    },
+    {
+      "text": " érveket",
+      "start": 57.78,
+      "end": 58.2
+    },
+    {
+      "text": " tartalmazó",
+      "start": 58.26,
+      "end": 58.8
+    },
+    {
+      "text": " megközelítések,",
+      "start": 58.86,
+      "end": 59.7
+    },
+    {
+      "text": " érzelmi",
+      "start": 59.94,
+      "end": 60.48
+    },
+    {
+      "text": " érveket",
+      "start": 60.6,
+      "end": 61.02
+    },
+    {
+      "text": " tartalmazó",
+      "start": 61.08,
+      "end": 61.56
+    },
+    {
+      "text": " megközelítések,",
+      "start": 61.62,
+      "end": 62.46
+    },
+    {
+      "text": " és",
+      "start": 62.88,
+      "end": 62.94
+    },
+    {
+      "text": " hogyha",
+      "start": 63.06,
+      "end": 63.3
+    },
+    {
+      "text": " majd",
+      "start": 63.36,
+      "end": 63.42
+    },
+    {
+      "text": " élesben",
+      "start": 63.6,
+      "end": 63.96
+    },
+    {
+      "text": " tesztelünk",
+      "start": 64.14,
+      "end": 64.56
+    },
+    {
+      "text": " hirdetéseket,",
+      "start": 64.62,
+      "end": 65.28
+    },
+    {
+      "text": " akkor",
+      "start": 65.34,
+      "end": 65.46
+    },
+    {
+      "text": " egyszerűen",
+      "start": 65.58,
+      "end": 65.88
+    },
+    {
+      "text": " az",
+      "start": 65.94,
+      "end": 66.0
+    },
+    {
+      "text": " lesz",
+      "start": 66.06,
+      "end": 66.24
+    },
+    {
+      "text": " a",
+      "start": 66.24,
+      "end": 66.3
+    },
+    {
+      "text": " dolgunk,",
+      "start": 66.36,
+      "end": 66.78
+    },
+    {
+      "text": " hogy",
+      "start": 66.84,
+      "end": 66.9
+    },
+    {
+      "text": " minden",
+      "start": 67.38,
+      "end": 67.62
+    },
+    {
+      "text": " egyes",
+      "start": 67.74,
+      "end": 67.98
+    },
+    {
+      "text": " megközelítéshez",
+      "start": 68.1,
+      "end": 68.94
+    },
+    {
+      "text": " elvégezzük",
+      "start": 69.24,
+      "end": 69.96
+    },
+    {
+      "text": " azt",
+      "start": 70.14,
+      "end": 70.26
+    },
+    {
+      "text": " a",
+      "start": 70.32,
+      "end": 70.38
+    },
+    {
+      "text": " folyamatot,",
+      "start": 70.44,
+      "end": 71.04
+    },
+    {
+      "text": " amit",
+      "start": 71.46,
+      "end": 71.7
+    },
+    {
+      "text": " ebben",
+      "start": 72.06,
+      "end": 72.24
+    },
+    {
+      "text": " a",
+      "start": 72.3,
+      "end": 72.36
+    },
+    {
+      "text": " videóban",
+      "start": 72.42,
+      "end": 72.72
+    },
+    {
+      "text": " bemutatok.",
+      "start": 72.78,
+      "end": 73.26
+    },
+    {
+      "text": " Én",
+      "start": 73.5,
+      "end": 73.68
+    },
+    {
+      "text": " előzetesen",
+      "start": 73.74,
+      "end": 74.22
+    },
+    {
+      "text": " úgy",
+      "start": 74.22,
+      "end": 74.4
+    },
+    {
+      "text": " döntöttem,",
+      "start": 74.4,
+      "end": 74.82
+    },
+    {
+      "text": " hogy",
+      "start": 74.88,
+      "end": 74.94
+    },
+    {
+      "text": " most",
+      "start": 75.0,
+      "end": 75.06
+    },
+    {
+      "text": " ezt",
+      "start": 75.3,
+      "end": 75.42
+    },
+    {
+      "text": " a",
+      "start": 75.48,
+      "end": 75.54
+    },
+    {
+      "text": " kettőt",
+      "start": 75.84,
+      "end": 76.44
+    },
+    {
+      "text": " fog",
+      "start": 76.44,
+      "end": 76.44
+    },
+    {
+      "text": "om",
+      "start": 76.86,
+      "end": 76.92
+    },
+    {
+      "text": " bemutatni,",
+      "start": 77.34,
+      "end": 77.88
+    },
+    {
+      "text": " ami",
+      "start": 78.36,
+      "end": 78.54
+    },
+    {
+      "text": " a",
+      "start": 78.66,
+      "end": 78.72
+    },
+    {
+      "text": " délután",
+      "start": 78.84,
+      "end": 79.26
+    },
+    {
+      "text": " kétórás",
+      "start": 79.5,
+      "end": 79.92
+    },
+    {
+      "text": " falat",
+      "start": 80.46,
+      "end": 80.76
+    },
+    {
+      "text": " jelképezi.",
+      "start": 81.12,
+      "end": 81.72
+    },
+    {
+      "text": " Ugye",
+      "start": 81.84,
+      "end": 82.02
+    },
+    {
+      "text": " mindenki",
+      "start": 82.32,
+      "end": 82.74
+    },
+    {
+      "text": " ismeri",
+      "start": 82.98,
+      "end": 83.34
+    },
+    {
+      "text": " ezt,",
+      "start": 83.46,
+      "end": 83.64
+    },
+    {
+      "text": " hogy",
+      "start": 83.76,
+      "end": 83.82
+    },
+    {
+      "text": " ahogy",
+      "start": 84.48,
+      "end": 84.66
+    },
+    {
+      "text": " már",
+      "start": 84.78,
+      "end": 84.84
+    },
+    {
+      "text": " halad",
+      "start": 85.2,
+      "end": 85.5
+    },
+    {
+      "text": " a",
+      "start": 85.56,
+      "end": 85.62
+    },
+    {
+      "text": " munkanapunk,",
+      "start": 85.68,
+      "end": 86.4
+    },
+    {
+      "text": " délután",
+      "start": 86.64,
+      "end": 87.0
+    },
+    {
+      "text": " kettő",
+      "start": 87.12,
+      "end": 87.36
+    },
+    {
+      "text": " körül",
+      "start": 87.54,
+      "end": 87.72
+    },
+    {
+      "text": " az",
+      "start": 87.78,
+      "end": 87.84
+    },
+    {
+      "text": " ember",
+      "start": 87.84,
+      "end": 88.02
+    },
+    {
+      "text": " beleütközik",
+      "start": 88.2,
+      "end": 88.68
+    },
+    {
+      "text": " egy",
+      "start": 88.74,
+      "end": 88.8
+    },
+    {
+      "text": " falba,",
+      "start": 88.92,
+      "end": 89.28
+    },
+    {
+      "text": " fáradtabb",
+      "start": 89.58,
+      "end": 90.06
+    },
+    {
+      "text": " lesz,",
+      "start": 90.12,
+      "end": 90.24
+    },
+    {
+      "text": " kevesebb",
+      "start": 90.3,
+      "end": 90.6
+    },
+    {
+      "text": " lesz",
+      "start": 90.66,
+      "end": 90.78
+    },
+    {
+      "text": " a",
+      "start": 90.84,
+      "end": 90.9
+    },
+    {
+      "text": " mentális",
+      "start": 90.96,
+      "end": 91.26
+    },
+    {
+      "text": " energiája,",
+      "start": 91.5,
+      "end": 92.04
+    },
+    {
+      "text": " és",
+      "start": 92.22,
+      "end": 92.28
+    },
+    {
+      "text": " ugye",
+      "start": 92.46,
+      "end": 92.64
+    },
+    {
+      "text": " ez",
+      "start": 92.94,
+      "end": 93.0
+    },
+    {
+      "text": " a",
+      "start": 93.18,
+      "end": 93.24
+    },
+    {
+      "text": " hirdetés",
+      "start": 93.36,
+      "end": 93.78
+    },
+    {
+      "text": " megközelítés",
+      "start": 93.84,
+      "end": 94.5
+    },
+    {
+      "text": " arra",
+      "start": 94.86,
+      "end": 95.04
+    },
+    {
+      "text": " vonatkozó",
+      "start": 95.16,
+      "end": 95.7
+    },
+    {
+      "text": " hirdetéseket",
+      "start": 95.82,
+      "end": 96.48
+    },
+    {
+      "text": " fog",
+      "start": 96.54,
+      "end": 96.6
+    },
+    {
+      "text": " majd",
+      "start": 96.84,
+      "end": 96.9
+    },
+    {
+      "text": " tartalmazni,",
+      "start": 97.14,
+      "end": 97.8
+    },
+    {
+      "text": " hogy",
+      "start": 97.98,
+      "end": 98.04
+    },
+    {
+      "text": " a",
+      "start": 98.16,
+      "end": 98.22
+    },
+    {
+      "text": " matcha",
+      "start": 98.4,
+      "end": 98.7
+    },
+    {
+      "text": " hogyan",
+      "start": 98.82,
+      "end": 99.06
+    },
+    {
+      "text": " segít",
+      "start": 99.18,
+      "end": 99.36
+    },
+    {
+      "text": " ezt",
+      "start": 99.48,
+      "end": 99.6
+    },
+    {
+      "text": " leküzdeni.",
+      "start": 99.66,
+      "end": 100.26
+    },
+    {
+      "text": " Minden",
+      "start": 137.04,
+      "end": 137.28
+    },
+    {
+      "text": " hirdetés",
+      "start": 137.34,
+      "end": 137.82
+    },
+    {
+      "text": " két",
+      "start": 137.94,
+      "end": 138.0
+    },
+    {
+      "text": " főelemből",
+      "start": 138.12,
+      "end": 138.6
+    },
+    {
+      "text": " fog",
+      "start": 138.66,
+      "end": 138.72
+    },
+    {
+      "text": " állni,",
+      "start": 138.84,
+      "end": 139.14
+    },
+    {
+      "text": " egyrészt",
+      "start": 139.32,
+      "end": 139.62
+    },
+    {
+      "text": " lesz",
+      "start": 139.62,
+      "end": 139.8
+    },
+    {
+      "text": " egy",
+      "start": 139.86,
+      "end": 139.92
+    },
+    {
+      "text": " szöveges",
+      "start": 140.04,
+      "end": 140.4
+    },
+    {
+      "text": " része,",
+      "start": 140.58,
+      "end": 140.94
+    },
+    {
+      "text": " másrészt",
+      "start": 141.12,
+      "end": 141.42
+    },
+    {
+      "text": " pedig",
+      "start": 141.48,
+      "end": 141.54
+    },
+    {
+      "text": " lesz...",
+      "start": 141.72,
+      "end": 142.08
+    },
+    {
+      "text": " Ebben",
+      "start": 162.18,
+      "end": 162.36
+    },
+    {
+      "text": " a",
+      "start": 162.42,
+      "end": 162.48
+    },
+    {
+      "text": " példában",
+      "start": 162.48,
+      "end": 162.9
+    },
+    {
+      "text": " mi",
+      "start": 163.02,
+      "end": 163.08
+    },
+    {
+      "text": " most",
+      "start": 163.14,
+      "end": 163.2
+    },
+    {
+      "text": " szeretnénk",
+      "start": 163.32,
+      "end": 163.8
+    },
+    {
+      "text": "...",
+      "start": 165.12,
+      "end": 165.18
+    },
+    {
+      "text": " Ebben",
+      "start": 165.3,
+      "end": 165.48
+    },
+    {
+      "text": " a",
+      "start": 165.48,
+      "end": 165.54
+    },
+    {
+      "text": " példában",
+      "start": 165.6,
+      "end": 166.02
+    },
+    {
+      "text": " mi",
+      "start": 166.14,
+      "end": 166.2
+    },
+    {
+      "text": " most",
+      "start": 166.26,
+      "end": 166.32
+    },
+    {
+      "text": " olyan",
+      "start": 166.44,
+      "end": 166.62
+    },
+    {
+      "text": " hirdetést",
+      "start": 166.68,
+      "end": 167.1
+    },
+    {
+      "text": " szeretnénk",
+      "start": 167.22,
+      "end": 167.52
+    },
+    {
+      "text": " készíteni,",
+      "start": 167.58,
+      "end": 168.18
+    },
+    {
+      "text": " ami",
+      "start": 168.42,
+      "end": 168.66
+    },
+    {
+      "text": " egy",
+      "start": 168.72,
+      "end": 168.78
+    },
+    {
+      "text": " stat",
+      "start": 169.26,
+      "end": 169.32
+    },
+    {
+      "text": "ikus",
+      "start": 169.62,
+      "end": 169.68
+    },
+    {
+      "text": " képet",
+      "start": 169.92,
+      "end": 170.28
+    },
+    {
+      "text": " tartalmaz,",
+      "start": 170.4,
+      "end": 171.0
+    },
+    {
+      "text": " és",
+      "start": 171.0,
+      "end": 171.06
+    },
+    {
+      "text": " ehhez",
+      "start": 171.24,
+      "end": 171.36
+    },
+    {
+      "text": " kapcsolódik",
+      "start": 171.48,
+      "end": 172.08
+    },
+    {
+      "text": " egy",
+      "start": 172.38,
+      "end": 172.44
+    },
+    {
+      "text": " hirdetésszöveg.",
+      "start": 172.86,
+      "end": 173.94
+    },
+    {
+      "text": " Ezeket",
+      "start": 174.12,
+      "end": 174.54
+    },
+    {
+      "text": " tipikusan",
+      "start": 174.72,
+      "end": 175.08
+    },
+    {
+      "text": " ugye",
+      "start": 175.2,
+      "end": 175.44
+    },
+    {
+      "text": " Instagramon",
+      "start": 175.62,
+      "end": 176.16
+    },
+    {
+      "text": " vagy",
+      "start": 176.28,
+      "end": 176.34
+    },
+    {
+      "text": " Facebookon",
+      "start": 176.58,
+      "end": 177.06
+    },
+    {
+      "text": " szoktok",
+      "start": 177.12,
+      "end": 177.42
+    },
+    {
+      "text": " futtatni,",
+      "start": 177.54,
+      "end": 178.02
+    },
+    {
+      "text": " és",
+      "start": 178.32,
+      "end": 178.38
+    },
+    {
+      "text": " ennek",
+      "start": 178.5,
+      "end": 178.74
+    },
+    {
+      "text": " nyilván",
+      "start": 178.8,
+      "end": 179.04
+    },
+    {
+      "text": " két",
+      "start": 179.1,
+      "end": 179.16
+    },
+    {
+      "text": " komponense",
+      "start": 179.34,
+      "end": 179.76
+    },
+    {
+      "text": " van,",
+      "start": 179.82,
+      "end": 180.0
+    },
+    {
+      "text": " a",
+      "start": 180.0,
+      "end": 180.06
+    },
+    {
+      "text": " szöveg",
+      "start": 180.12,
+      "end": 180.36
+    },
+    {
+      "text": " és",
+      "start": 180.48,
+      "end": 180.54
+    },
+    {
+      "text": " a",
+      "start": 180.6,
+      "end": 180.66
+    },
+    {
+      "text": " kép.",
+      "start": 180.72,
+      "end": 181.08
+    },
+    {
+      "text": " Először",
+      "start": 181.26,
+      "end": 181.62
+    },
+    {
+      "text": " készítsük",
+      "start": 181.74,
+      "end": 182.22
+    },
+    {
+      "text": " el",
+      "start": 182.34,
+      "end": 182.4
+    },
+    {
+      "text": " a",
+      "start": 182.58,
+      "end": 182.64
+    },
+    {
+      "text": " szöveget,",
+      "start": 182.76,
+      "end": 183.24
+    },
+    {
+      "text": " tehát",
+      "start": 183.54,
+      "end": 183.72
+    },
+    {
+      "text": " a",
+      "start": 183.72,
+      "end": 183.78
+    },
+    {
+      "text": " következő",
+      "start": 183.84,
+      "end": 184.26
+    },
+    {
+      "text": " lépés",
+      "start": 184.32,
+      "end": 184.62
+    },
+    {
+      "text": " az",
+      "start": 184.74,
+      "end": 184.8
+    },
+    {
+      "text": " lesz,",
+      "start": 184.92,
+      "end": 185.16
+    },
+    {
+      "text": " hogy",
+      "start": 185.28,
+      "end": 185.34
+    },
+    {
+      "text": " ezt",
+      "start": 185.7,
+      "end": 185.88
+    },
+    {
+      "text": " a",
+      "start": 185.94,
+      "end": 186.0
+    },
+    {
+      "text": " hirdetés",
+      "start": 186.12,
+      "end": 186.6
+    },
+    {
+      "text": " megközelítést,",
+      "start": 186.72,
+      "end": 187.5
+    },
+    {
+      "text": " ezt",
+      "start": 187.56,
+      "end": 187.68
+    },
+    {
+      "text": " a",
+      "start": 187.68,
+      "end": 187.74
+    },
+    {
+      "text": " koncepciót",
+      "start": 187.92,
+      "end": 188.58
+    },
+    {
+      "text": " alakítsuk",
+      "start": 189.0,
+      "end": 189.54
+    },
+    {
+      "text": " át,",
+      "start": 189.72,
+      "end": 190.02
+    },
+    {
+      "text": " konkretizáljuk,",
+      "start": 190.32,
+      "end": 191.22
+    },
+    {
+      "text": " és",
+      "start": 191.22,
+      "end": 191.28
+    },
+    {
+      "text": " készítsünk",
+      "start": 191.4,
+      "end": 192.06
+    },
+    {
+      "text": " hozzá",
+      "start": 192.12,
+      "end": 192.48
+    },
+    {
+      "text": " egy",
+      "start": 192.72,
+      "end": 192.78
+    },
+    {
+      "text": " hirdetési",
+      "start": 193.08,
+      "end": 193.5
+    },
+    {
+      "text": " szöveget.",
+      "start": 193.74,
+      "end": 194.16
+    },
+    {
+      "text": " Ehhez",
+      "start": 194.76,
+      "end": 194.94
+    },
+    {
+      "text": " a",
+      "start": 194.94,
+      "end": 195.0
+    },
+    {
+      "text": " következőt",
+      "start": 195.0,
+      "end": 195.48
+    },
+    {
+      "text": " fogjuk",
+      "start": 195.48,
+      "end": 195.72
+    },
+    {
+      "text": " csinálni,",
+      "start": 195.78,
+      "end": 196.14
+    },
+    {
+      "text": " ugye",
+      "start": 196.26,
+      "end": 196.5
+    },
+    {
+      "text": " korábban",
+      "start": 196.62,
+      "end": 196.92
+    },
+    {
+      "text": " mutattam",
+      "start": 197.04,
+      "end": 197.46
+    },
+    {
+      "text": " már",
+      "start": 197.52,
+      "end": 197.58
+    },
+    {
+      "text": " nektek",
+      "start": 197.64,
+      "end": 197.88
+    },
+    {
+      "text": " ezt",
+      "start": 198.42,
+      "end": 198.54
+    },
+    {
+      "text": " az",
+      "start": 198.6,
+      "end": 198.66
+    },
+    {
+      "text": " Structured",
+      "start": 199.38,
+      "end": 199.8
+    },
+    {
+      "text": " Expert",
+      "start": 199.98,
+      "end": 200.28
+    },
+    {
+      "text": " Prompting",
+      "start": 200.4,
+      "end": 200.76
+    },
+    {
+      "text": " megközelítést,",
+      "start": 200.94,
+      "end": 201.66
+    },
+    {
+      "text": " aminek",
+      "start": 201.66,
+      "end": 201.9
+    },
+    {
+      "text": " a",
+      "start": 201.96,
+      "end": 202.02
+    },
+    {
+      "text": " segítségével",
+      "start": 202.08,
+      "end": 202.62
+    },
+    {
+      "text": " most",
+      "start": 202.68,
+      "end": 202.74
+    },
+    {
+      "text": " létre",
+      "start": 202.86,
+      "end": 203.1
+    },
+    {
+      "text": " fogunk",
+      "start": 203.16,
+      "end": 203.34
+    },
+    {
+      "text": " hozni",
+      "start": 203.4,
+      "end": 203.76
+    },
+    {
+      "text": " egy",
+      "start": 204.24,
+      "end": 204.3
+    },
+    {
+      "text": " olyan",
+      "start": 204.54,
+      "end": 204.84
+    },
+    {
+      "text": " AI",
+      "start": 204.96,
+      "end": 205.14
+    },
+    {
+      "text": " megoldást,",
+      "start": 205.26,
+      "end": 205.74
+    },
+    {
+      "text": " ami",
+      "start": 205.74,
+      "end": 205.92
+    },
+    {
+      "text": " segít",
+      "start": 206.04,
+      "end": 206.34
+    },
+    {
+      "text": " ilyeneket",
+      "start": 206.7,
+      "end": 207.06
+    },
+    {
+      "text": " generálni,",
+      "start": 207.24,
+      "end": 207.66
+    },
+    {
+      "text": " ilyen",
+      "start": 207.72,
+      "end": 207.84
+    },
+    {
+      "text": " szövegeket",
+      "start": 207.9,
+      "end": 208.38
+    },
+    {
+      "text": " generálni",
+      "start": 208.5,
+      "end": 208.86
+    },
+    {
+      "text": " a",
+      "start": 208.98,
+      "end": 209.04
+    },
+    {
+      "text": " számunkra.",
+      "start": 209.16,
+      "end": 209.58
+    },
+    {
+      "text": " Tehát",
+      "start": 209.94,
+      "end": 210.06
+    },
+    {
+      "text": " egyszerűen",
+      "start": 210.18,
+      "end": 210.54
+    },
+    {
+      "text": " csak",
+      "start": 210.6,
+      "end": 210.66
+    },
+    {
+      "text": " ezt",
+      "start": 210.78,
+      "end": 210.9
+    },
+    {
+      "text": " bemásoljuk,",
+      "start": 210.96,
+      "end": 211.68
+    },
+    {
+      "text": " és",
+      "start": 211.68,
+      "end": 211.74
+    },
+    {
+      "text": " itt",
+      "start": 211.86,
+      "end": 211.98
+    },
+    {
+      "text": " van",
+      "start": 211.98,
+      "end": 212.04
+    },
+    {
+      "text": " egy",
+      "start": 212.1,
+      "end": 212.16
+    },
+    {
+      "text": " kis",
+      "start": 212.28,
+      "end": 212.34
+    },
+    {
+      "text": " kitöltendő",
+      "start": 212.52,
+      "end": 213.12
+    },
+    {
+      "text": " rész,",
+      "start": 213.24,
+      "end": 213.6
+    },
+    {
+      "text": " amit",
+      "start": 213.78,
+      "end": 213.96
+    },
+    {
+      "text": " behelyettesítünk",
+      "start": 214.08,
+      "end": 214.86
+    },
+    {
+      "text": " egyszerűen",
+      "start": 215.04,
+      "end": 215.58
+    },
+    {
+      "text": " a",
+      "start": 215.94,
+      "end": 216.0
+    },
+    {
+      "text": " feladatunkkal,",
+      "start": 216.3,
+      "end": 217.02
+    },
+    {
+      "text": " ami",
+      "start": 217.26,
+      "end": 217.44
+    },
+    {
+      "text": " ebben",
+      "start": 217.5,
+      "end": 217.68
+    },
+    {
+      "text": " az",
+      "start": 217.68,
+      "end": 217.74
+    },
+    {
+      "text": " esetben",
+      "start": 217.8,
+      "end": 218.1
+    },
+    {
+      "text": " az",
+      "start": 218.22,
+      "end": 218.28
+    },
+    {
+      "text": " lesz,",
+      "start": 218.46,
+      "end": 218.64
+    },
+    {
+      "text": " hogy",
+      "start": 218.7,
+      "end": 218.76
+    },
+    {
+      "text": " szeretnénk,",
+      "start": 219.06,
+      "end": 219.54
+    },
+    {
+      "text": " hogyha",
+      "start": 219.6,
+      "end": 219.78
+    },
+    {
+      "text": " hirdetési",
+      "start": 219.96,
+      "end": 220.44
+    },
+    {
+      "text": " szövegeket",
+      "start": 220.62,
+      "end": 221.1
+    },
+    {
+      "text": " generálna",
+      "start": 221.22,
+      "end": 221.64
+    },
+    {
+      "text": " a",
+      "start": 221.76,
+      "end": 221.82
+    },
+    {
+      "text": " számunkra",
+      "start": 221.94,
+      "end": 222.42
+    },
+    {
+      "text": " a",
+      "start": 222.84,
+      "end": 222.9
+    },
+    {
+      "text": " Facebook",
+      "start": 223.26,
+      "end": 223.56
+    },
+    {
+      "text": " és",
+      "start": 223.74,
+      "end": 223.8
+    },
+    {
+      "text": " Instagram",
+      "start": 223.98,
+      "end": 224.34
+    },
+    {
+      "text": " hirdetéseinkhez,",
+      "start": 224.52,
+      "end": 225.6
+    },
+    {
+      "text": " és",
+      "start": 225.84,
+      "end": 225.9
+    },
+    {
+      "text": " meg",
+      "start": 226.02,
+      "end": 226.08
+    },
+    {
+      "text": " fogom",
+      "start": 226.2,
+      "end": 226.44
+    },
+    {
+      "text": " azt",
+      "start": 226.5,
+      "end": 226.68
+    },
+    {
+      "text": " adni,",
+      "start": 226.74,
+      "end": 226.98
+    },
+    {
+      "text": " hogy",
+      "start": 227.1,
+      "end": 227.16
+    },
+    {
+      "text": " egy",
+      "start": 227.34,
+      "end": 227.4
+    },
+    {
+      "text": " 100",
+      "start": 227.82,
+      "end": 228.12
+    },
+    {
+      "text": " és",
+      "start": 228.24,
+      "end": 228.3
+    },
+    {
+      "text": " 3",
+      "start": 228.48,
+      "end": 228.54
+    },
+    {
+      "text": "00",
+      "start": 228.9,
+      "end": 229.08
+    },
+    {
+      "text": " szó",
+      "start": 229.32,
+      "end": 229.5
+    },
+    {
+      "text": " közötti",
+      "start": 229.74,
+      "end": 230.28
+    },
+    {
+      "text": " tartalomformátumot",
+      "start": 230.82,
+      "end": 232.02
+    },
+    {
+      "text": " keresünk,",
+      "start": 232.08,
+      "end": 232.56
+    },
+    {
+      "text": " ami",
+      "start": 232.98,
+      "end": 233.22
+    },
+    {
+      "text": " azért",
+      "start": 233.34,
+      "end": 233.58
+    },
+    {
+      "text": " szükséges,",
+      "start": 233.76,
+      "end": 234.3
+    },
+    {
+      "text": " mert",
+      "start": 234.48,
+      "end": 234.66
+    },
+    {
+      "text": " nyilván",
+      "start": 234.84,
+      "end": 235.14
+    },
+    {
+      "text": " nagyon",
+      "start": 235.38,
+      "end": 235.56
+    },
+    {
+      "text": " sokfajta",
+      "start": 235.68,
+      "end": 236.22
+    },
+    {
+      "text": " hirdetési",
+      "start": 236.34,
+      "end": 236.7
+    },
+    {
+      "text": " szöveg",
+      "start": 236.88,
+      "end": 237.12
+    },
+    {
+      "text": " létezik.",
+      "start": 237.18,
+      "end": 237.66
+    },
+    {
+      "text": " Hogyha",
+      "start": 237.66,
+      "end": 237.84
+    },
+    {
+      "text": " ezeket",
+      "start": 237.9,
+      "end": 238.14
+    },
+    {
+      "text": " nem",
+      "start": 238.2,
+      "end": 238.26
+    },
+    {
+      "text": " adjuk",
+      "start": 238.38,
+      "end": 238.62
+    },
+    {
+      "text": " meg,",
+      "start": 238.62,
+      "end": 238.92
+    },
+    {
+      "text": " akkor",
+      "start": 238.98,
+      "end": 239.1
+    },
+    {
+      "text": " elképzelhető,",
+      "start": 239.28,
+      "end": 240.0
+    },
+    {
+      "text": " hogy",
+      "start": 240.0,
+      "end": 240.06
+    },
+    {
+      "text": " egy",
+      "start": 240.12,
+      "end": 240.18
+    },
+    {
+      "text": " TikTok",
+      "start": 240.54,
+      "end": 240.9
+    },
+    {
+      "text": " videónak",
+      "start": 241.02,
+      "end": 241.5
+    },
+    {
+      "text": " a",
+      "start": 241.62,
+      "end": 241.68
+    },
+    {
+      "text": " forgatókönyvét,",
+      "start": 241.92,
+      "end": 242.82
+    },
+    {
+      "text": " a",
+      "start": 242.82,
+      "end": 242.88
+    },
+    {
+      "text": " scriptjét",
+      "start": 242.94,
+      "end": 243.36
+    },
+    {
+      "text": " generálná",
+      "start": 243.48,
+      "end": 243.9
+    },
+    {
+      "text": " le.",
+      "start": 244.02,
+      "end": 244.2
+    },
+    {
+      "text": " De",
+      "start": 244.32,
+      "end": 244.38
+    },
+    {
+      "text": " ezáltal,",
+      "start": 244.44,
+      "end": 244.8
+    },
+    {
+      "text": " hogy",
+      "start": 244.86,
+      "end": 244.92
+    },
+    {
+      "text": " megadom,",
+      "start": 244.98,
+      "end": 245.28
+    },
+    {
+      "text": " hogy",
+      "start": 245.34,
+      "end": 245.4
+    },
+    {
+      "text": " Facebookon",
+      "start": 245.52,
+      "end": 246.0
+    },
+    {
+      "text": " szeretném",
+      "start": 246.06,
+      "end": 246.36
+    },
+    {
+      "text": " futtatni",
+      "start": 246.48,
+      "end": 246.78
+    },
+    {
+      "text": " a",
+      "start": 246.84,
+      "end": 246.9
+    },
+    {
+      "text": " hirdetéseket,",
+      "start": 246.9,
+      "end": 247.62
+    },
+    {
+      "text": " és",
+      "start": 247.86,
+      "end": 247.92
+    },
+    {
+      "text": " 100",
+      "start": 248.16,
+      "end": 248.4
+    },
+    {
+      "text": " és",
+      "start": 248.46,
+      "end": 248.52
+    },
+    {
+      "text": " 3",
+      "start": 248.64,
+      "end": 248.7
+    },
+    {
+      "text": "00",
+      "start": 249.0,
+      "end": 249.18
+    },
+    {
+      "text": " szó",
+      "start": 249.3,
+      "end": 249.42
+    },
+    {
+      "text": " közötti",
+      "start": 249.54,
+      "end": 250.02
+    },
+    {
+      "text": " tart",
+      "start": 250.5,
+      "end": 250.56
+    },
+    {
+      "text": "alomformátumot",
+      "start": 250.86,
+      "end": 251.64
+    },
+    {
+      "text": " keresek,",
+      "start": 251.76,
+      "end": 252.18
+    },
+    {
+      "text": " így",
+      "start": 252.48,
+      "end": 252.6
+    },
+    {
+      "text": " nem",
+      "start": 252.78,
+      "end": 252.84
+    },
+    {
+      "text": " fogja",
+      "start": 253.02,
+      "end": 253.32
+    },
+    {
+      "text": " nagyon",
+      "start": 253.5,
+      "end": 253.62
+    },
+    {
+      "text": " rövidre",
+      "start": 253.74,
+      "end": 254.16
+    },
+    {
+      "text": " zárni",
+      "start": 254.28,
+      "end": 254.58
+    },
+    {
+      "text": " a",
+      "start": 255.18,
+      "end": 255.24
+    },
+    {
+      "text": " tartalmat,",
+      "start": 255.48,
+      "end": 256.02
+    },
+    {
+      "text": " nem",
+      "start": 256.26,
+      "end": 256.32
+    },
+    {
+      "text": " is",
+      "start": 256.44,
+      "end": 256.5
+    },
+    {
+      "text": " fogja",
+      "start": 256.62,
+      "end": 256.92
+    },
+    {
+      "text": " iszonyatosan",
+      "start": 257.16,
+      "end": 257.7
+    },
+    {
+      "text": " hosszan",
+      "start": 257.82,
+      "end": 258.12
+    },
+    {
+      "text": " kifejteni,",
+      "start": 258.18,
+      "end": 258.78
+    },
+    {
+      "text": " hanem",
+      "start": 259.08,
+      "end": 259.26
+    },
+    {
+      "text": " egy",
+      "start": 259.38,
+      "end": 259.44
+    },
+    {
+      "text": " olyan",
+      "start": 259.62,
+      "end": 259.92
+    },
+    {
+      "text": " hirdetést",
+      "start": 260.1,
+      "end": 260.52
+    },
+    {
+      "text": " fog",
+      "start": 260.58,
+      "end": 260.64
+    },
+    {
+      "text": " készíteni,",
+      "start": 260.7,
+      "end": 261.12
+    },
+    {
+      "text": " olyan",
+      "start": 261.18,
+      "end": 261.36
+    },
+    {
+      "text": " hirdetésszöveget,",
+      "start": 261.36,
+      "end": 262.14
+    },
+    {
+      "text": " ami",
+      "start": 262.32,
+      "end": 262.56
+    },
+    {
+      "text": " pár",
+      "start": 262.74,
+      "end": 262.86
+    },
+    {
+      "text": " dolgot",
+      "start": 263.04,
+      "end": 263.22
+    },
+    {
+      "text": " elárul",
+      "start": 263.52,
+      "end": 263.88
+    },
+    {
+      "text": " ugye",
+      "start": 264.0,
+      "end": 264.12
+    },
+    {
+      "text": " az",
+      "start": 264.12,
+      "end": 264.18
+    },
+    {
+      "text": " ajánlatunkról,",
+      "start": 264.3,
+      "end": 265.2
+    },
+    {
+      "text": " alkalmas",
+      "start": 265.5,
+      "end": 265.86
+    },
+    {
+      "text": " arra,",
+      "start": 265.92,
+      "end": 266.1
+    },
+    {
+      "text": " hogy",
+      "start": 266.1,
+      "end": 266.16
+    },
+    {
+      "text": " megragadja",
+      "start": 266.22,
+      "end": 266.64
+    },
+    {
+      "text": " az",
+      "start": 266.64,
+      "end": 266.7
+    },
+    {
+      "text": " embereknek",
+      "start": 266.7,
+      "end": 267.12
+    },
+    {
+      "text": " a",
+      "start": 267.18,
+      "end": 267.24
+    },
+    {
+      "text": " figyelmét,",
+      "start": 267.24,
+      "end": 267.84
+    },
+    {
+      "text": " de",
+      "start": 268.08,
+      "end": 268.14
+    },
+    {
+      "text": " nem",
+      "start": 268.5,
+      "end": 268.56
+    },
+    {
+      "text": " is",
+      "start": 268.8,
+      "end": 268.86
+    },
+    {
+      "text": " kell",
+      "start": 269.16,
+      "end": 269.4
+    },
+    {
+      "text": " hosszasan",
+      "start": 269.64,
+      "end": 270.06
+    },
+    {
+      "text": " olvasni.",
+      "start": 270.12,
+      "end": 270.6
+    },
+    {
+      "text": " Tehát",
+      "start": 287.4,
+      "end": 287.52
+    },
+    {
+      "text": " kitöltöttem",
+      "start": 287.64,
+      "end": 288.12
+    },
+    {
+      "text": " ennyivel,",
+      "start": 288.18,
+      "end": 288.54
+    },
+    {
+      "text": " hogy",
+      "start": 288.66,
+      "end": 288.72
+    },
+    {
+      "text": " segítségre",
+      "start": 288.96,
+      "end": 289.44
+    },
+    {
+      "text": " van",
+      "start": 289.5,
+      "end": 289.56
+    },
+    {
+      "text": " szükségem",
+      "start": 289.62,
+      "end": 290.04
+    },
+    {
+      "text": " ebben,",
+      "start": 290.1,
+      "end": 290.28
+    },
+    {
+      "text": " hogy",
+      "start": 290.34,
+      "end": 290.4
+    },
+    {
+      "text": " a",
+      "start": 290.46,
+      "end": 290.52
+    },
+    {
+      "text": " matcha",
+      "start": 290.7,
+      "end": 290.94
+    },
+    {
+      "text": " márkámhoz",
+      "start": 291.06,
+      "end": 291.54
+    },
+    {
+      "text": " szeretnék",
+      "start": 291.96,
+      "end": 292.5
+    },
+    {
+      "text": " a",
+      "start": 292.74,
+      "end": 292.8
+    },
+    {
+      "text": " megadott",
+      "start": 293.16,
+      "end": 293.58
+    },
+    {
+      "text": " hirdetési",
+      "start": 293.76,
+      "end": 294.18
+    },
+    {
+      "text": " megközelítés",
+      "start": 294.3,
+      "end": 294.96
+    },
+    {
+      "text": " alapján",
+      "start": 295.2,
+      "end": 295.62
+    },
+    {
+      "text": " hirdetésszövegeket",
+      "start": 295.92,
+      "end": 296.88
+    },
+    {
+      "text": " generálni,",
+      "start": 297.0,
+      "end": 297.48
+    },
+    {
+      "text": " és",
+      "start": 298.02,
+      "end": 298.08
+    },
+    {
+      "text": " a",
+      "start": 298.62,
+      "end": 298.68
+    },
+    {
+      "text": " hirdetésszövegek",
+      "start": 298.98,
+      "end": 300.12
+    },
+    {
+      "text": " statikus",
+      "start": 300.6,
+      "end": 301.02
+    },
+    {
+      "text": " képekhez",
+      "start": 301.2,
+      "end": 301.74
+    },
+    {
+      "text": " tartoznak",
+      "start": 302.34,
+      "end": 302.64
+    },
+    {
+      "text": " a",
+      "start": 302.94,
+      "end": 303.0
+    },
+    {
+      "text": " meta",
+      "start": 303.42,
+      "end": 303.72
+    },
+    {
+      "text": " felületén,",
+      "start": 303.84,
+      "end": 304.5
+    },
+    {
+      "text": " és",
+      "start": 304.62,
+      "end": 304.68
+    },
+    {
+      "text": " öt",
+      "start": 305.1,
+      "end": 305.22
+    },
+    {
+      "text": " darab",
+      "start": 305.34,
+      "end": 305.52
+    },
+    {
+      "text": " példányt",
+      "start": 305.76,
+      "end": 306.18
+    },
+    {
+      "text": " szeretnénk",
+      "start": 306.24,
+      "end": 306.6
+    },
+    {
+      "text": " készíteni,",
+      "start": 306.66,
+      "end": 307.02
+    },
+    {
+      "text": " 100",
+      "start": 307.14,
+      "end": 307.44
+    },
+    {
+      "text": " és",
+      "start": 307.5,
+      "end": 307.56
+    },
+    {
+      "text": " 3",
+      "start": 307.62,
+      "end": 307.68
+    },
+    {
+      "text": "00",
+      "start": 308.04,
+      "end": 308.28
+    },
+    {
+      "text": " szó",
+      "start": 309.0,
+      "end": 309.18
+    },
+    {
+      "text": " közötti",
+      "start": 309.3,
+      "end": 309.78
+    },
+    {
+      "text": " tartalommennyiséget.",
+      "start": 310.02,
+      "end": 311.22
+    },
+    {
+      "text": " Ezek",
+      "start": 311.4,
+      "end": 311.58
+    },
+    {
+      "text": " alapján",
+      "start": 311.64,
+      "end": 311.94
+    },
+    {
+      "text": " el",
+      "start": 312.06,
+      "end": 312.12
+    },
+    {
+      "text": " fog",
+      "start": 312.18,
+      "end": 312.24
+    },
+    {
+      "text": " készíteni",
+      "start": 312.36,
+      "end": 312.84
+    },
+    {
+      "text": " egy",
+      "start": 312.9,
+      "end": 312.96
+    },
+    {
+      "text": " promptot,",
+      "start": 313.08,
+      "end": 313.44
+    },
+    {
+      "text": " amit",
+      "start": 313.68,
+      "end": 313.86
+    },
+    {
+      "text": " majd",
+      "start": 313.98,
+      "end": 314.04
+    },
+    {
+      "text": " a",
+      "start": 314.16,
+      "end": 314.22
+    },
+    {
+      "text": " későbbiekben,",
+      "start": 314.28,
+      "end": 315.06
+    },
+    {
+      "text": " egy",
+      "start": 315.06,
+      "end": 315.12
+    },
+    {
+      "text": " új",
+      "start": 315.24,
+      "end": 315.3
+    },
+    {
+      "text": " beszélgetésben",
+      "start": 315.54,
+      "end": 316.2
+    },
+    {
+      "text": " fel",
+      "start": 316.32,
+      "end": 316.38
+    },
+    {
+      "text": " tudunk",
+      "start": 316.5,
+      "end": 316.68
+    },
+    {
+      "text": " használni.",
+      "start": 316.8,
+      "end": 317.28
+    },
+    {
+      "text": " Rövidesen",
+      "start": 347.88,
+      "end": 348.3
+    },
+    {
+      "text": " el",
+      "start": 348.36,
+      "end": 348.42
+    },
+    {
+      "text": " is",
+      "start": 348.48,
+      "end": 348.54
+    },
+    {
+      "text": " készül",
+      "start": 348.6,
+      "end": 348.96
+    },
+    {
+      "text": " a",
+      "start": 349.32,
+      "end": 349.38
+    },
+    {
+      "text": " mi",
+      "start": 349.44,
+      "end": 349.5
+    },
+    {
+      "text": " kis",
+      "start": 349.68,
+      "end": 349.74
+    },
+    {
+      "text": " system",
+      "start": 350.1,
+      "end": 350.16
+    },
+    {
+      "text": " promptunk,",
+      "start": 350.52,
+      "end": 350.94
+    },
+    {
+      "text": " amit",
+      "start": 351.0,
+      "end": 351.12
+    },
+    {
+      "text": " fel",
+      "start": 351.3,
+      "end": 351.36
+    },
+    {
+      "text": " tud...",
+      "start": 351.54,
+      "end": 351.78
+    },
+    {
+      "text": " Rövidesen",
+      "start": 355.02,
+      "end": 355.44
+    },
+    {
+      "text": " el",
+      "start": 355.56,
+      "end": 355.62
+    },
+    {
+      "text": " is",
+      "start": 355.68,
+      "end": 355.74
+    },
+    {
+      "text": " készült",
+      "start": 355.8,
+      "end": 356.1
+    },
+    {
+      "text": " ez",
+      "start": 356.34,
+      "end": 356.4
+    },
+    {
+      "text": " a",
+      "start": 356.46,
+      "end": 356.52
+    },
+    {
+      "text": " system",
+      "start": 356.7,
+      "end": 356.76
+    },
+    {
+      "text": " prompt,",
+      "start": 357.06,
+      "end": 357.3
+    },
+    {
+      "text": " amit",
+      "start": 357.36,
+      "end": 357.48
+    },
+    {
+      "text": " egyszerűen",
+      "start": 357.54,
+      "end": 357.96
+    },
+    {
+      "text": " szeretnénk",
+      "start": 358.08,
+      "end": 358.5
+    },
+    {
+      "text": " kimásolni,",
+      "start": 358.56,
+      "end": 359.22
+    },
+    {
+      "text": " és",
+      "start": 359.58,
+      "end": 359.64
+    },
+    {
+      "text": " láthatjuk,",
+      "start": 359.82,
+      "end": 360.42
+    },
+    {
+      "text": " hogy...",
+      "start": 360.42,
+      "end": 360.84
+    },
+    {
+      "text": " Rövidesen",
+      "start": 364.56,
+      "end": 364.98
+    },
+    {
+      "text": " el",
+      "start": 365.04,
+      "end": 365.1
+    },
+    {
+      "text": " is",
+      "start": 365.16,
+      "end": 365.22
+    },
+    {
+      "text": " készült",
+      "start": 365.28,
+      "end": 365.58
+    },
+    {
+      "text": " ez",
+      "start": 365.76,
+      "end": 365.82
+    },
+    {
+      "text": " a",
+      "start": 365.88,
+      "end": 365.94
+    },
+    {
+      "text": " system",
+      "start": 366.0,
+      "end": 366.06
+    },
+    {
+      "text": " prompt,",
+      "start": 366.42,
+      "end": 366.72
+    },
+    {
+      "text": " amit",
+      "start": 366.78,
+      "end": 366.96
+    },
+    {
+      "text": " fel",
+      "start": 367.14,
+      "end": 367.2
+    },
+    {
+      "text": " tudunk",
+      "start": 367.32,
+      "end": 367.5
+    },
+    {
+      "text": " használni",
+      "start": 367.62,
+      "end": 368.1
+    },
+    {
+      "text": " a",
+      "start": 368.28,
+      "end": 368.34
+    },
+    {
+      "text": " későbbiekben.",
+      "start": 368.46,
+      "end": 369.36
+    },
+    {
+      "text": " Ne",
+      "start": 369.96,
+      "end": 370.02
+    },
+    {
+      "text": " bohóckodjunk",
+      "start": 370.2,
+      "end": 370.74
+    },
+    {
+      "text": " már,",
+      "start": 370.86,
+      "end": 371.04
+    },
+    {
+      "text": " bazdmeg.",
+      "start": 371.1,
+      "end": 371.58
+    },
+    {
+      "text": " Rövidesen",
+      "start": 379.14,
+      "end": 379.56
+    },
+    {
+      "text": " el",
+      "start": 379.68,
+      "end": 379.74
+    },
+    {
+      "text": " is",
+      "start": 379.8,
+      "end": 379.86
+    },
+    {
+      "text": " készült",
+      "start": 379.92,
+      "end": 380.28
+    },
+    {
+      "text": " ez",
+      "start": 380.46,
+      "end": 380.52
+    },
+    {
+      "text": " a",
+      "start": 380.52,
+      "end": 380.58
+    },
+    {
+      "text": " system",
+      "start": 380.7,
+      "end": 380.76
+    },
+    {
+      "text": " prompt,",
+      "start": 381.06,
+      "end": 381.3
+    },
+    {
+      "text": " amit",
+      "start": 381.36,
+      "end": 381.48
+    },
+    {
+      "text": " egyszerűen",
+      "start": 381.54,
+      "end": 381.96
+    },
+    {
+      "text": " csak",
+      "start": 382.08,
+      "end": 382.14
+    },
+    {
+      "text": " ki",
+      "start": 382.26,
+      "end": 382.32
+    },
+    {
+      "text": " kell",
+      "start": 382.38,
+      "end": 382.5
+    },
+    {
+      "text": " másolnunk,",
+      "start": 382.62,
+      "end": 383.22
+    },
+    {
+      "text": " és",
+      "start": 383.4,
+      "end": 383.46
+    },
+    {
+      "text": " majd",
+      "start": 383.7,
+      "end": 383.76
+    },
+    {
+      "text": " egy",
+      "start": 383.94,
+      "end": 384.0
+    },
+    {
+      "text": " másik",
+      "start": 384.36,
+      "end": 384.66
+    },
+    {
+      "text": " beszélgetésben",
+      "start": 384.78,
+      "end": 385.44
+    },
+    {
+      "text": " szeretném",
+      "start": 385.56,
+      "end": 385.92
+    },
+    {
+      "text": " felhasználni.",
+      "start": 386.04,
+      "end": 386.7
+    },
+    {
+      "text": " Ugyanis",
+      "start": 387.18,
+      "end": 387.54
+    },
+    {
+      "text": " a",
+      "start": 387.54,
+      "end": 387.6
+    },
+    {
+      "text": " következő",
+      "start": 387.66,
+      "end": 388.02
+    },
+    {
+      "text": " lépésünk",
+      "start": 388.08,
+      "end": 388.68
+    },
+    {
+      "text": " az",
+      "start": 388.8,
+      "end": 388.86
+    },
+    {
+      "text": " lesz,",
+      "start": 388.98,
+      "end": 389.22
+    },
+    {
+      "text": " hogy",
+      "start": 389.4,
+      "end": 389.46
+    },
+    {
+      "text": " feltöltjük",
+      "start": 390.0,
+      "end": 390.6
+    },
+    {
+      "text": " az",
+      "start": 390.84,
+      "end": 390.9
+    },
+    {
+      "text": "okat",
+      "start": 391.26,
+      "end": 391.32
+    },
+    {
+      "text": " a",
+      "start": 391.62,
+      "end": 391.68
+    },
+    {
+      "text": " hirdetési...",
+      "start": 392.1,
+      "end": 392.94
+    },
+    {
+      "text": " Rövidesen",
+      "start": 403.8,
+      "end": 404.16
+    },
+    {
+      "text": " el",
+      "start": 404.28,
+      "end": 404.34
+    },
+    {
+      "text": " is",
+      "start": 404.4,
+      "end": 404.46
+    },
+    {
+      "text": " készült",
+      "start": 404.46,
+      "end": 404.76
+    },
+    {
+      "text": " ez",
+      "start": 404.94,
+      "end": 405.0
+    },
+    {
+      "text": " a",
+      "start": 405.06,
+      "end": 405.12
+    },
+    {
+      "text": " prompt,",
+      "start": 405.24,
+      "end": 405.48
+    },
+    {
+      "text": " amit",
+      "start": 405.54,
+      "end": 405.66
+    },
+    {
+      "text": " szeretnénk",
+      "start": 405.72,
+      "end": 406.14
+    },
+    {
+      "text": " majd",
+      "start": 406.2,
+      "end": 406.26
+    },
+    {
+      "text": " felhasználni,",
+      "start": 406.38,
+      "end": 406.98
+    },
+    {
+      "text": " most",
+      "start": 407.1,
+      "end": 407.16
+    },
+    {
+      "text": " egyelőre",
+      "start": 407.28,
+      "end": 407.64
+    },
+    {
+      "text": " csak",
+      "start": 407.7,
+      "end": 407.76
+    },
+    {
+      "text": " kimásolom,",
+      "start": 407.94,
+      "end": 408.48
+    },
+    {
+      "text": " és",
+      "start": 408.72,
+      "end": 408.78
+    },
+    {
+      "text": " egy",
+      "start": 408.9,
+      "end": 408.96
+    },
+    {
+      "text": " új",
+      "start": 409.08,
+      "end": 409.14
+    },
+    {
+      "text": " beszélgetést",
+      "start": 409.32,
+      "end": 409.86
+    },
+    {
+      "text": " indítok,",
+      "start": 410.04,
+      "end": 410.4
+    },
+    {
+      "text": " ami",
+      "start": 410.46,
+      "end": 410.58
+    },
+    {
+      "text": " kifejezetten",
+      "start": 410.64,
+      "end": 411.3
+    },
+    {
+      "text": " arra",
+      "start": 411.36,
+      "end": 411.54
+    },
+    {
+      "text": " fog",
+      "start": 411.54,
+      "end": 411.6
+    },
+    {
+      "text": " koncentrálni,",
+      "start": 411.78,
+      "end": 412.26
+    },
+    {
+      "text": " hogy",
+      "start": 412.32,
+      "end": 412.38
+    },
+    {
+      "text": " létre",
+      "start": 412.44,
+      "end": 412.68
+    },
+    {
+      "text": " tudjuk",
+      "start": 412.74,
+      "end": 412.98
+    },
+    {
+      "text": " hozni",
+      "start": 413.04,
+      "end": 413.34
+    },
+    {
+      "text": " majd",
+      "start": 413.46,
+      "end": 413.52
+    },
+    {
+      "text": " a",
+      "start": 413.58,
+      "end": 413.64
+    },
+    {
+      "text": " hirdetésszövegeket.",
+      "start": 413.7,
+      "end": 414.72
+    },
+    {
+      "text": " Szeretnénk",
+      "start": 415.2,
+      "end": 415.62
+    },
+    {
+      "text": " feltölteni",
+      "start": 415.68,
+      "end": 416.22
+    },
+    {
+      "text": " azokat",
+      "start": 416.22,
+      "end": 416.52
+    },
+    {
+      "text": " a",
+      "start": 416.52,
+      "end": 416.58
+    },
+    {
+      "text": " kontextfragmenteket,",
+      "start": 416.76,
+      "end": 417.66
+    },
+    {
+      "text": " amiket",
+      "start": 417.72,
+      "end": 418.02
+    },
+    {
+      "text": " korábban",
+      "start": 418.14,
+      "end": 418.44
+    },
+    {
+      "text": " létrehoztunk,",
+      "start": 418.56,
+      "end": 419.4
+    },
+    {
+      "text": " én",
+      "start": 419.82,
+      "end": 419.94
+    },
+    {
+      "text": " most",
+      "start": 420.0,
+      "end": 420.06
+    },
+    {
+      "text": " fel",
+      "start": 420.42,
+      "end": 420.48
+    },
+    {
+      "text": " fogom",
+      "start": 420.6,
+      "end": 420.78
+    },
+    {
+      "text": " tölteni",
+      "start": 420.9,
+      "end": 421.44
+    },
+    {
+      "text": " az",
+      "start": 422.04,
+      "end": 422.1
+    },
+    {
+      "text": " avatár",
+      "start": 422.46,
+      "end": 422.88
+    },
+    {
+      "text": " sheet-et,",
+      "start": 423.0,
+      "end": 423.3
+    },
+    {
+      "text": " ami",
+      "start": 423.36,
+      "end": 423.54
+    },
+    {
+      "text": " ugye",
+      "start": 423.6,
+      "end": 423.78
+    },
+    {
+      "text": " megadja,",
+      "start": 423.96,
+      "end": 424.44
+    },
+    {
+      "text": " hogy",
+      "start": 424.86,
+      "end": 424.92
+    },
+    {
+      "text": " milyen...",
+      "start": 425.52,
+      "end": 425.94
+    },
+    {
+      "text": " Rövidesen",
+      "start": 443.16,
+      "end": 443.58
+    },
+    {
+      "text": " el",
+      "start": 443.64,
+      "end": 443.7
+    },
+    {
+      "text": " is",
+      "start": 443.76,
+      "end": 443.82
+    },
+    {
+      "text": " készült",
+      "start": 443.82,
+      "end": 444.12
+    },
+    {
+      "text": " a",
+      "start": 444.36,
+      "end": 444.42
+    },
+    {
+      "text": " promptunk,",
+      "start": 444.6,
+      "end": 445.02
+    },
+    {
+      "text": " amit",
+      "start": 445.02,
+      "end": 445.2
+    },
+    {
+      "text": " szeretnénk",
+      "start": 445.26,
+      "end": 445.68
+    },
+    {
+      "text": " majd",
+      "start": 445.68,
+      "end": 445.74
+    },
+    {
+      "text": " felhasználni,",
+      "start": 445.86,
+      "end": 446.46
+    },
+    {
+      "text": " én",
+      "start": 446.76,
+      "end": 446.88
+    },
+    {
+      "text": " most",
+      "start": 446.88,
+      "end": 446.94
+    },
+    {
+      "text": " ezt",
+      "start": 447.12,
+      "end": 447.24
+    },
+    {
+      "text": " egyelőre",
+      "start": 447.36,
+      "end": 447.66
+    },
+    {
+      "text": " csak",
+      "start": 447.72,
+      "end": 447.78
+    },
+    {
+      "text": " kimásolom,",
+      "start": 447.96,
+      "end": 448.5
+    },
+    {
+      "text": " és",
+      "start": 448.74,
+      "end": 448.8
+    },
+    {
+      "text": " indítok",
+      "start": 449.1,
+      "end": 449.46
+    },
+    {
+      "text": " egy",
+      "start": 449.52,
+      "end": 449.58
+    },
+    {
+      "text": " új",
+      "start": 449.64,
+      "end": 449.7
+    },
+    {
+      "text": " beszélgetést,",
+      "start": 449.94,
+      "end": 450.66
+    },
+    {
+      "text": " ugyanis",
+      "start": 451.08,
+      "end": 451.44
+    },
+    {
+      "text": " szeretnénk",
+      "start": 451.5,
+      "end": 451.92
+    },
+    {
+      "text": " feltölteni",
+      "start": 451.98,
+      "end": 452.58
+    },
+    {
+      "text": " azokat",
+      "start": 452.64,
+      "end": 452.94
+    },
+    {
+      "text": " a",
+      "start": 452.94,
+      "end": 453.0
+    },
+    {
+      "text": " kontextfragmenteket,",
+      "start": 453.12,
+      "end": 454.14
+    },
+    {
+      "text": " amiket",
+      "start": 454.38,
+      "end": 454.8
+    },
+    {
+      "text": " korábban",
+      "start": 454.92,
+      "end": 455.16
+    },
+    {
+      "text": " elkészítettünk,",
+      "start": 455.34,
+      "end": 456.24
+    },
+    {
+      "text": " elsőként",
+      "start": 456.42,
+      "end": 456.9
+    },
+    {
+      "text": " az",
+      "start": 456.96,
+      "end": 457.02
+    },
+    {
+      "text": " avatár",
+      "start": 457.2,
+      "end": 457.56
+    },
+    {
+      "text": " sheet-et",
+      "start": 457.68,
+      "end": 457.98
+    },
+    {
+      "text": " töltöm",
+      "start": 458.04,
+      "end": 458.34
+    },
+    {
+      "text": " fel,",
+      "start": 458.52,
+      "end": 458.76
+    },
+    {
+      "text": " ami",
+      "start": 459.06,
+      "end": 459.24
+    },
+    {
+      "text": " ugye",
+      "start": 459.3,
+      "end": 459.48
+    },
+    {
+      "text": " betekintést",
+      "start": 459.6,
+      "end": 460.14
+    },
+    {
+      "text": " enged",
+      "start": 460.38,
+      "end": 460.68
+    },
+    {
+      "text": " a",
+      "start": 461.04,
+      "end": 461.1
+    },
+    {
+      "text": " vállalkozásunk",
+      "start": 461.4,
+      "end": 462.18
+    },
+    {
+      "text": " vásárlóinak",
+      "start": 462.48,
+      "end": 463.38
+    },
+    {
+      "text": " a",
+      "start": 463.62,
+      "end": 463.68
+    },
+    {
+      "text": " pszichológiájába,",
+      "start": 463.8,
+      "end": 464.88
+    },
+    {
+      "text": " hogy",
+      "start": 465.12,
+      "end": 465.18
+    },
+    {
+      "text": " mit",
+      "start": 465.42,
+      "end": 465.48
+    },
+    {
+      "text": " tartanak",
+      "start": 465.66,
+      "end": 466.14
+    },
+    {
+      "text": " egy",
+      "start": 466.32,
+      "end": 466.38
+    },
+    {
+      "text": " fontos",
+      "start": 466.62,
+      "end": 466.92
+    },
+    {
+      "text": " haszonnak",
+      "start": 467.1,
+      "end": 467.58
+    },
+    {
+      "text": " a",
+      "start": 467.64,
+      "end": 467.7
+    },
+    {
+      "text": " maguk",
+      "start": 467.76,
+      "end": 467.94
+    },
+    {
+      "text": " számára,",
+      "start": 468.06,
+      "end": 468.36
+    },
+    {
+      "text": " milyen",
+      "start": 468.48,
+      "end": 468.6
+    },
+    {
+      "text": " fájdalmakat",
+      "start": 468.72,
+      "end": 469.26
+    },
+    {
+      "text": " szeretnének",
+      "start": 469.38,
+      "end": 469.92
+    },
+    {
+      "text": " megoldani,",
+      "start": 470.04,
+      "end": 470.64
+    },
+    {
+      "text": " és",
+      "start": 470.76,
+      "end": 470.82
+    },
+    {
+      "text": " ez",
+      "start": 470.94,
+      "end": 471.0
+    },
+    {
+      "text": " nyilván",
+      "start": 471.12,
+      "end": 471.36
+    },
+    {
+      "text": " nagyon",
+      "start": 471.36,
+      "end": 471.54
+    },
+    {
+      "text": " sokat",
+      "start": 471.6,
+      "end": 471.84
+    },
+    {
+      "text": " segít",
+      "start": 471.96,
+      "end": 472.2
+    },
+    {
+      "text": " az",
+      "start": 472.56,
+      "end": 472.62
+    },
+    {
+      "text": " értékesítési",
+      "start": 472.92,
+      "end": 473.52
+    },
+    {
+      "text": " szövegeknek",
+      "start": 473.76,
+      "end": 474.18
+    },
+    {
+      "text": " a",
+      "start": 474.18,
+      "end": 474.24
+    },
+    {
+      "text": " generálásában,",
+      "start": 474.3,
+      "end": 475.14
+    },
+    {
+      "text": " illetve",
+      "start": 475.5,
+      "end": 475.8
+    },
+    {
+      "text": " feltöltök",
+      "start": 475.92,
+      "end": 476.46
+    },
+    {
+      "text": " egy",
+      "start": 476.58,
+      "end": 476.64
+    },
+    {
+      "text": " új",
+      "start": 476.88,
+      "end": 476.94
+    },
+    {
+      "text": " kontextfragmentet,",
+      "start": 477.3,
+      "end": 478.2
+    },
+    {
+      "text": " ami",
+      "start": 478.62,
+      "end": 478.86
+    },
+    {
+      "text": " kifejezetten",
+      "start": 479.04,
+      "end": 479.7
+    },
+    {
+      "text": " arra",
+      "start": 479.82,
+      "end": 480.0
+    },
+    {
+      "text": " koncentrál,",
+      "start": 480.18,
+      "end": 480.72
+    },
+    {
+      "text": " hogy",
+      "start": 480.72,
+      "end": 480.78
+    },
+    {
+      "text": " összegyűjtöttem",
+      "start": 480.96,
+      "end": 481.68
+    },
+    {
+      "text": " ebben",
+      "start": 481.74,
+      "end": 481.98
+    },
+    {
+      "text": " egy",
+      "start": 482.28,
+      "end": 482.34
+    },
+    {
+      "text": " sor",
+      "start": 482.4,
+      "end": 482.46
+    },
+    {
+      "text": " olyan",
+      "start": 482.58,
+      "end": 482.76
+    },
+    {
+      "text": " megoldást,",
+      "start": 482.82,
+      "end": 483.42
+    },
+    {
+      "text": " ami",
+      "start": 483.54,
+      "end": 483.72
+    },
+    {
+      "text": " alkalmas",
+      "start": 483.96,
+      "end": 484.32
+    },
+    {
+      "text": " arra,",
+      "start": 484.44,
+      "end": 484.62
+    },
+    {
+      "text": " hogy",
+      "start": 484.68,
+      "end": 484.74
+    },
+    {
+      "text": " az",
+      "start": 484.74,
+      "end": 484.8
+    },
+    {
+      "text": " embereknek",
+      "start": 484.86,
+      "end": 485.28
+    },
+    {
+      "text": " a",
+      "start": 485.34,
+      "end": 485.4
+    },
+    {
+      "text": " figyelmét",
+      "start": 485.52,
+      "end": 485.94
+    },
+    {
+      "text": " megragadja.",
+      "start": 486.06,
+      "end": 486.72
+    },
+    {
+      "text": " És",
+      "start": 487.26,
+      "end": 487.38
+    },
+    {
+      "text": " ezek",
+      "start": 487.5,
+      "end": 487.74
+    },
+    {
+      "text": " mellé",
+      "start": 487.8,
+      "end": 488.04
+    },
+    {
+      "text": " szeretnénk",
+      "start": 488.16,
+      "end": 488.52
+    },
+    {
+      "text": " bemásolni",
+      "start": 488.58,
+      "end": 489.18
+    },
+    {
+      "text": " az",
+      "start": 489.54,
+      "end": 489.6
+    },
+    {
+      "text": " imént",
+      "start": 489.9,
+      "end": 490.14
+    },
+    {
+      "text": " kikopizott",
+      "start": 490.56,
+      "end": 491.34
+    },
+    {
+      "text": " promptunkat,",
+      "start": 492.18,
+      "end": 492.72
+    },
+    {
+      "text": " amiből",
+      "start": 492.9,
+      "end": 493.32
+    },
+    {
+      "text": " néhány",
+      "start": 493.86,
+      "end": 494.1
+    },
+    {
+      "text": " dolgot",
+      "start": 494.22,
+      "end": 494.4
+    },
+    {
+      "text": " kitörlök",
+      "start": 494.58,
+      "end": 495.0
+    },
+    {
+      "text": " igazából,",
+      "start": 495.06,
+      "end": 495.72
+    },
+    {
+      "text": " mert",
+      "start": 495.78,
+      "end": 495.96
+    },
+    {
+      "text": " fölösleges.",
+      "start": 496.2,
+      "end": 496.8
+    },
+    {
+      "text": " Úgyhogy",
+      "start": 497.58,
+      "end": 497.94
+    },
+    {
+      "text": " ha",
+      "start": 498.06,
+      "end": 498.12
+    },
+    {
+      "text": " ezek",
+      "start": 498.24,
+      "end": 498.48
+    },
+    {
+      "text": " megvannak...",
+      "start": 498.54,
+      "end": 499.2
+    },
+    {
+      "text": " Seb",
+      "start": 499.68,
+      "end": 499.74
+    },
+    {
+      "text": "aztam.",
+      "start": 500.1,
+      "end": 500.4
+    },
+    {
+      "text": " Rövid...",
+      "start": 508.86,
+      "end": 509.34
+    },
+    {
+      "text": " Rövidesen",
+      "start": 511.74,
+      "end": 512.22
+    },
+    {
+      "text": " el",
+      "start": 512.28,
+      "end": 512.34
+    },
+    {
+      "text": " is",
+      "start": 512.4,
+      "end": 512.46
+    },
+    {
+      "text": " készült",
+      "start": 512.46,
+      "end": 512.7
+    },
+    {
+      "text": " a",
+      "start": 512.88,
+      "end": 512.94
+    },
+    {
+      "text": " prompt,",
+      "start": 513.06,
+      "end": 513.3
+    },
+    {
+      "text": " amit",
+      "start": 513.42,
+      "end": 513.54
+    },
+    {
+      "text": " fel",
+      "start": 513.66,
+      "end": 513.72
+    },
+    {
+      "text": " fogunk",
+      "start": 513.84,
+      "end": 514.02
+    },
+    {
+      "text": " majd",
+      "start": 514.08,
+      "end": 514.14
+    },
+    {
+      "text": " használni,",
+      "start": 514.26,
+      "end": 514.68
+    },
+    {
+      "text": " ezt",
+      "start": 514.74,
+      "end": 514.92
+    },
+    {
+      "text": " egyelőre",
+      "start": 514.92,
+      "end": 515.34
+    },
+    {
+      "text": " csak",
+      "start": 515.4,
+      "end": 515.46
+    },
+    {
+      "text": " kimásolom,",
+      "start": 515.64,
+      "end": 516.12
+    },
+    {
+      "text": " és",
+      "start": 516.36,
+      "end": 516.42
+    },
+    {
+      "text": " indítok",
+      "start": 516.6,
+      "end": 516.9
+    },
+    {
+      "text": " egy",
+      "start": 516.96,
+      "end": 517.02
+    },
+    {
+      "text": " új",
+      "start": 517.08,
+      "end": 517.14
+    },
+    {
+      "text": " beszélgetést,",
+      "start": 517.26,
+      "end": 517.92
+    },
+    {
+      "text": " hiszen",
+      "start": 518.1,
+      "end": 518.28
+    },
+    {
+      "text": " fel",
+      "start": 518.46,
+      "end": 518.52
+    },
+    {
+      "text": " szeretnénk",
+      "start": 518.7,
+      "end": 519.06
+    },
+    {
+      "text": " tölteni",
+      "start": 519.12,
+      "end": 519.48
+    },
+    {
+      "text": " azokat",
+      "start": 519.54,
+      "end": 519.84
+    },
+    {
+      "text": " a",
+      "start": 519.9,
+      "end": 519.96
+    },
+    {
+      "text": " kontextfragmenteket,",
+      "start": 520.08,
+      "end": 521.04
+    },
+    {
+      "text": " amiket",
+      "start": 521.1,
+      "end": 521.34
+    },
+    {
+      "text": " korábban",
+      "start": 521.46,
+      "end": 521.7
+    },
+    {
+      "text": " elkészítettünk...",
+      "start": 521.88,
+      "end": 523.02
+    },
+    {
+      "text": " Rövidesen",
+      "start": 551.1,
+      "end": 551.52
+    },
+    {
+      "text": " el",
+      "start": 551.58,
+      "end": 551.64
+    },
+    {
+      "text": " is",
+      "start": 551.7,
+      "end": 551.76
+    },
+    {
+      "text": " készül",
+      "start": 551.76,
+      "end": 552.0
+    },
+    {
+      "text": " a",
+      "start": 552.06,
+      "end": 552.12
+    },
+    {
+      "text": " promptunk,",
+      "start": 552.18,
+      "end": 552.54
+    },
+    {
+      "text": " amit",
+      "start": 552.54,
+      "end": 552.72
+    },
+    {
+      "text": " szeretnénk",
+      "start": 552.78,
+      "end": 553.14
+    },
+    {
+      "text": " felhasználni,",
+      "start": 553.2,
+      "end": 553.86
+    },
+    {
+      "text": " én",
+      "start": 554.04,
+      "end": 554.16
+    },
+    {
+      "text": " egyelőre",
+      "start": 554.22,
+      "end": 554.64
+    },
+    {
+      "text": " csak",
+      "start": 554.76,
+      "end": 554.82
+    },
+    {
+      "text": " kimásolom",
+      "start": 555.0,
+      "end": 555.54
+    },
+    {
+      "text": " ezt,",
+      "start": 555.66,
+      "end": 555.78
+    },
+    {
+      "text": " és",
+      "start": 555.84,
+      "end": 555.9
+    },
+    {
+      "text": " utána",
+      "start": 556.08,
+      "end": 556.44
+    },
+    {
+      "text": " indítok",
+      "start": 556.56,
+      "end": 556.92
+    },
+    {
+      "text": " egy",
+      "start": 556.92,
+      "end": 556.98
+    },
+    {
+      "text": " új",
+      "start": 557.04,
+      "end": 557.1
+    },
+    {
+      "text": " beszélgetést,",
+      "start": 557.28,
+      "end": 557.94
+    },
+    {
+      "text": " hiszen",
+      "start": 558.24,
+      "end": 558.42
+    },
+    {
+      "text": " fel",
+      "start": 558.6,
+      "end": 558.66
+    },
+    {
+      "text": " szeretnénk",
+      "start": 558.84,
+      "end": 559.26
+    },
+    {
+      "text": " használni",
+      "start": 559.32,
+      "end": 559.68
+    },
+    {
+      "text": " a",
+      "start": 559.86,
+      "end": 559.92
+    },
+    {
+      "text": " korábban",
+      "start": 560.04,
+      "end": 560.28
+    },
+    {
+      "text": " elkészített",
+      "start": 560.52,
+      "end": 561.24
+    },
+    {
+      "text": " kontextfragmenteket.",
+      "start": 561.42,
+      "end": 562.5
+    },
+    {
+      "text": " A",
+      "start": 563.04,
+      "end": 563.1
+    },
+    {
+      "text": " jó",
+      "start": 563.16,
+      "end": 563.34
+    },
+    {
+      "text": " büdös",
+      "start": 563.4,
+      "end": 563.7
+    },
+    {
+      "text": " kurva",
+      "start": 563.88,
+      "end": 564.12
+    },
+    {
+      "text": " anyádért",
+      "start": 564.24,
+      "end": 564.66
+    },
+    {
+      "text": " nem",
+      "start": 564.84,
+      "end": 564.9
+    },
+    {
+      "text": " működik",
+      "start": 564.96,
+      "end": 565.32
+    },
+    {
+      "text": " már,",
+      "start": 565.38,
+      "end": 565.68
+    },
+    {
+      "text": " ez",
+      "start": 565.68,
+      "end": 565.68
+    },
+    {
+      "text": " nem",
+      "start": 565.8,
+      "end": 565.86
+    },
+    {
+      "text": " hiszem",
+      "start": 566.04,
+      "end": 566.34
+    },
+    {
+      "text": " el,",
+      "start": 566.46,
+      "end": 566.64
+    },
+    {
+      "text": " bazdmeg.",
+      "start": 566.7,
+      "end": 567.3
+    },
+    {
+      "text": " Rövidesen",
+      "start": 571.62,
+      "end": 572.04
+    },
+    {
+      "text": " el",
+      "start": 572.1,
+      "end": 572.16
+    },
+    {
+      "text": " is",
+      "start": 572.22,
+      "end": 572.28
+    },
+    {
+      "text": " készült",
+      "start": 572.34,
+      "end": 572.64
+    },
+    {
+      "text": " a",
+      "start": 572.88,
+      "end": 572.94
+    },
+    {
+      "text": " promptunk,",
+      "start": 573.12,
+      "end": 573.54
+    },
+    {
+      "text": " amit",
+      "start": 573.54,
+      "end": 573.66
+    },
+    {
+      "text": " szeretnénk",
+      "start": 573.78,
+      "end": 574.14
+    },
+    {
+      "text": " felhasználni,",
+      "start": 574.2,
+      "end": 574.8
+    },
+    {
+      "text": " én",
+      "start": 575.1,
+      "end": 575.22
+    },
+    {
+      "text": " most",
+      "start": 575.28,
+      "end": 575.34
+    },
+    {
+      "text": " ezt",
+      "start": 575.46,
+      "end": 575.58
+    },
+    {
+      "text": " egyelőre",
+      "start": 575.64,
+      "end": 576.0
+    },
+    {
+      "text": " csak",
+      "start": 576.06,
+      "end": 576.12
+    },
+    {
+      "text": " kimásolom,",
+      "start": 576.24,
+      "end": 576.78
+    },
+    {
+      "text": " és",
+      "start": 576.9,
+      "end": 576.96
+    },
+    {
+      "text": " indítok",
+      "start": 577.14,
+      "end": 577.5
+    },
+    {
+      "text": " egy",
+      "start": 577.5,
+      "end": 577.56
+    },
+    {
+      "text": " új",
+      "start": 577.62,
+      "end": 577.68
+    },
+    {
+      "text": " beszélgetést,",
+      "start": 577.8,
+      "end": 578.52
+    },
+    {
+      "text": " hiszen",
+      "start": 578.64,
+      "end": 578.88
+    },
+    {
+      "text": " fel",
+      "start": 579.06,
+      "end": 579.12
+    },
+    {
+      "text": " szeretnénk",
+      "start": 579.24,
+      "end": 579.66
+    },
+    {
+      "text": " használni",
+      "start": 579.66,
+      "end": 579.96
+    },
+    {
+      "text": " azokat",
+      "start": 580.02,
+      "end": 580.32
+    },
+    {
+      "text": " a",
+      "start": 580.38,
+      "end": 580.44
+    },
+    {
+      "text": " kontextfragmenteket,",
+      "start": 580.56,
+      "end": 581.46
+    },
+    {
+      "text": " amiket",
+      "start": 581.58,
+      "end": 582.0
+    },
+    {
+      "text": " korábban",
+      "start": 582.12,
+      "end": 582.42
+    },
+    {
+      "text": " létrehoztunk.",
+      "start": 582.6,
+      "end": 583.38
+    },
+    {
+      "text": " Elsőként",
+      "start": 583.86,
+      "end": 584.28
+    },
+    {
+      "text": " feltöltöm",
+      "start": 584.34,
+      "end": 584.88
+    },
+    {
+      "text": " azt",
+      "start": 585.06,
+      "end": 585.24
+    },
+    {
+      "text": " az",
+      "start": 585.24,
+      "end": 585.3
+    },
+    {
+      "text": " avatár",
+      "start": 585.48,
+      "end": 585.84
+    },
+    {
+      "text": " sheet-et,",
+      "start": 586.02,
+      "end": 586.32
+    },
+    {
+      "text": " ami",
+      "start": 586.68,
+      "end": 586.86
+    },
+    {
+      "text": " ugye",
+      "start": 586.98,
+      "end": 587.16
+    },
+    {
+      "text": " összegyűjti",
+      "start": 587.4,
+      "end": 588.06
+    },
+    {
+      "text": " a",
+      "start": 588.24,
+      "end": 588.3
+    },
+    {
+      "text": " vállalkozásunk",
+      "start": 588.6,
+      "end": 589.32
+    },
+    {
+      "text": " vásárlóinak",
+      "start": 589.56,
+      "end": 590.28
+    },
+    {
+      "text": " a",
+      "start": 590.28,
+      "end": 590.34
+    },
+    {
+      "text": " pszichológiáját,",
+      "start": 590.4,
+      "end": 591.24
+    },
+    {
+      "text": " hogy",
+      "start": 591.48,
+      "end": 591.54
+    },
+    {
+      "text": " mit",
+      "start": 591.72,
+      "end": 591.78
+    },
+    {
+      "text": " tartanak",
+      "start": 591.9,
+      "end": 592.38
+    },
+    {
+      "text": " egy",
+      "start": 592.44,
+      "end": 592.5
+    },
+    {
+      "text": " értéknek,",
+      "start": 592.8,
+      "end": 593.34
+    },
+    {
+      "text": " egy",
+      "start": 593.4,
+      "end": 593.46
+    },
+    {
+      "text": " haszonnak",
+      "start": 593.58,
+      "end": 594.06
+    },
+    {
+      "text": " a",
+      "start": 594.12,
+      "end": 594.18
+    },
+    {
+      "text": " maguk",
+      "start": 594.24,
+      "end": 594.42
+    },
+    {
+      "text": " számára,",
+      "start": 594.54,
+      "end": 594.9
+    },
+    {
+      "text": " milyen",
+      "start": 595.2,
+      "end": 595.38
+    },
+    {
+      "text": " fájdalmakat",
+      "start": 595.5,
+      "end": 596.16
+    },
+    {
+      "text": " szeretnének",
+      "start": 596.28,
+      "end": 596.7
+    },
+    {
+      "text": " megoldani,",
+      "start": 596.82,
+      "end": 597.42
+    },
+    {
+      "text": " és",
+      "start": 597.66,
+      "end": 597.72
+    },
+    {
+      "text": " ez",
+      "start": 597.9,
+      "end": 597.96
+    },
+    {
+      "text": " nyilván",
+      "start": 598.08,
+      "end": 598.38
+    },
+    {
+      "text": " nagyon",
+      "start": 598.44,
+      "end": 598.62
+    },
+    {
+      "text": " hasznos",
+      "start": 598.8,
+      "end": 599.16
+    },
+    {
+      "text": " az",
+      "start": 599.22,
+      "end": 599.28
+    },
+    {
+      "text": " értékesítési",
+      "start": 599.34,
+      "end": 600.0
+    },
+    {
+      "text": " szövegnek",
+      "start": 600.18,
+      "end": 600.6
+    },
+    {
+      "text": " a",
+      "start": 600.84,
+      "end": 600.9
+    },
+    {
+      "text": " készítésében.",
+      "start": 601.08,
+      "end": 602.04
+    },
+    {
+      "text": " Egy",
+      "start": 602.58,
+      "end": 602.64
+    },
+    {
+      "text": " másik",
+      "start": 602.76,
+      "end": 603.0
+    },
+    {
+      "text": " avatár",
+      "start": 603.12,
+      "end": 603.48
+    },
+    {
+      "text": " sheet...",
+      "start": 603.6,
+      "end": 603.9
+    },
+    {
+      "text": " Faszomat",
+      "start": 605.4,
+      "end": 605.82
+    },
+    {
+      "text": " már,",
+      "start": 606.0,
+      "end": 606.18
+    },
+    {
+      "text": " bazdmeg.",
+      "start": 606.24,
+      "end": 606.78
+    },
+    {
+      "text": " Rövidesen...",
+      "start": 610.68,
+      "end": 611.28
+    },
+    {
+      "text": " Rövidesen",
+      "start": 612.0,
+      "end": 612.42
+    },
+    {
+      "text": " el",
+      "start": 612.48,
+      "end": 612.54
+    },
+    {
+      "text": " is",
+      "start": 612.6,
+      "end": 612.66
+    },
+    {
+      "text": " készül",
+      "start": 612.66,
+      "end": 612.9
+    },
+    {
+      "text": " a",
+      "start": 613.02,
+      "end": 613.08
+    },
+    {
+      "text": " promptunk,",
+      "start": 613.2,
+      "end": 613.68
+    },
+    {
+      "text": " amit",
+      "start": 613.68,
+      "end": 613.8
+    },
+    {
+      "text": " szeretnénk",
+      "start": 613.92,
+      "end": 614.28
+    },
+    {
+      "text": " majd",
+      "start": 614.34,
+      "end": 614.4
+    },
+    {
+      "text": " felhasználni,",
+      "start": 614.52,
+      "end": 615.18
+    },
+    {
+      "text": " ugye",
+      "start": 615.48,
+      "end": 615.78
+    },
+    {
+      "text": " ez",
+      "start": 616.14,
+      "end": 616.2
+    },
+    {
+      "text": " egy",
+      "start": 616.38,
+      "end": 616.44
+    },
+    {
+      "text": " betekint...",
+      "start": 616.74,
+      "end": 617.34
+    },
+    {
+      "text": " Rövidesen",
+      "start": 632.46,
+      "end": 632.88
+    },
+    {
+      "text": " el",
+      "start": 632.94,
+      "end": 633.0
+    },
+    {
+      "text": " is",
+      "start": 633.06,
+      "end": 633.12
+    },
+    {
+      "text": " készül",
+      "start": 633.12,
+      "end": 633.36
+    },
+    {
+      "text": " a",
+      "start": 633.48,
+      "end": 633.54
+    },
+    {
+      "text": " promptunk,",
+      "start": 633.54,
+      "end": 633.9
+    },
+    {
+      "text": " amit",
+      "start": 633.9,
+      "end": 634.08
+    },
+    {
+      "text": " szeretnénk",
+      "start": 634.14,
+      "end": 634.5
+    },
+    {
+      "text": " majd",
+      "start": 634.5,
+      "end": 634.56
+    },
+    {
+      "text": " felhasználni,",
+      "start": 634.68,
+      "end": 635.34
+    },
+    {
+      "text": " ugye",
+      "start": 635.76,
+      "end": 636.0
+    },
+    {
+      "text": " ez",
+      "start": 636.24,
+      "end": 636.3
+    },
+    {
+      "text": " majd",
+      "start": 636.42,
+      "end": 636.48
+    },
+    {
+      "text": " lehetővé",
+      "start": 636.6,
+      "end": 637.02
+    },
+    {
+      "text": " teszi",
+      "start": 637.08,
+      "end": 637.26
+    },
+    {
+      "text": " azt,",
+      "start": 637.32,
+      "end": 637.44
+    },
+    {
+      "text": " hogy",
+      "start": 637.5,
+      "end": 637.56
+    },
+    {
+      "text": " sokkal",
+      "start": 637.68,
+      "end": 637.98
+    },
+    {
+      "text": " pontosabb,",
+      "start": 638.22,
+      "end": 638.76
+    },
+    {
+      "text": " sokkal",
+      "start": 638.82,
+      "end": 639.06
+    },
+    {
+      "text": " jobb",
+      "start": 639.12,
+      "end": 639.24
+    },
+    {
+      "text": " minőségű",
+      "start": 639.36,
+      "end": 639.9
+    },
+    {
+      "text": " hirdetésszövegeket",
+      "start": 640.02,
+      "end": 640.8
+    },
+    {
+      "text": " készítsen",
+      "start": 640.86,
+      "end": 641.28
+    },
+    {
+      "text": " az",
+      "start": 641.34,
+      "end": 641.4
+    },
+    {
+      "text": " AI",
+      "start": 641.46,
+      "end": 641.64
+    },
+    {
+      "text": " a",
+      "start": 641.76,
+      "end": 641.82
+    },
+    {
+      "text": " számunkra,",
+      "start": 641.88,
+      "end": 642.3
+    },
+    {
+      "text": " én",
+      "start": 642.72,
+      "end": 642.84
+    },
+    {
+      "text": " ezt",
+      "start": 642.9,
+      "end": 643.02
+    },
+    {
+      "text": " egyelőre",
+      "start": 643.08,
+      "end": 643.38
+    },
+    {
+      "text": " csak",
+      "start": 643.5,
+      "end": 643.56
+    },
+    {
+      "text": " kimásolom,",
+      "start": 643.68,
+      "end": 644.22
+    },
+    {
+      "text": " és",
+      "start": 644.4,
+      "end": 644.46
+    },
+    {
+      "text": " indítok",
+      "start": 644.64,
+      "end": 645.0
+    },
+    {
+      "text": " egy",
+      "start": 645.06,
+      "end": 645.12
+    },
+    {
+      "text": " új",
+      "start": 645.24,
+      "end": 645.3
+    },
+    {
+      "text": " beszélgetést,",
+      "start": 645.54,
+      "end": 646.26
+    },
+    {
+      "text": " ugyanis",
+      "start": 646.5,
+      "end": 646.86
+    },
+    {
+      "text": " szeretnénk",
+      "start": 646.92,
+      "end": 647.34
+    },
+    {
+      "text": " feltölteni",
+      "start": 647.4,
+      "end": 648.12
+    },
+    {
+      "text": " az",
+      "start": 648.36,
+      "end": 648.42
+    },
+    {
+      "text": "okat",
+      "start": 648.72,
+      "end": 648.78
+    },
+    {
+      "text": " a",
+      "start": 649.14,
+      "end": 649.2
+    },
+    {
+      "text": " kontextfragmenteket,",
+      "start": 649.56,
+      "end": 650.52
+    },
+    {
+      "text": " amiket",
+      "start": 650.58,
+      "end": 650.82
+    },
+    {
+      "text": " a",
+      "start": 650.88,
+      "end": 650.94
+    },
+    {
+      "text": " korábbiakban",
+      "start": 651.0,
+      "end": 651.54
+    },
+    {
+      "text": " készítettünk,",
+      "start": 651.6,
+      "end": 652.26
+    },
+    {
+      "text": " elsőként",
+      "start": 652.38,
+      "end": 652.86
+    },
+    {
+      "text": " az",
+      "start": 653.1,
+      "end": 653.16
+    },
+    {
+      "text": " avatár",
+      "start": 653.46,
+      "end": 653.82
+    },
+    {
+      "text": " sheet-et.",
+      "start": 654.0,
+      "end": 654.36
+    },
+    {
+      "text": " Ugye",
+      "start": 654.78,
+      "end": 654.96
+    },
+    {
+      "text": " ez",
+      "start": 655.08,
+      "end": 655.14
+    },
+    {
+      "text": " tartalmazza",
+      "start": 655.26,
+      "end": 655.8
+    },
+    {
+      "text": " azokat",
+      "start": 655.86,
+      "end": 656.04
+    },
+    {
+      "text": " az",
+      "start": 656.1,
+      "end": 656.16
+    },
+    {
+      "text": " inform",
+      "start": 656.22,
+      "end": 656.28
+    },
+    {
+      "text": "ációkat,",
+      "start": 656.7,
+      "end": 657.18
+    },
+    {
+      "text": " amiket",
+      "start": 657.36,
+      "end": 657.66
+    },
+    {
+      "text": " összegyűjtöttünk",
+      "start": 657.84,
+      "end": 658.74
+    },
+    {
+      "text": " a",
+      "start": 658.92,
+      "end": 658.98
+    },
+    {
+      "text": " vállalkozásunk",
+      "start": 659.1,
+      "end": 659.82
+    },
+    {
+      "text": " vásárlóival",
+      "start": 660.0,
+      "end": 660.54
+    },
+    {
+      "text": " kapcsolatban,",
+      "start": 660.78,
+      "end": 661.26
+    },
+    {
+      "text": " hogy",
+      "start": 661.56,
+      "end": 661.62
+    },
+    {
+      "text": " mi",
+      "start": 661.74,
+      "end": 661.8
+    },
+    {
+      "text": " az,",
+      "start": 661.8,
+      "end": 661.98
+    },
+    {
+      "text": " amit",
+      "start": 661.98,
+      "end": 662.16
+    },
+    {
+      "text": " értéknek",
+      "start": 662.28,
+      "end": 662.7
+    },
+    {
+      "text": " vagy",
+      "start": 662.82,
+      "end": 662.88
+    },
+    {
+      "text": " haszonnak",
+      "start": 663.0,
+      "end": 663.42
+    },
+    {
+      "text": " tartanak,",
+      "start": 663.54,
+      "end": 663.96
+    },
+    {
+      "text": " milyen",
+      "start": 664.26,
+      "end": 664.44
+    },
+    {
+      "text": " fájdalmakat",
+      "start": 664.5,
+      "end": 665.1
+    },
+    {
+      "text": " szeretnének",
+      "start": 665.22,
+      "end": 665.58
+    },
+    {
+      "text": " megoldani,",
+      "start": 665.64,
+      "end": 666.18
+    },
+    {
+      "text": " és",
+      "start": 666.42,
+      "end": 666.48
+    },
+    {
+      "text": " ez",
+      "start": 666.6,
+      "end": 666.66
+    },
+    {
+      "text": " nyilván",
+      "start": 666.72,
+      "end": 667.02
+    },
+    {
+      "text": "óriási",
+      "start": 667.32,
+      "end": 667.56
+    },
+    {
+      "text": " segítség",
+      "start": 667.74,
+      "end": 668.22
+    },
+    {
+      "text": " az",
+      "start": 668.4,
+      "end": 668.46
+    },
+    {
+      "text": " értékesítési",
+      "start": 668.52,
+      "end": 669.12
+    },
+    {
+      "text": " szövegnek",
+      "start": 669.3,
+      "end": 669.72
+    },
+    {
+      "text": " a",
+      "start": 669.78,
+      "end": 669.84
+    },
+    {
+      "text": " készítésekor.",
+      "start": 669.9,
+      "end": 670.74
+    },
+    {
+      "text": " Egy",
+      "start": 671.28,
+      "end": 671.34
+    },
+    {
+      "text": " másik",
+      "start": 671.46,
+      "end": 671.7
+    },
+    {
+      "text": " kontextfragment,",
+      "start": 671.82,
+      "end": 672.54
+    },
+    {
+      "text": " amit",
+      "start": 672.54,
+      "end": 672.66
+    },
+    {
+      "text": " szeretnék",
+      "start": 672.72,
+      "end": 673.08
+    },
+    {
+      "text": " feltölteni,",
+      "start": 673.14,
+      "end": 673.74
+    },
+    {
+      "text": " amit",
+      "start": 673.98,
+      "end": 674.16
+    },
+    {
+      "text": " még",
+      "start": 674.22,
+      "end": 674.28
+    },
+    {
+      "text": " nem",
+      "start": 674.34,
+      "end": 674.4
+    },
+    {
+      "text": " láttatok",
+      "start": 674.52,
+      "end": 674.94
+    },
+    {
+      "text": " eddig,",
+      "start": 675.06,
+      "end": 675.3
+    },
+    {
+      "text": " ez",
+      "start": 675.84,
+      "end": 675.9
+    },
+    {
+      "text": " segít",
+      "start": 676.32,
+      "end": 676.62
+    },
+    {
+      "text": " olyan",
+      "start": 676.8,
+      "end": 677.04
+    },
+    {
+      "text": " üzeneteket",
+      "start": 677.16,
+      "end": 677.7
+    },
+    {
+      "text": " megfogalmazni,",
+      "start": 677.76,
+      "end": 678.48
+    },
+    {
+      "text": " amik",
+      "start": 678.6,
+      "end": 678.78
+    },
+    {
+      "text": " alkalmasak",
+      "start": 678.96,
+      "end": 679.5
+    },
+    {
+      "text": " arra,",
+      "start": 679.56,
+      "end": 679.86
+    },
+    {
+      "text": " hogy",
+      "start": 680.04,
+      "end": 680.1
+    },
+    {
+      "text": " megragadják",
+      "start": 680.4,
+      "end": 680.94
+    },
+    {
+      "text": " az",
+      "start": 681.0,
+      "end": 681.06
+    },
+    {
+      "text": " emberek",
+      "start": 681.12,
+      "end": 681.42
+    },
+    {
+      "text": " figyelmét,",
+      "start": 681.48,
+      "end": 682.08
+    },
+    {
+      "text": " az",
+      "start": 682.08,
+      "end": 682.14
+    },
+    {
+      "text": " úgynevezett",
+      "start": 682.2,
+      "end": 682.74
+    },
+    {
+      "text": " hook-okat,",
+      "start": 682.98,
+      "end": 683.46
+    },
+    {
+      "text": " tehát",
+      "start": 683.94,
+      "end": 684.12
+    },
+    {
+      "text": " ez",
+      "start": 684.18,
+      "end": 684.24
+    },
+    {
+      "text": " kifejezetten",
+      "start": 684.36,
+      "end": 684.84
+    },
+    {
+      "text": " arra",
+      "start": 684.9,
+      "end": 685.08
+    },
+    {
+      "text": " szolgál,",
+      "start": 685.2,
+      "end": 685.56
+    },
+    {
+      "text": " hogy",
+      "start": 685.62,
+      "end": 685.68
+    },
+    {
+      "text": " megállítsa",
+      "start": 685.86,
+      "end": 686.46
+    },
+    {
+      "text": " az",
+      "start": 686.52,
+      "end": 686.58
+    },
+    {
+      "text": " embereket",
+      "start": 686.58,
+      "end": 687.0
+    },
+    {
+      "text": " a",
+      "start": 687.06,
+      "end": 687.12
+    },
+    {
+      "text": " görgetésben,",
+      "start": 687.18,
+      "end": 687.78
+    },
+    {
+      "text": " megragadja",
+      "start": 687.84,
+      "end": 688.26
+    },
+    {
+      "text": " a",
+      "start": 688.32,
+      "end": 688.38
+    },
+    {
+      "text": " fantáziájukat,",
+      "start": 688.44,
+      "end": 689.16
+    },
+    {
+      "text": " és",
+      "start": 689.4,
+      "end": 689.46
+    },
+    {
+      "text": " így",
+      "start": 689.58,
+      "end": 689.76
+    },
+    {
+      "text": " több",
+      "start": 690.06,
+      "end": 690.12
+    },
+    {
+      "text": " energiát",
+      "start": 690.48,
+      "end": 690.9
+    },
+    {
+      "text": " szenteljenek",
+      "start": 691.14,
+      "end": 691.74
+    },
+    {
+      "text": " az",
+      "start": 692.34,
+      "end": 692.4
+    },
+    {
+      "text": " üzenetünk",
+      "start": 692.7,
+      "end": 693.18
+    },
+    {
+      "text": " elolvasására.",
+      "start": 693.24,
+      "end": 694.14
+    },
+    {
+      "text": " I",
+      "start": 701.94,
+      "end": 702.0
+    },
+    {
+      "text": " want",
+      "start": 702.06,
+      "end": 702.24
+    },
+    {
+      "text": " you",
+      "start": 702.3,
+      "end": 702.42
+    },
+    {
+      "text": " to",
+      "start": 702.48,
+      "end": 702.54
+    },
+    {
+      "text": " carefully",
+      "start": 702.72,
+      "end": 703.14
+    },
+    {
+      "text": " examine",
+      "start": 703.38,
+      "end": 703.74
+    },
+    {
+      "text": " these",
+      "start": 703.86,
+      "end": 703.92
+    },
+    {
+      "text": " docs.",
+      "start": 704.16,
+      "end": 704.4
+    },
+    {
+      "text": " Miután",
+      "start": 745.02,
+      "end": 745.26
+    },
+    {
+      "text": " az",
+      "start": 745.32,
+      "end": 745.38
+    },
+    {
+      "text": " AI",
+      "start": 745.44,
+      "end": 745.62
+    },
+    {
+      "text": " feldolgozta",
+      "start": 745.68,
+      "end": 746.16
+    },
+    {
+      "text": " ezeket",
+      "start": 746.22,
+      "end": 746.4
+    },
+    {
+      "text": " az",
+      "start": 746.46,
+      "end": 746.52
+    },
+    {
+      "text": " inform",
+      "start": 746.58,
+      "end": 746.64
+    },
+    {
+      "text": "ációkat,",
+      "start": 747.0,
+      "end": 747.36
+    },
+    {
+      "text": " szeretnénk",
+      "start": 747.54,
+      "end": 747.96
+    },
+    {
+      "text": " ismét",
+      "start": 748.08,
+      "end": 748.32
+    },
+    {
+      "text": " hozzáadni...",
+      "start": 748.5,
+      "end": 749.04
+    }
+  ],
+  "analyzed": [
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "remove",
+      "reason": "Retake or silence",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    },
+    {
+      "action": "keep",
+      "reason": "",
+      "retake_group_id": null
+    }
+  ],
+  "text_edits": {},
+  "keep_overrides": {},
+  "highlight_regions": [],
+  "crop_config": null,
+  "segment_crop_overrides": null,
+  "caption_settings": {
+    "font_size": 12,
+    "font_family": "Arial",
+    "show_preview": true,
+    "pos_x": 0.696239406779661,
+    "pos_y": 0.8098305084745763,
+    "box_width": 0.39184322033898317,
+    "box_height": 0.06717514124293787
+  }
+}

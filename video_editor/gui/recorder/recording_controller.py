@@ -4,6 +4,8 @@ from datetime import datetime
 from pathlib import Path
 from enum import Enum, auto
 
+import difflib
+import re
 import struct
 
 from PySide6.QtCore import (
@@ -24,6 +26,7 @@ from PySide6.QtMultimedia import (
 )
 
 from ..models import RecordingConfig
+from .ffmpeg_recorder import FFmpegRecorder
 
 
 class RecordingState(Enum):
@@ -56,6 +59,7 @@ class RecordingController(QObject):
     recording_started = Signal()
     recording_stopped = Signal(Path, bool)  # output_path, needs_ffmpeg_crop
     recording_error = Signal(str)
+    recording_warning = Signal(str)
     duration_changed = Signal(int)  # milliseconds
     state_changed = Signal(RecordingState)
     audio_level_changed = Signal(float)  # 0.0-1.0
@@ -65,10 +69,20 @@ class RecordingController(QObject):
         super().__init__(parent)
 
         self._config = RecordingConfig()
+        self._recording_config: RecordingConfig | None = None
         self._state = RecordingState.IDLE
         self._output_path: Path | None = None
         self._preview_active = False
         self._permission_checked = False  # Skip repeated permission checks
+        self._use_ffmpeg_recording = True  # Use FFmpeg for cropped recordings
+
+        # FFmpeg recorder for direct crop recording
+        self._ffmpeg_recorder = FFmpegRecorder(self)
+        self._ffmpeg_recorder.recording_started.connect(self._on_ffmpeg_started)
+        self._ffmpeg_recorder.recording_stopped.connect(self._on_ffmpeg_stopped)
+        self._ffmpeg_recorder.recording_error.connect(self._on_ffmpeg_error)
+        self._ffmpeg_recorder.recording_warning.connect(self._on_ffmpeg_warning)
+        self._ffmpeg_recorder.duration_changed.connect(self._on_ffmpeg_duration)
 
         # Qt multimedia objects
         self._session = QMediaCaptureSession()
@@ -157,9 +171,10 @@ class RecordingController(QObject):
         """Finalize recording after stop."""
         if self._output_path and self._output_path.exists():
             # Check if cropping is needed (resolution or aspect ratio is set)
+            config = self._recording_config or self._config
             needs_crop = (
-                not self._config.capture_full_screen and
-                (self._config.target_resolution is not None or self._config.target_aspect_ratio is not None)
+                not config.capture_full_screen and
+                (config.target_resolution is not None or config.target_aspect_ratio is not None)
             )
             self._set_state(RecordingState.IDLE)
             # Resume audio monitoring for preview
@@ -276,6 +291,14 @@ class RecordingController(QObject):
         print(f"[Recording] Raw file will be saved to: {raw_dir / filename}")
         return raw_dir / filename
 
+    def set_use_ffmpeg_recording(self, use_ffmpeg: bool):
+        """Toggle between FFmpeg and Qt recording.
+
+        FFmpeg recording applies crop during capture (faster, smaller files).
+        Qt recording captures full screen and crops in post-processing.
+        """
+        self._use_ffmpeg_recording = use_ffmpeg
+
     def start_recording(self) -> bool:
         """Start recording with current configuration.
 
@@ -285,6 +308,21 @@ class RecordingController(QObject):
         if self._state != RecordingState.IDLE:
             return False
 
+        # Snapshot config used for this recording (for post-crop consistency)
+        self._recording_config = self._config.copy()
+
+        # Use FFmpeg for cropped recordings (applies crop during capture).
+        # If audio is enabled, prefer Qt recording to avoid FFmpeg audio issues.
+        if self._use_ffmpeg_recording and not self._config.capture_full_screen:
+            if self._config.audio_enabled:
+                return self._start_qt_recording()
+            return self._start_ffmpeg_recording()
+
+        # Use Qt for full-screen recordings
+        return self._start_qt_recording()
+
+    def _start_qt_recording(self) -> bool:
+        """Start recording using Qt multimedia (full screen)."""
         try:
             # Stop audio monitoring to release the device for recording
             self._stop_audio_monitoring()
@@ -308,13 +346,138 @@ class RecordingController(QObject):
             self.recording_error.emit(str(e))
             return False
 
+    def _start_ffmpeg_recording(self) -> bool:
+        """Start recording using FFmpeg with crop applied during capture."""
+        try:
+            # Stop audio monitoring to release the device for recording
+            self._stop_audio_monitoring()
+
+            # Get screen dimensions
+            screens = QGuiApplication.screens()
+            if self._config.screen_index >= len(screens):
+                self.recording_error.emit("Invalid screen index")
+                return False
+
+            screen = screens[self._config.screen_index]
+            screen_w, screen_h = self.get_screen_pixel_size(screen)
+
+            # Calculate crop region (no margin needed for FFmpeg)
+            crop_rect = self._config.get_crop_rect(screen_w, screen_h, margin=0)
+
+            # Get FFmpeg audio device index
+            audio_device_index = self._get_ffmpeg_audio_device_index()
+
+            # Prefer the selected device's native format for better quality
+            # Keep FFmpeg audio at the configured quality; ffmpeg/CoreAudio
+            # will resample if the device doesn't natively support it.
+            audio_sample_rate = self._config.audio_sample_rate
+            audio_channels = 2
+
+            # Get output path
+            output_path = self._get_output_path()
+            self._output_path = output_path
+
+            # Record to MKV for resilience, then remux to MP4 for final output
+            final_output_path: Path | None = None
+            raw_output_path = output_path
+            if output_path.suffix.lower() == ".mp4":
+                raw_output_path = output_path.with_suffix(".mkv")
+                final_output_path = output_path.parent.parent / output_path.name
+                self._output_path = final_output_path
+
+            # Start FFmpeg recording
+            return self._ffmpeg_recorder.start_recording(
+                screen_index=self._config.screen_index,
+                crop_rect=crop_rect,
+                audio_device_index=audio_device_index,
+                output_path=raw_output_path,
+                final_output_path=final_output_path,
+                audio_sample_rate=audio_sample_rate,
+                audio_channels=audio_channels,
+                use_hardware=True,
+                framerate=30
+            )
+
+        except Exception as e:
+            self.recording_error.emit(str(e))
+            return False
+
+    def _get_ffmpeg_audio_device_index(self) -> int:
+        """Map Qt audio device ID to FFmpeg avfoundation index."""
+        if not self._config.audio_enabled:
+            return -1  # No audio
+
+        # Get FFmpeg device list
+        ffmpeg_devices = FFmpegRecorder.get_ffmpeg_audio_devices()
+
+        if not ffmpeg_devices:
+            return 0  # Default device
+
+        # Try to match by name
+        qt_device = self._get_qt_audio_device()
+        if qt_device is not None:
+            qt_name = qt_device.description()
+            match = self._match_ffmpeg_audio_device(qt_name, ffmpeg_devices)
+            if match is not None:
+                match_idx, match_name, match_score = match
+                if match_score < 0.6:
+                    self.recording_warning.emit(
+                        "Audio device match is weak. FFmpeg may use a different input "
+                        "than the one selected in the UI.\n\n"
+                        f"Selected: {qt_name}\n"
+                        f"Matched: {match_name} (index {match_idx}, score {match_score:.2f})"
+                    )
+                return match_idx
+            self.recording_warning.emit(
+                "Selected audio device not found in FFmpeg device list. "
+                "Falling back to the first FFmpeg device.\n\n"
+                f"Selected: {qt_name}"
+            )
+
+        # Fallback to first FFmpeg device
+        return ffmpeg_devices[0][0]
+
+    def _on_ffmpeg_started(self):
+        """Handle FFmpeg recording started."""
+        self._set_state(RecordingState.RECORDING)
+        self.recording_started.emit()
+
+    def _on_ffmpeg_stopped(self, output_path: Path):
+        """Handle FFmpeg recording stopped."""
+        self._set_state(RecordingState.IDLE)
+        # Resume audio monitoring for preview
+        if self._preview_active:
+            self._start_audio_monitoring()
+        # FFmpeg recordings are already cropped, no post-processing needed
+        self.recording_stopped.emit(output_path, False)
+
+    def _on_ffmpeg_error(self, error: str):
+        """Handle FFmpeg recording error."""
+        self._set_state(RecordingState.IDLE)
+        # Resume audio monitoring for preview
+        if self._preview_active:
+            self._start_audio_monitoring()
+        self.recording_error.emit(error)
+
+    def _on_ffmpeg_warning(self, message: str):
+        """Handle FFmpeg recording warning (non-fatal)."""
+        self.recording_warning.emit(message)
+
+    def _on_ffmpeg_duration(self, duration: float):
+        """Handle FFmpeg duration update."""
+        self.duration_changed.emit(int(duration * 1000))
+
     def stop_recording(self):
         """Stop the current recording."""
         if self._state not in (RecordingState.RECORDING, RecordingState.PAUSED):
             return
 
-        self._recorder.stop()
-        self._screen_capture.setActive(False)
+        # Check if using FFmpeg recorder
+        if self._ffmpeg_recorder.is_recording:
+            self._ffmpeg_recorder.stop_recording()
+        else:
+            self._recorder.stop()
+            self._screen_capture.setActive(False)
 
     def pause_recording(self):
         """Pause the current recording."""
@@ -404,10 +567,84 @@ class RecordingController(QObject):
         """
         return self._session
 
+    def get_last_recording_config(self) -> RecordingConfig | None:
+        """Get the config snapshot used for the most recent recording."""
+        return self._recording_config.copy() if self._recording_config else None
+
+    def _get_qt_audio_device(self) -> QAudioDevice | None:
+        """Get the Qt audio input device for the current selection."""
+        if not self._config.audio_enabled:
+            return None
+        if self._config.audio_device_id:
+            for device in QMediaDevices.audioInputs():
+                if device.id().data().decode() == self._config.audio_device_id:
+                    return device
+        return QMediaDevices.defaultAudioInput()
+
+    @staticmethod
+    def _select_audio_format(
+        device: QAudioDevice,
+        sample_rate: int,
+        channels: int
+    ) -> tuple[int, int]:
+        """Prefer the requested format if supported; fall back to device preferred."""
+        desired = QAudioFormat()
+        desired.setSampleRate(sample_rate)
+        desired.setChannelCount(channels)
+        desired.setSampleFormat(QAudioFormat.SampleFormat.Int16)
+        if device.isFormatSupported(desired):
+            return sample_rate, channels
+
+        fmt = device.preferredFormat()
+        fallback_rate = fmt.sampleRate() or sample_rate
+        fallback_channels = fmt.channelCount() or channels
+        return fallback_rate, fallback_channels
+
+    @staticmethod
+    def _normalize_audio_name(name: str) -> str:
+        """Normalize device names for fuzzy matching."""
+        return re.sub(r"[^a-z0-9]+", "", name.lower())
+
+    def _match_ffmpeg_audio_device(
+        self,
+        qt_name: str,
+        ffmpeg_devices: list[tuple[int, str]]
+    ) -> tuple[int, str, float] | None:
+        """Find the best FFmpeg audio device match for a Qt device name."""
+        target = self._normalize_audio_name(qt_name)
+        if not target:
+            return None
+
+        best_idx = None
+        best_name = ""
+        best_score = 0.0
+        for idx, name in ffmpeg_devices:
+            candidate = self._normalize_audio_name(name)
+            if not candidate:
+                continue
+            score = difflib.SequenceMatcher(None, target, candidate).ratio()
+            if target in candidate or candidate in target:
+                score += 0.1
+            if score > best_score:
+                best_score = score
+                best_idx = idx
+                best_name = name
+
+        if best_idx is None:
+            return None
+        return best_idx, best_name, best_score
+
     @staticmethod
     def get_available_screens() -> list[QScreen]:
         """Get list of available screens for capture."""
         return QGuiApplication.screens()
+
+    @staticmethod
+    def get_screen_pixel_size(screen: QScreen) -> tuple[int, int]:
+        """Get screen size in physical pixels (accounts for device pixel ratio)."""
+        geo = screen.geometry()
+        dpr = screen.devicePixelRatio()
+        return (int(round(geo.width() * dpr)), int(round(geo.height() * dpr)))
 
     @staticmethod
     def get_available_audio_devices() -> list[QAudioDevice]:

@@ -99,6 +99,8 @@ class Transcriber:
             "ffmpeg",
             "-i", str(video_path),
             "-vn",  # No video
+            # Preserve timeline alignment for screen recordings with audio clock drift
+            "-af", "aresample=async=1:first_pts=0",
             "-acodec", "libmp3lame",  # MP3 for smaller file size
             "-ar", "16000",  # 16kHz sample rate
             "-ac", "1",  # Mono

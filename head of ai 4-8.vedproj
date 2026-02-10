@@ -1,0 +1,25 @@
+{
+  "version": "1.1",
+  "video_path": "/Users/gorogadam/Movies/Recordings/raw/recording_20260204_192508.mp4",
+  "video_duration": 0,
+  "segments": [],
+  "tokens": [],
+  "analyzed": [],
+  "text_edits": {},
+  "keep_overrides": {},
+  "highlight_regions": [],
+  "crop_config": null,
+  "segment_crop_overrides": null,
+  "caption_settings": {
+    "font_size": 24,
+    "font_family": "Arial",
+    "enabled": true,
+    "pos_x": 0.5,
+    "pos_y": 0.92,
+    "box_width": 0.6,
+    "box_height": 0.07,
+    "show_background": true,
+    "text_color": "white",
+    "font_weight": "bold"
+  }
+}

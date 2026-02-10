@@ -9,15 +9,17 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from .config import Config, CaptionStyle, CAPTION_STYLES
 from .transcriber import Segment, Token
+from .encoder import get_encoder_args, EncoderConfig
 
 console = Console()
 
 
 class Captioner:
     """Handles SRT generation and caption burning."""
-    
-    def __init__(self, config: Config):
+
+    def __init__(self, config: Config, encoder_config: EncoderConfig | None = None):
         self.config = config
+        self.encoder_config = encoder_config or EncoderConfig()
     
     def generate_srt(self, segments: list[Segment], output_path: Path) -> Path:
         """
@@ -106,13 +108,13 @@ class Captioner:
         os.chdir(output_dir)
 
         try:
+            encoder_args = get_encoder_args(self.encoder_config)
             cmd = [
                 "ffmpeg",
                 "-y",
                 "-i", str(video_path),
                 "-vf", subtitle_filter,
-                "-c:v", "libx264",
-                "-preset", "fast",
+                *encoder_args,
                 "-c:a", "copy",
                 str(output_path)
             ]
@@ -557,13 +559,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             console.print("[dim]Using drawtext filter for streaming captions[/dim]")
             filter_chain = self._build_drawtext_filter(tokens, max_words, caption_settings)
 
+            encoder_args = get_encoder_args(self.encoder_config)
             cmd = [
                 "ffmpeg", "-y",
                 "-i", str(video_path),
                 "-vf", filter_chain,
-                "-c:v", "libx264",
-                "-preset", "medium",
-                "-crf", "18",
+                *encoder_args,
                 "-pix_fmt", "yuv420p",
             ]
             if resolution:
@@ -583,13 +584,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             os.chdir(output_path.parent)
 
             try:
+                encoder_args = get_encoder_args(self.encoder_config)
                 cmd = [
                     "ffmpeg", "-y",
                     "-i", str(video_path),
                     "-vf", f"ass={ass_path.name}",
-                    "-c:v", "libx264",
-                    "-preset", "medium",
-                    "-crf", "18",
+                    *encoder_args,
                     "-pix_fmt", "yuv420p",
                 ]
                 if resolution:

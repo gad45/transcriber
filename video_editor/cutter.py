@@ -9,6 +9,7 @@ from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn
 
 from .analyzer import TimeRange
 from .config import Config
+from .encoder import get_encoder_args, EncoderConfig
 
 console = Console()
 
@@ -19,8 +20,9 @@ class Cutter:
     # Gap between segments in seconds
     SEGMENT_GAP = 0.2
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, encoder_config: EncoderConfig | None = None):
         self.config = config
+        self.encoder_config = encoder_config or EncoderConfig()
     
     def get_video_duration(self, video_path: Path) -> float:
         """
@@ -108,63 +110,40 @@ class Cutter:
         Returns:
             Path to the extracted segment
         """
-        # Two-pass approach required because tpad doesn't work well with -ss seeking
+        # Single-pass approach using filter chains for both trimming and padding
+        # This avoids double re-encoding which degrades audio quality
         if freeze_last_frame and self.SEGMENT_GAP > 0:
-            # Pass 1: Extract the segment (with crop if specified)
-            temp_segment = output_path.parent / f"{output_path.stem}_temp{output_path.suffix}"
-
-            cmd1 = [
-                "ffmpeg",
-                "-y",
-                "-ss", str(start),
-                "-i", str(input_path),
-                "-t", str(end - start),
-            ]
-
-            # Add crop filter if specified
+            # Build video filter chain: trim + optional crop + tpad
+            duration = end - start
+            vf_parts = [f"trim=start={start}:duration={duration}", "setpts=PTS-STARTPTS"]
             if crop_filter:
-                cmd1.extend(["-vf", crop_filter])
+                vf_parts.append(crop_filter)
+            vf_parts.append(f"tpad=stop_mode=clone:stop_duration={self.SEGMENT_GAP}")
+            video_filter = ",".join(vf_parts)
 
-            cmd1.extend([
-                "-c:v", "libx264",
-                "-preset", "medium",
-                "-crf", "18",
-                "-c:a", "aac",
-                "-b:a", "192k",
-                "-avoid_negative_ts", "make_zero",
-                str(temp_segment)
-            ])
+            # Build audio filter chain: trim + pad
+            af_parts = [f"atrim=start={start}:duration={duration}", "asetpts=PTS-STARTPTS"]
+            af_parts.append(f"apad=pad_dur={self.SEGMENT_GAP}")
+            audio_filter = ",".join(af_parts)
 
-            result = subprocess.run(cmd1, capture_output=True, text=True)
-            if result.returncode != 0:
-                raise RuntimeError(f"FFmpeg segment extraction failed: {result.stderr}")
-
-            # Pass 2: Add frozen last frame
-            # Use generous audio padding with -shortest to ensure audio matches video exactly
-            # (apad=pad_dur alone can cause slight duration mismatches due to AAC frame sizes)
-            cmd2 = [
+            encoder_args = get_encoder_args(self.encoder_config)
+            cmd = [
                 "ffmpeg",
                 "-y",
-                "-i", str(temp_segment),
-                "-vf", f"tpad=stop_mode=clone:stop_duration={self.SEGMENT_GAP}",
-                "-af", f"apad=pad_dur={self.SEGMENT_GAP + 0.5}",
-                "-c:v", "libx264",
-                "-preset", "medium",
-                "-crf", "18",
+                "-i", str(input_path),
+                "-vf", video_filter,
+                "-af", audio_filter,
+                *encoder_args,
                 "-c:a", "aac",
-                "-b:a", "192k",
+                "-b:a", "256k",
                 "-shortest",
+                "-avoid_negative_ts", "make_zero",
                 str(output_path)
             ]
 
-            result = subprocess.run(cmd2, capture_output=True, text=True)
-
-            # Clean up temp file
-            if temp_segment.exists():
-                temp_segment.unlink()
-
+            result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode != 0:
-                raise RuntimeError(f"FFmpeg frame padding failed: {result.stderr}")
+                raise RuntimeError(f"FFmpeg segment extraction failed: {result.stderr}")
 
         else:
             # Single pass without frame freezing
@@ -180,12 +159,11 @@ class Cutter:
             if crop_filter:
                 cmd.extend(["-vf", crop_filter])
 
+            encoder_args = get_encoder_args(self.encoder_config)
             cmd.extend([
-                "-c:v", "libx264",
-                "-preset", "medium",
-                "-crf", "18",
+                *encoder_args,
                 "-c:a", "aac",
-                "-b:a", "192k",
+                "-b:a", "256k",
                 "-avoid_negative_ts", "make_zero",
                 str(output_path)
             ])
@@ -240,6 +218,7 @@ class Cutter:
                 fps = float(fps_str)
 
         # Create black video with silent audio
+        encoder_args = get_encoder_args(self.encoder_config)
         cmd = [
             "ffmpeg",
             "-y",
@@ -247,8 +226,7 @@ class Cutter:
             "-i", f"color=c=black:s={width}x{height}:r={fps}:d={duration}",
             "-f", "lavfi",
             "-i", f"anullsrc=r=48000:cl=stereo:d={duration}",
-            "-c:v", "libx264",
-            "-preset", "medium",
+            *encoder_args,
             "-c:a", "aac",
             "-shortest",
             str(output_path)
