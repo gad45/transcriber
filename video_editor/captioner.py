@@ -258,6 +258,20 @@ class Captioner:
             return [line1, line2]
         return [line1]
 
+    def _resolve_font_file(self, fontname: str, font_style: str) -> str | None:
+        """Resolve font family + style to a font file path using fontconfig."""
+        try:
+            fc_pattern = f"{fontname}:style={font_style}" if font_style != "Regular" else fontname
+            result = subprocess.run(
+                ["fc-match", fc_pattern, "--format=%{file}"],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+        return None
+
     def _build_drawtext_filter(self, tokens: list[Token], max_words: int = 15, caption_settings: dict = None) -> str:
         """
         Build FFmpeg drawtext filter chain for streaming captions.
@@ -318,11 +332,12 @@ class Captioner:
         }
         font_style = weight_style_map.get(font_weight, "Bold")
 
-        # Construct font specification with style
-        if font_style and font_style != "Regular":
-            font_spec = f"{fontname}\\:style={font_style}"
+        # Resolve actual font file path via fontconfig for reliable weight rendering
+        font_file = self._resolve_font_file(fontname, font_style)
+        if font_file:
+            font_param = f"fontfile='{font_file}'"
         else:
-            font_spec = fontname
+            font_param = f"font='{fontname}'"
 
         # Box settings based on show_background
         if show_background:
@@ -377,7 +392,7 @@ class Captioner:
                 escaped_line1 = self._escape_drawtext(lines[0])
                 filter_str1 = (
                     f"drawtext=text='{escaped_line1}'"
-                    f":font='{font_spec}'"
+                    f":{font_param}"
                     f":fontsize={fontsize}"
                     f":fontcolor={fontcolor}"
                     f":borderw={borderw}"
@@ -396,7 +411,7 @@ class Captioner:
                     escaped_line2 = self._escape_drawtext(lines[1])
                     filter_str2 = (
                         f"drawtext=text='{escaped_line2}'"
-                        f":font='{font_spec}'"
+                        f":{font_param}"
                         f":fontsize={fontsize}"
                         f":fontcolor={fontcolor}"
                         f":borderw={borderw}"
