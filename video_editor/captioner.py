@@ -19,7 +19,9 @@ class Captioner:
 
     def __init__(self, config: Config, encoder_config: EncoderConfig | None = None):
         self.config = config
-        self.encoder_config = encoder_config or EncoderConfig()
+        self.encoder_config = encoder_config or EncoderConfig(
+            use_hardware=config.use_hardware_encoding
+        )
     
     def generate_srt(self, segments: list[Segment], output_path: Path) -> Path:
         """
@@ -112,6 +114,7 @@ class Captioner:
             cmd = [
                 "ffmpeg",
                 "-y",
+                "-hide_banner", "-loglevel", "error", "-nostats",
                 "-i", str(video_path),
                 "-vf", subtitle_filter,
                 *encoder_args,
@@ -157,6 +160,7 @@ class Captioner:
         cmd = [
             "ffmpeg",
             "-y",
+            "-hide_banner", "-loglevel", "error", "-nostats",
             "-i", str(video_path),
             "-i", str(srt_path),
             "-c", "copy",
@@ -436,7 +440,15 @@ class Captioner:
         )
         return filter_name in result.stdout
 
-    def _generate_streaming_ass(self, tokens: list[Token], output_path: Path, max_words: int = 20) -> Path:
+    def _generate_streaming_ass(
+        self,
+        tokens: list[Token],
+        output_path: Path,
+        max_words: int = 20,
+        caption_settings: dict | None = None,
+        video_width: int = 1920,
+        video_height: int = 1080,
+    ) -> Path:
         """
         Generate an ASS subtitle file with streaming word-by-word captions.
 
@@ -452,20 +464,80 @@ class Captioner:
         """
         chunks = self._chunk_tokens(tokens, max_words)
 
+        # Style settings from GUI (fallback to defaults when absent).
+        if caption_settings:
+            font_size = int(caption_settings.get("font_size", self.config.caption_font_size))
+            font_family = str(caption_settings.get("font_family", "Arial")).replace(",", " ")
+            font_weight = caption_settings.get("font_weight", "bold")
+            text_color = caption_settings.get("text_color", "white")
+            show_background = bool(caption_settings.get("show_background", True))
+            pos_x = float(caption_settings.get("pos_x", 0.5))
+            pos_y = float(caption_settings.get("pos_y", 0.92))
+            box_width = float(caption_settings.get("box_width", 0.6))
+        else:
+            font_size = self.config.caption_font_size
+            font_family = "Arial"
+            font_weight = "bold"
+            text_color = "white"
+            show_background = True
+            pos_x = 0.5
+            pos_y = 0.92
+            box_width = 0.6
+
+        # ASS color format: &HAABBGGRR (AA: alpha, 00=opaque, FF=transparent)
+        primary_color = "&H00000000" if text_color == "black" else "&H00FFFFFF"
+        outline_color = "&H00FFFFFF" if text_color == "black" else "&H00000000"
+        if show_background:
+            # Approximate black/white 70% opaque background.
+            back_color = "&H4DFFFFFF" if text_color == "black" else "&H4D000000"
+            border_style = 3  # Opaque box
+            outline = 0
+            shadow = 0
+        else:
+            back_color = "&HFF000000"  # Fully transparent
+            border_style = 1
+            outline = 3
+            shadow = 1
+
+        # ASS has binary bold in style; map medium+ weights to bold.
+        bold = 1 if font_weight in {"semi-bold", "bold", "extra-bold"} else 0
+
+        # Use box width to approximate line wrapping similar to UI caption box.
+        box_px = max(120.0, box_width * max(1, video_width))
+        # Approx average Latin glyph width factor.
+        chars_per_line = max(14, int(box_px / max(10.0, font_size * 0.55)))
+        approx_words_per_line = max(4, min(max_words, chars_per_line // 6))
+
+        # Convert normalized UI position to ASS absolute position.
+        pos_x_px = max(0, min(video_width, int(pos_x * video_width)))
+        pos_y_px = max(0, min(video_height, int(pos_y * video_height)))
+
         # ASS header with style definition
         ass_content = """[Script Info]
 Title: Streaming Captions
 ScriptType: v4.00+
-PlayResX: 1920
-PlayResY: 1080
+PlayResX: {play_res_x}
+PlayResY: {play_res_y}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,3,1,2,20,20,60,1
+Style: Default,{font_family},{font_size},{primary_color},&H000000FF,{outline_color},{back_color},{bold},0,0,0,100,100,0,0,{border_style},{outline},{shadow},2,20,20,60,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"""
+""".format(
+            play_res_x=video_width,
+            play_res_y=video_height,
+            font_family=font_family,
+            font_size=font_size,
+            primary_color=primary_color,
+            outline_color=outline_color,
+            back_color=back_color,
+            bold=bold,
+            border_style=border_style,
+            outline=outline,
+            shadow=shadow,
+        )
 
         def format_ass_time(seconds: float) -> str:
             """Convert seconds to ASS timestamp format (H:MM:SS.CC)."""
@@ -483,9 +555,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             chunk_start = chunk[0].start
             chunk_end = chunk[-1].end + 0.1
 
-            # Build the text with karaoke tags
-            # Each word gets a \k tag with its duration in centiseconds
+            # Build text with karaoke tags. Insert line break to approximate
+            # UI wrapping (fixed-width caption box) using words-per-line.
             karaoke_text = ""
+            line_break_index = approx_words_per_line if len(chunk) > approx_words_per_line else None
             for i, token in enumerate(chunk):
                 # Duration from this word start to next word start (or chunk end)
                 if i < len(chunk) - 1:
@@ -493,19 +566,88 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 else:
                     duration_cs = int((token.end - token.start) * 100)
 
+                if line_break_index is not None and i == line_break_index:
+                    karaoke_text += r"\N"
+
                 # Use \kf for progressive fill effect
                 karaoke_text += f"{{\\kf{duration_cs}}}{token.text}"
 
             # Write the dialogue line
             start_time = format_ass_time(chunk_start)
             end_time = format_ass_time(chunk_end)
-            ass_content += f"Dialogue: 0,{start_time},{end_time},Default,,0,0,0,,{karaoke_text}\n"
+            ass_content += (
+                f"Dialogue: 0,{start_time},{end_time},Default,,0,0,0,,"
+                f"{{\\pos({pos_x_px},{pos_y_px})}}{karaoke_text}\n"
+            )
 
         output_path = Path(output_path)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(ass_content)
 
         return output_path
+
+    def _burn_streaming_captions_ass(
+        self,
+        video_path: Path,
+        tokens: list[Token],
+        output_path: Path,
+        max_words: int,
+        resolution: str | None,
+        caption_settings: dict | None,
+        video_width: int,
+        video_height: int,
+    ) -> Path:
+        """Burn streaming captions using ASS karaoke subtitles."""
+        import os
+
+        console.print("[dim]Using ASS subtitles with karaoke effect[/dim]")
+
+        ass_path = output_path.parent / "streaming_captions.ass"
+        self._generate_streaming_ass(
+            tokens,
+            ass_path,
+            max_words=max_words,
+            caption_settings=caption_settings,
+            video_width=video_width,
+            video_height=video_height,
+        )
+
+        original_cwd = os.getcwd()
+        os.chdir(output_path.parent)
+
+        try:
+            encoder_args = get_encoder_args(self.encoder_config)
+            cmd = [
+                "ffmpeg", "-y",
+                "-hide_banner", "-loglevel", "error", "-nostats",
+                "-i", str(video_path),
+                "-vf", f"ass={ass_path.name}",
+                *encoder_args,
+                "-pix_fmt", "yuv420p",
+            ]
+            if resolution:
+                cmd.extend(["-s", resolution])
+            cmd.extend(["-c:a", "copy", str(output_path)])
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                progress.add_task("Encoding video with streaming captions...", total=None)
+                result = subprocess.run(cmd, capture_output=True, text=True)
+
+            if result.returncode != 0:
+                raise RuntimeError(f"FFmpeg ASS caption burning failed: {result.stderr}")
+
+            console.print(f"[green]✓[/green] Video with streaming captions saved to {output_path}")
+
+            if not self.config.keep_temp and ass_path.exists():
+                ass_path.unlink()
+
+            return output_path
+        finally:
+            os.chdir(original_cwd)
 
     def burn_streaming_captions(
         self,
@@ -535,9 +677,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         Returns:
             Path to the output video
         """
-        import shutil
-        import os
-
         video_path = Path(video_path).resolve()
         output_path = Path(output_path).resolve()
 
@@ -545,7 +684,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
         if not tokens:
             console.print("[yellow]Warning: No tokens to caption[/yellow]")
-            cmd = ["ffmpeg", "-y", "-i", str(video_path), "-c", "copy", str(output_path)]
+            cmd = [
+                "ffmpeg", "-y",
+                "-hide_banner", "-loglevel", "error", "-nostats",
+                "-i", str(video_path),
+                "-c", "copy",
+                str(output_path)
+            ]
             subprocess.run(cmd, capture_output=True, text=True)
             return output_path
 
@@ -560,9 +705,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         probe_result = subprocess.run(probe_cmd, capture_output=True, text=True)
         if probe_result.returncode == 0 and probe_result.stdout.strip():
             video_width, video_height = probe_result.stdout.strip().split(',')
+            video_width = int(video_width)
+            video_height = int(video_height)
             resolution = f"{video_width}x{video_height}"
             console.print(f"[dim]Preserving resolution: {resolution}[/dim]")
         else:
+            video_width, video_height = 1920, 1080
             resolution = None
 
         # Check for available filters
@@ -577,6 +725,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             encoder_args = get_encoder_args(self.encoder_config)
             cmd = [
                 "ffmpeg", "-y",
+                "-hide_banner", "-loglevel", "error", "-nostats",
                 "-i", str(video_path),
                 "-vf", filter_chain,
                 *encoder_args,
@@ -587,50 +736,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             cmd.extend(["-c:a", "copy", str(output_path)])
 
         elif has_ass:
-            # Use ASS subtitles with karaoke effect
-            console.print("[dim]Using ASS subtitles with karaoke effect[/dim]")
-
-            # Generate ASS file in output directory
-            ass_path = output_path.parent / "streaming_captions.ass"
-            self._generate_streaming_ass(tokens, ass_path, max_words)
-
-            # Copy ASS to output dir for relative path
-            original_cwd = os.getcwd()
-            os.chdir(output_path.parent)
-
-            try:
-                encoder_args = get_encoder_args(self.encoder_config)
-                cmd = [
-                    "ffmpeg", "-y",
-                    "-i", str(video_path),
-                    "-vf", f"ass={ass_path.name}",
-                    *encoder_args,
-                    "-pix_fmt", "yuv420p",
-                ]
-                if resolution:
-                    cmd.extend(["-s", resolution])
-                cmd.extend(["-c:a", "copy", str(output_path)])
-
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Encoding video with streaming captions...", total=None)
-                    result = subprocess.run(cmd, capture_output=True, text=True)
-
-                if result.returncode != 0:
-                    raise RuntimeError(f"FFmpeg ASS caption burning failed: {result.stderr}")
-
-                console.print(f"[green]✓[/green] Video with streaming captions saved to {output_path}")
-
-                # Clean up ASS file
-                if not self.config.keep_temp and ass_path.exists():
-                    ass_path.unlink()
-
-                return output_path
-            finally:
-                os.chdir(original_cwd)
+            return self._burn_streaming_captions_ass(
+                video_path,
+                tokens,
+                output_path,
+                max_words,
+                resolution,
+                caption_settings,
+                video_width,
+                video_height,
+            )
 
         else:
             # No suitable filter available

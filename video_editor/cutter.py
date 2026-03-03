@@ -22,7 +22,9 @@ class Cutter:
 
     def __init__(self, config: Config, encoder_config: EncoderConfig | None = None):
         self.config = config
-        self.encoder_config = encoder_config or EncoderConfig()
+        self.encoder_config = encoder_config or EncoderConfig(
+            use_hardware=config.use_hardware_encoding
+        )
     
     def get_video_duration(self, video_path: Path) -> float:
         """
@@ -110,33 +112,33 @@ class Cutter:
         Returns:
             Path to the extracted segment
         """
-        # Single-pass approach using filter chains for both trimming and padding
-        # This avoids double re-encoding which degrades audio quality
+        # Single-pass approach using filter chains for trimming and frame freeze.
+        # Use input-level -ss/-t to keep decoding bounded for each segment.
         if freeze_last_frame and self.SEGMENT_GAP > 0:
             # Build video filter chain: trim + optional crop + tpad
             duration = end - start
-            vf_parts = [f"trim=start={start}:duration={duration}", "setpts=PTS-STARTPTS"]
+            vf_parts = [f"trim=duration={duration}", "setpts=PTS-STARTPTS"]
             if crop_filter:
                 vf_parts.append(crop_filter)
             vf_parts.append(f"tpad=stop_mode=clone:stop_duration={self.SEGMENT_GAP}")
             video_filter = ",".join(vf_parts)
 
-            # Build audio filter chain: trim + pad
-            af_parts = [f"atrim=start={start}:duration={duration}", "asetpts=PTS-STARTPTS"]
-            af_parts.append(f"apad=pad_dur={self.SEGMENT_GAP}")
-            audio_filter = ",".join(af_parts)
+            # Keep audio trimmed to segment duration. Avoid apad here because
+            # some FFmpeg builds can hang on atrim+apad for specific timestamps.
+            audio_filter = f"atrim=duration={duration},asetpts=PTS-STARTPTS"
 
             encoder_args = get_encoder_args(self.encoder_config)
             cmd = [
                 "ffmpeg",
                 "-y",
+                "-ss", str(start),
+                "-t", str(duration),
                 "-i", str(input_path),
                 "-vf", video_filter,
                 "-af", audio_filter,
                 *encoder_args,
                 "-c:a", "aac",
                 "-b:a", "256k",
-                "-shortest",
                 "-avoid_negative_ts", "make_zero",
                 str(output_path)
             ]
