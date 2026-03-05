@@ -533,7 +533,11 @@ class EditSession:
     def set_segment_crop(self, index: int, config: CropConfig) -> None:
         """Set a crop override for a specific segment."""
         if 0 <= index < len(self.original_segments):
-            self.segment_crop_overrides[index] = config
+            if config.is_default:
+                # Default override is equivalent to "no override".
+                self.segment_crop_overrides.pop(index, None)
+            else:
+                self.segment_crop_overrides[index] = config
 
     def clear_segment_crop(self, index: int) -> None:
         """Remove crop override for a segment (reverts to global)."""

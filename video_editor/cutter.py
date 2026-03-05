@@ -25,6 +25,7 @@ class Cutter:
         self.encoder_config = encoder_config or EncoderConfig(
             use_hardware=config.use_hardware_encoding
         )
+        self._has_audio_cache: dict[str, bool] = {}
     
     def get_video_duration(self, video_path: Path) -> float:
         """
@@ -80,7 +81,26 @@ class Cutter:
         height = int(parts[1]) if len(parts) > 1 else 1080
 
         return width, height
-    
+
+    def _input_has_audio(self, video_path: Path) -> bool:
+        """Check whether the input file has at least one audio stream."""
+        key = str(Path(video_path).resolve())
+        if key in self._has_audio_cache:
+            return self._has_audio_cache[key]
+
+        cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-select_streams", "a:0",
+            "-show_entries", "stream=codec_type",
+            "-of", "csv=p=0",
+            key,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        has_audio = result.returncode == 0 and bool(result.stdout.strip())
+        self._has_audio_cache[key] = has_audio
+        return has_audio
+
     def cut_segment(
         self,
         input_path: Path,
@@ -122,26 +142,37 @@ class Cutter:
                 vf_parts.append(crop_filter)
             vf_parts.append(f"tpad=stop_mode=clone:stop_duration={self.SEGMENT_GAP}")
             video_filter = ",".join(vf_parts)
-
-            # Keep audio trimmed to segment duration. Avoid apad here because
-            # some FFmpeg builds can hang on atrim+apad for specific timestamps.
-            audio_filter = f"atrim=duration={duration},asetpts=PTS-STARTPTS"
-
+            has_audio = self._input_has_audio(input_path)
             encoder_args = get_encoder_args(self.encoder_config)
             cmd = [
                 "ffmpeg",
                 "-y",
+                "-hide_banner", "-loglevel", "error", "-nostats",
                 "-ss", str(start),
                 "-t", str(duration),
                 "-i", str(input_path),
-                "-vf", video_filter,
-                "-af", audio_filter,
-                *encoder_args,
-                "-c:a", "aac",
-                "-b:a", "256k",
-                "-avoid_negative_ts", "make_zero",
-                str(output_path)
             ]
+
+            if has_audio:
+                cmd.extend([
+                    "-vf", video_filter,
+                    "-af", f"atrim=duration={duration},asetpts=PTS-STARTPTS",
+                    *encoder_args,
+                    "-c:a", "aac",
+                    "-b:a", "256k",
+                    "-ar", "48000",
+                    "-ac", "2",
+                    "-avoid_negative_ts", "make_zero",
+                    str(output_path)
+                ])
+            else:
+                cmd.extend([
+                    "-vf", video_filter,
+                    *encoder_args,
+                    "-an",
+                    "-avoid_negative_ts", "make_zero",
+                    str(output_path)
+                ])
 
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode != 0:
@@ -152,6 +183,7 @@ class Cutter:
             cmd = [
                 "ffmpeg",
                 "-y",
+                "-hide_banner", "-loglevel", "error", "-nostats",
                 "-ss", str(start),
                 "-i", str(input_path),
                 "-t", str(end - start),
@@ -162,13 +194,21 @@ class Cutter:
                 cmd.extend(["-vf", crop_filter])
 
             encoder_args = get_encoder_args(self.encoder_config)
+            has_audio = self._input_has_audio(input_path)
             cmd.extend([
                 *encoder_args,
-                "-c:a", "aac",
-                "-b:a", "256k",
                 "-avoid_negative_ts", "make_zero",
-                str(output_path)
             ])
+            if has_audio:
+                cmd.extend([
+                    "-c:a", "aac",
+                    "-b:a", "256k",
+                    "-ar", "48000",
+                    "-ac", "2",
+                ])
+            else:
+                cmd.append("-an")
+            cmd.append(str(output_path))
 
             result = subprocess.run(cmd, capture_output=True, text=True)
 
@@ -224,12 +264,15 @@ class Cutter:
         cmd = [
             "ffmpeg",
             "-y",
+            "-hide_banner", "-loglevel", "error", "-nostats",
             "-f", "lavfi",
             "-i", f"color=c=black:s={width}x{height}:r={fps}:d={duration}",
             "-f", "lavfi",
             "-i", f"anullsrc=r=48000:cl=stereo:d={duration}",
             *encoder_args,
             "-c:a", "aac",
+            "-ar", "48000",
+            "-ac", "2",
             "-shortest",
             str(output_path)
         ]
@@ -269,12 +312,28 @@ class Cutter:
         cmd = [
             "ffmpeg",
             "-y",
+            "-hide_banner", "-loglevel", "error", "-nostats",
             "-f", "concat",
             "-safe", "0",
             "-i", str(concat_file),
-            "-c", "copy",
-            str(output_path)
         ]
+
+        # Copy video stream, but re-encode audio once after concatenation to
+        # smooth timestamp/encoder-delay discontinuities between segment files.
+        has_audio = bool(segment_paths) and self._input_has_audio(segment_paths[0])
+        cmd.extend(["-map", "0:v:0", "-c:v", "copy"])
+        if has_audio:
+            cmd.extend([
+                "-map", "0:a:0",
+                "-af", "aresample=async=1:first_pts=0",
+                "-c:a", "aac",
+                "-b:a", "256k",
+                "-ar", "48000",
+                "-ac", "2",
+            ])
+        else:
+            cmd.append("-an")
+        cmd.append(str(output_path))
 
         result = subprocess.run(cmd, capture_output=True, text=True)
 
@@ -354,12 +413,7 @@ class Cutter:
         # Concatenate all segments
         console.print("[blue]Concatenating segments...[/blue]")
 
-        if len(segment_paths) == 1:
-            # Just copy the single segment
-            import shutil
-            shutil.copy(segment_paths[0], output_path)
-        else:
-            self.concatenate_segments(segment_paths, output_path)
+        self.concatenate_segments(segment_paths, output_path)
 
         # Clean up temp segments
         if not self.config.keep_temp:

@@ -1033,7 +1033,10 @@ class MainWindow(QMainWindow):
                 segment_crop_filters = {
                     idx: crop.to_ffmpeg_filter(video_w, video_h)
                     for idx, crop in self._session.segment_crop_overrides.items()
+                    if not crop.is_default
                 }
+                if not segment_crop_filters:
+                    segment_crop_filters = None
 
             # Cut to temp file with crop applied
             temp_cut = Path(tempfile.gettempdir()) / "video_editor_temp_cut.mp4"
