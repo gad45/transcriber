@@ -9,7 +9,10 @@ from pathlib import Path
 from enum import Enum, auto
 
 from PySide6.QtCore import QObject, Signal, QTimer
+from ...runtime_paths import ffmpeg_executable
 
+
+FFMPEG = ffmpeg_executable()
 
 def _remux_to_mp4(
     input_path: Path,
@@ -22,7 +25,7 @@ def _remux_to_mp4(
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         cmd = [
-            "ffmpeg",
+            FFMPEG,
             "-y",
             "-i",
             str(input_path),
@@ -260,7 +263,7 @@ class FFmpegRecorder(QObject):
             audio_args += ["-ar", str(audio_sample_rate)]
 
         cmd = [
-            "ffmpeg",
+            FFMPEG,
             "-y",
             "-thread_queue_size", "1024",
             "-f", "avfoundation",
@@ -300,7 +303,7 @@ class FFmpegRecorder(QObject):
         """Pick the best available AAC encoder on this FFmpeg build."""
         try:
             result = subprocess.run(
-                ["ffmpeg", "-hide_banner", "-encoders"],
+                [FFMPEG, "-hide_banner", "-encoders"],
                 capture_output=True,
                 text=True,
             )
@@ -370,7 +373,7 @@ class FFmpegRecorder(QObject):
         """
         try:
             result = subprocess.run(
-                ["ffmpeg", "-f", "avfoundation", "-list_devices", "true", "-i", ""],
+                [FFMPEG, "-f", "avfoundation", "-list_devices", "true", "-i", ""],
                 capture_output=True,
                 text=True
             )

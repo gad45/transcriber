@@ -12,10 +12,12 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 
 from .config import Config
+from .runtime_paths import ffmpeg_executable
 
 console = Console()
 
 SONIOX_API_BASE_URL = "https://api.soniox.com"
+FFMPEG = ffmpeg_executable()
 
 
 @dataclass
@@ -96,7 +98,7 @@ class Transcriber:
         console.print(f"[blue]Extracting audio from {video_path.name}...[/blue]")
 
         cmd = [
-            "ffmpeg",
+            FFMPEG,
             "-i", str(video_path),
             "-vn",  # No video
             # Preserve timeline alignment for screen recordings with audio clock drift

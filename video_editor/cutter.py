@@ -10,8 +10,11 @@ from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn
 from .analyzer import TimeRange
 from .config import Config
 from .encoder import get_encoder_args, EncoderConfig
+from .runtime_paths import ffmpeg_executable, ffprobe_executable
 
 console = Console()
+FFMPEG = ffmpeg_executable()
+FFPROBE = ffprobe_executable()
 
 
 class Cutter:
@@ -38,7 +41,7 @@ class Cutter:
             Duration in seconds
         """
         cmd = [
-            "ffprobe",
+            FFPROBE,
             "-v", "error",
             "-show_entries", "format=duration",
             "-of", "default=noprint_wrappers=1:nokey=1",
@@ -63,7 +66,7 @@ class Cutter:
             Tuple of (width, height) in pixels
         """
         cmd = [
-            "ffprobe",
+            FFPROBE,
             "-v", "error",
             "-select_streams", "v:0",
             "-show_entries", "stream=width,height",
@@ -89,7 +92,7 @@ class Cutter:
             return self._has_audio_cache[key]
 
         cmd = [
-            "ffprobe",
+            FFPROBE,
             "-v", "error",
             "-select_streams", "a:0",
             "-show_entries", "stream=codec_type",
@@ -145,7 +148,7 @@ class Cutter:
             has_audio = self._input_has_audio(input_path)
             encoder_args = get_encoder_args(self.encoder_config)
             cmd = [
-                "ffmpeg",
+                FFMPEG,
                 "-y",
                 "-hide_banner", "-loglevel", "error", "-nostats",
                 "-ss", str(start),
@@ -181,7 +184,7 @@ class Cutter:
         else:
             # Single pass without frame freezing
             cmd = [
-                "ffmpeg",
+                FFMPEG,
                 "-y",
                 "-hide_banner", "-loglevel", "error", "-nostats",
                 "-ss", str(start),
@@ -236,7 +239,7 @@ class Cutter:
         """
         # Get video properties from reference
         probe_cmd = [
-            "ffprobe",
+            FFPROBE,
             "-v", "error",
             "-select_streams", "v:0",
             "-show_entries", "stream=width,height,r_frame_rate",
@@ -262,7 +265,7 @@ class Cutter:
         # Create black video with silent audio
         encoder_args = get_encoder_args(self.encoder_config)
         cmd = [
-            "ffmpeg",
+            FFMPEG,
             "-y",
             "-hide_banner", "-loglevel", "error", "-nostats",
             "-f", "lavfi",
@@ -310,7 +313,7 @@ class Cutter:
                 f.write(f"file '{seg_path}'\n")
 
         cmd = [
-            "ffmpeg",
+            FFMPEG,
             "-y",
             "-hide_banner", "-loglevel", "error", "-nostats",
             "-f", "concat",

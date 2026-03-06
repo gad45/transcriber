@@ -5,8 +5,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from dotenv import load_dotenv
-load_dotenv()  # Load .env file automatically
+from .environment import load_app_env
+load_app_env()
 
 import click
 from rich.console import Console

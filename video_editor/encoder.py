@@ -3,6 +3,8 @@
 import subprocess
 from dataclasses import dataclass
 
+from .runtime_paths import ffmpeg_executable
+
 
 @dataclass
 class EncoderConfig:
@@ -14,6 +16,7 @@ class EncoderConfig:
 
 
 _videotoolbox_available: bool | None = None
+FFMPEG = ffmpeg_executable()
 
 
 def is_videotoolbox_available() -> bool:
@@ -28,7 +31,7 @@ def is_videotoolbox_available() -> bool:
 
     try:
         result = subprocess.run(
-            ["ffmpeg", "-hide_banner", "-encoders"],
+            [FFMPEG, "-hide_banner", "-encoders"],
             capture_output=True,
             text=True
         )

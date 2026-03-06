@@ -1,6 +1,8 @@
 """Settings panel for screen and audio recording configuration."""
 
 from pathlib import Path
+import platform
+import sys
 
 from PySide6.QtCore import Qt, Signal, QStandardPaths
 from PySide6.QtWidgets import (
@@ -56,7 +58,8 @@ class RecordingSettingsPanel(QWidget):
         crop_mode_changed: Emitted when crop mode changes (resolution, aspect_ratio)
         audio_device_changed: Emitted when audio device changes (device_id)
         audio_volume_changed: Emitted when volume changes (0.0-1.0)
-        audio_enabled_changed: Emitted when audio is enabled/disabled
+        audio_enabled_changed: Emitted when microphone/input audio is enabled/disabled
+        system_audio_enabled_changed: Emitted when macOS system audio capture is enabled/disabled
     """
 
     settings_changed = Signal()
@@ -65,6 +68,7 @@ class RecordingSettingsPanel(QWidget):
     audio_device_changed = Signal(str)
     audio_volume_changed = Signal(float)
     audio_enabled_changed = Signal(bool)
+    system_audio_enabled_changed = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -101,17 +105,39 @@ class RecordingSettingsPanel(QWidget):
         audio_group = QGroupBox("Audio")
         audio_layout = QVBoxLayout(audio_group)
 
+        self._system_audio_enabled_check: QCheckBox | None = None
+        self._macos_audio_hint: QLabel | None = None
+
+        if sys.platform == "darwin":
+            self._system_audio_enabled_check = QCheckBox("Include macOS System Audio")
+            self._system_audio_enabled_check.setChecked(self._config.system_audio_enabled)
+            self._system_audio_enabled_check.setToolTip(
+                "Captures the Mac's system output using ScreenCaptureKit on macOS 15 or later."
+            )
+            audio_layout.addWidget(self._system_audio_enabled_check)
+
         # Audio enable checkbox
-        self._audio_enabled_check = QCheckBox("Record Audio")
+        self._audio_enabled_check = QCheckBox("Include Microphone / Input Audio")
         self._audio_enabled_check.setChecked(True)
+        self._audio_enabled_check.setToolTip(
+            "Captures the selected microphone or other audio input device."
+        )
         audio_layout.addWidget(self._audio_enabled_check)
 
         # Audio device selection
         device_layout = QFormLayout()
         self._audio_device_combo = QComboBox()
-        self._audio_device_combo.setToolTip("Select audio input device")
+        self._audio_device_combo.setToolTip(
+            "Select the microphone or input device to record."
+        )
         device_layout.addRow("Input Device:", self._audio_device_combo)
         audio_layout.addLayout(device_layout)
+
+        if sys.platform == "darwin":
+            self._macos_audio_hint = QLabel()
+            self._macos_audio_hint.setObjectName("macosAudioHint")
+            self._macos_audio_hint.setWordWrap(True)
+            audio_layout.addWidget(self._macos_audio_hint)
 
         # Volume slider
         volume_layout = QHBoxLayout()
@@ -205,6 +231,11 @@ class RecordingSettingsPanel(QWidget):
             QPushButton:hover {
                 background: #555;
             }
+            QLabel#macosAudioHint {
+                color: #aaa;
+                font-size: 12px;
+                line-height: 1.3em;
+            }
             QSlider::groove:horizontal {
                 height: 6px;
                 background: #333;
@@ -221,6 +252,21 @@ class RecordingSettingsPanel(QWidget):
             }
         """
         self.setStyleSheet(style)
+
+    @staticmethod
+    def _supports_native_system_audio() -> bool:
+        """Return True when native macOS system audio capture is available."""
+        if sys.platform != "darwin":
+            return False
+
+        version = platform.mac_ver()[0]
+        if not version:
+            return False
+
+        parts = version.split(".")
+        major = int(parts[0])
+        minor = int(parts[1]) if len(parts) > 1 else 0
+        return (major, minor) >= (15, 0)
 
     def _populate_devices(self):
         """Populate screen and audio device lists."""
@@ -239,12 +285,32 @@ class RecordingSettingsPanel(QWidget):
 
         # Audio devices
         self._audio_device_combo.clear()
-        self._audio_device_combo.addItem("System Default", "")
+        self._audio_device_combo.addItem("Default Input Device", "")
 
         devices = QMediaDevices.audioInputs()
         for device in devices:
             device_id = device.id().data().decode()
             self._audio_device_combo.addItem(device.description(), device_id)
+
+        if self._macos_audio_hint is not None:
+            supports_native = self._supports_native_system_audio()
+            if self._system_audio_enabled_check is not None:
+                self._system_audio_enabled_check.setEnabled(supports_native)
+                if not supports_native:
+                    self._config.system_audio_enabled = False
+                    self._system_audio_enabled_check.setChecked(False)
+
+            if supports_native:
+                self._macos_audio_hint.setText(
+                    "System audio capture uses the native macOS screen and audio "
+                    "recording permission. If you launch via Terminal or "
+                    "launch_gui.command, the permission entry usually appears under Terminal."
+                )
+            else:
+                self._macos_audio_hint.setText(
+                    "Native macOS system audio capture requires macOS 15 or later. "
+                    "On older versions, use a loopback input such as BlackHole."
+                )
 
         self._updating = False
 
@@ -252,6 +318,8 @@ class RecordingSettingsPanel(QWidget):
         """Connect UI signals to handlers."""
         self._screen_combo.currentIndexChanged.connect(self._on_screen_changed)
         self._crop_combo.currentIndexChanged.connect(self._on_crop_changed)
+        if self._system_audio_enabled_check is not None:
+            self._system_audio_enabled_check.toggled.connect(self._on_system_audio_enabled_changed)
         self._audio_enabled_check.toggled.connect(self._on_audio_enabled_changed)
         self._audio_device_combo.currentIndexChanged.connect(self._on_audio_device_changed)
         self._volume_slider.valueChanged.connect(self._on_volume_changed)
@@ -283,6 +351,15 @@ class RecordingSettingsPanel(QWidget):
             self._config.target_aspect_ratio = aspect_ratio
 
         self.crop_mode_changed.emit(resolution, aspect_ratio)
+        self.settings_changed.emit()
+
+    def _on_system_audio_enabled_changed(self, enabled: bool):
+        """Handle macOS system audio toggle."""
+        if self._updating:
+            return
+
+        self._config.system_audio_enabled = enabled
+        self.system_audio_enabled_changed.emit(enabled)
         self.settings_changed.emit()
 
     def _on_audio_enabled_changed(self, enabled: bool):
@@ -379,6 +456,11 @@ class RecordingSettingsPanel(QWidget):
         if not found:
             self._crop_combo.setCurrentIndex(0)  # Full screen
 
+        if self._system_audio_enabled_check is not None:
+            self._system_audio_enabled_check.setChecked(
+                config.system_audio_enabled and self._supports_native_system_audio()
+            )
+            self._config.system_audio_enabled = self._system_audio_enabled_check.isChecked()
         self._audio_enabled_check.setChecked(config.audio_enabled)
 
         # Find audio device index

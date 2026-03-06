@@ -210,6 +210,7 @@ class RecorderTab(QWidget):
         self._settings_panel.audio_device_changed.connect(self._on_audio_device_changed)
         self._settings_panel.audio_volume_changed.connect(self._on_audio_volume_changed)
         self._settings_panel.audio_enabled_changed.connect(self._on_audio_enabled_changed)
+        self._settings_panel.system_audio_enabled_changed.connect(self._on_system_audio_enabled_changed)
 
         # Preview
         self._preview.crop_offset_changed.connect(self._on_crop_offset_changed)
@@ -223,6 +224,7 @@ class RecorderTab(QWidget):
         self._controller.state_changed.connect(self._on_state_changed)
         self._controller.audio_level_changed.connect(self._settings_panel.set_audio_level)
         self._controller.permission_status_changed.connect(self._on_permission_changed)
+        self._controller.screen_permission_status_changed.connect(self._on_screen_permission_changed)
 
         # Timer for updating display
         self._timer_update.timeout.connect(self._update_timer_display)
@@ -234,12 +236,7 @@ class RecorderTab(QWidget):
         config = self._settings_panel.get_config()
         self._controller.set_config(config)
 
-        if not self._controller.start_recording():
-            QMessageBox.warning(
-                self,
-                "Recording Error",
-                "Failed to start recording. Check screen capture permissions."
-            )
+        self._controller.start_recording()
 
     def _on_stop_clicked(self):
         """Handle stop button click."""
@@ -287,6 +284,10 @@ class RecorderTab(QWidget):
         """Handle audio enable/disable."""
         self._controller.set_audio_enabled(enabled)
 
+    def _on_system_audio_enabled_changed(self, enabled: bool):
+        """Handle macOS system audio enable/disable."""
+        self._controller.set_system_audio_enabled(enabled)
+
     def _on_crop_offset_changed(self, x: float, y: float):
         """Handle crop region being moved."""
         self._controller.set_crop_offset(x, y)
@@ -298,12 +299,20 @@ class RecorderTab(QWidget):
         else:
             self._status_label.setText("Microphone access denied - check System Settings")
 
+    def _on_screen_permission_changed(self, granted: bool):
+        """Handle screen capture permission result."""
+        if granted:
+            if not self._controller.is_recording:
+                self._status_label.setText("Ready to record")
+        else:
+            self._status_label.setText("Grant macOS screen capture access, then reopen the app")
+
     def _on_recording_started(self):
         """Handle recording started."""
         self._recording_start_time = datetime.now()
         self._record_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
-        self._pause_btn.setEnabled(True)
+        self._pause_btn.setEnabled(self._controller.can_pause_recording())
         self._settings_panel.setEnabled(False)
         self._status_label.setText("Recording...")
         self._timer_update.start(100)

@@ -125,6 +125,30 @@ python -m video_editor.gui_main path/to/video.mp4
 
 **macOS Quick Launch:**
 Double-click `launch_gui.command` in Finder.
+When launched this way, macOS privacy permissions are typically granted to `Terminal`, because the `.command` file runs inside Terminal.
+
+**Standalone macOS app bundle:**
+Build a Finder-launchable `.app` and `.dmg` with:
+```bash
+python packaging/macos/build_app.py
+```
+This produces `dist/macos/Video Editor.app` and `dist/macos/VideoEditor-0.1.0.dmg`.
+The packaged app requests permissions as `Video Editor` instead of `Terminal`.
+By default, the build auto-detects `ffmpeg` and `ffprobe` on your Mac and bundles them into the app, including their required non-system dylibs. To override the binaries manually, pass both:
+```bash
+python packaging/macos/build_app.py \
+    --ffmpeg-bin /path/to/ffmpeg \
+    --ffprobe-bin /path/to/ffprobe
+```
+If you want to skip bundling and keep using system `PATH` binaries, use:
+```bash
+python packaging/macos/build_app.py --no-bundle-ffmpeg
+```
+If a repo `.env` exists, the build also embeds it into the app so Finder launch has the same API keys/config as the Python run. To choose a different env file or skip bundling it:
+```bash
+python packaging/macos/build_app.py --env-file /path/to/.env
+python packaging/macos/build_app.py --no-bundle-env
+```
 
 **Windows Quick Launch:**
 Double-click `launch_gui.bat` in Explorer.
@@ -183,9 +207,13 @@ Built-in screen recording with:
 - Live preview of screen being captured
 - Aspect ratio selection (16:9, 9:16, 4:3, 1:1, or full screen)
 - Draggable crop overlay for region selection
-- Audio device selection and volume control
+- macOS system audio capture via ScreenCaptureKit
+- Microphone/input device selection and volume control
 - Record/Stop/Pause controls
 - Automatic transition to editor after recording
+
+On macOS 15 or later, enable "Include macOS System Audio" in the recorder to capture speaker output natively. If you launch via `launch_gui.command`, the privacy permission entry typically appears under `Terminal`.
+If you launch the packaged `.app`, privacy prompts and Settings entries appear under `Video Editor`.
 
 ### Keyboard Shortcuts
 

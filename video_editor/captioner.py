@@ -8,10 +8,13 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from .config import Config, CaptionStyle, CAPTION_STYLES
+from .runtime_paths import ffmpeg_executable, ffprobe_executable
 from .transcriber import Segment, Token
 from .encoder import get_encoder_args, EncoderConfig
 
 console = Console()
+FFMPEG = ffmpeg_executable()
+FFPROBE = ffprobe_executable()
 
 
 class Captioner:
@@ -85,7 +88,7 @@ class Captioner:
 
         # Check if subtitles filter is available (requires libass)
         check_result = subprocess.run(
-            ["ffmpeg", "-filters"],
+            [FFMPEG, "-filters"],
             capture_output=True,
             text=True
         )
@@ -112,7 +115,7 @@ class Captioner:
         try:
             encoder_args = get_encoder_args(self.encoder_config)
             cmd = [
-                "ffmpeg",
+                FFMPEG,
                 "-y",
                 "-hide_banner", "-loglevel", "error", "-nostats",
                 "-i", str(video_path),
@@ -158,7 +161,7 @@ class Captioner:
         console.print("[blue]Adding soft captions to video...[/blue]")
         
         cmd = [
-            "ffmpeg",
+            FFMPEG,
             "-y",
             "-hide_banner", "-loglevel", "error", "-nostats",
             "-i", str(video_path),
@@ -434,7 +437,7 @@ class Captioner:
     def _check_ffmpeg_filter(self, filter_name: str) -> bool:
         """Check if an FFmpeg filter is available."""
         result = subprocess.run(
-            ["ffmpeg", "-filters"],
+            [FFMPEG, "-filters"],
             capture_output=True,
             text=True
         )
@@ -618,7 +621,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         try:
             encoder_args = get_encoder_args(self.encoder_config)
             cmd = [
-                "ffmpeg", "-y",
+                FFMPEG, "-y",
                 "-hide_banner", "-loglevel", "error", "-nostats",
                 "-i", str(video_path),
                 "-vf", f"ass={ass_path.name}",
@@ -685,7 +688,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         if not tokens:
             console.print("[yellow]Warning: No tokens to caption[/yellow]")
             cmd = [
-                "ffmpeg", "-y",
+                FFMPEG, "-y",
                 "-hide_banner", "-loglevel", "error", "-nostats",
                 "-i", str(video_path),
                 "-c", "copy",
@@ -699,7 +702,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
         # Get input video resolution to preserve it
         probe_cmd = [
-            "ffprobe", "-v", "error", "-select_streams", "v:0",
+            FFPROBE, "-v", "error", "-select_streams", "v:0",
             "-show_entries", "stream=width,height", "-of", "csv=p=0", str(video_path)
         ]
         probe_result = subprocess.run(probe_cmd, capture_output=True, text=True)
@@ -724,7 +727,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
             encoder_args = get_encoder_args(self.encoder_config)
             cmd = [
-                "ffmpeg", "-y",
+                FFMPEG, "-y",
                 "-hide_banner", "-loglevel", "error", "-nostats",
                 "-i", str(video_path),
                 "-vf", filter_chain,

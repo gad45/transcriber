@@ -30,6 +30,9 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
 ]
+macos-build = [
+    "pyinstaller>=6.19.0",
+]
 
 [project.scripts]
 video-editor = "video_editor.main:main"
@@ -38,3 +41,6 @@ video-editor-gui = "video_editor.gui_main:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["video_editor*"]
+
+[tool.setuptools.package-data]
+"video_editor.gui.recorder" = ["*.swift"]

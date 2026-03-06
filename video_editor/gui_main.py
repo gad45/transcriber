@@ -3,14 +3,14 @@
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
-load_dotenv()  # Load .env file automatically
+from video_editor.environment import load_app_env
+load_app_env()
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFontDatabase
 
-from .gui import MainWindow
+from video_editor.gui import MainWindow
 
 
 def main():
@@ -37,7 +37,11 @@ def main():
     if len(sys.argv) > 1:
         video_path = Path(sys.argv[1])
         if not video_path.exists():
-            print(f"Error: File not found: {video_path}")
+            QMessageBox.critical(
+                None,
+                "Video Editor",
+                f"File not found:\n{video_path}",
+            )
             sys.exit(1)
 
     # Create and show main window

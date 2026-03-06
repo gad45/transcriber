@@ -27,6 +27,8 @@ from PySide6.QtMultimedia import (
 
 from ..models import RecordingConfig
 from .ffmpeg_recorder import FFmpegRecorder
+from .macos_native_recorder import NativeMacOSRecorder
+from .macos_permissions import has_screen_capture_access, is_macos, request_screen_capture_access
 
 
 class RecordingState(Enum):
@@ -64,6 +66,7 @@ class RecordingController(QObject):
     state_changed = Signal(RecordingState)
     audio_level_changed = Signal(float)  # 0.0-1.0
     permission_status_changed = Signal(bool)  # True if microphone permission granted
+    screen_permission_status_changed = Signal(bool)  # True if screen capture permission granted
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -83,6 +86,14 @@ class RecordingController(QObject):
         self._ffmpeg_recorder.recording_error.connect(self._on_ffmpeg_error)
         self._ffmpeg_recorder.recording_warning.connect(self._on_ffmpeg_warning)
         self._ffmpeg_recorder.duration_changed.connect(self._on_ffmpeg_duration)
+
+        # Native macOS recorder for system audio capture
+        self._native_recorder = NativeMacOSRecorder(self)
+        self._native_recorder.recording_started.connect(self._on_native_started)
+        self._native_recorder.recording_stopped.connect(self._on_native_stopped)
+        self._native_recorder.recording_error.connect(self._on_native_error)
+        self._native_recorder.recording_warning.connect(self._on_native_warning)
+        self._native_recorder.duration_changed.connect(self._on_native_duration)
 
         # Qt multimedia objects
         self._session = QMediaCaptureSession()
@@ -308,6 +319,20 @@ class RecordingController(QObject):
         if self._state != RecordingState.IDLE:
             return False
 
+        if not self.check_screen_capture_permission(request_if_needed=True):
+            self.recording_warning.emit(self._screen_permission_message())
+            return False
+
+        if self._should_use_native_macos_recording():
+            self._recording_config = self._config.copy()
+            return self._start_macos_native_recording()
+
+        if self._config.audio_enabled and not self.check_microphone_permission():
+            self.recording_warning.emit(
+                "Microphone access was requested. Approve the macOS prompt, then start recording again."
+            )
+            return False
+
         # Snapshot config used for this recording (for post-crop consistency)
         self._recording_config = self._config.copy()
 
@@ -342,6 +367,37 @@ class RecordingController(QObject):
             self.recording_started.emit()
             return True
 
+        except Exception as e:
+            self.recording_error.emit(str(e))
+            return False
+
+    def _should_use_native_macos_recording(self) -> bool:
+        """Return True when the native macOS recorder should be used."""
+        return bool(is_macos() and self._config.system_audio_enabled)
+
+    def _start_macos_native_recording(self) -> bool:
+        """Start recording with the native macOS system-audio backend."""
+        try:
+            self._stop_audio_monitoring()
+
+            output_path = self._get_output_path()
+            self._output_path = output_path
+
+            microphone_name = None
+            qt_device = self._get_qt_audio_device()
+            if self._config.audio_enabled and qt_device is not None:
+                microphone_name = qt_device.description()
+
+            return self._native_recorder.start_recording(
+                screen_index=self._config.screen_index,
+                output_path=output_path,
+                capture_system_audio=True,
+                capture_microphone=self._config.audio_enabled,
+                microphone_name=microphone_name,
+                frame_rate=30,
+                sample_rate=self._config.audio_sample_rate,
+                channel_count=2,
+            )
         except Exception as e:
             self.recording_error.emit(str(e))
             return False
@@ -442,6 +498,11 @@ class RecordingController(QObject):
         self._set_state(RecordingState.RECORDING)
         self.recording_started.emit()
 
+    def _on_native_started(self):
+        """Handle native macOS recording started."""
+        self._set_state(RecordingState.RECORDING)
+        self.recording_started.emit()
+
     def _on_ffmpeg_stopped(self, output_path: Path):
         """Handle FFmpeg recording stopped."""
         self._set_state(RecordingState.IDLE)
@@ -451,6 +512,11 @@ class RecordingController(QObject):
         # FFmpeg recordings are already cropped, no post-processing needed
         self.recording_stopped.emit(output_path, False)
 
+    def _on_native_stopped(self, output_path: Path):
+        """Handle native macOS recording stopped."""
+        self._output_path = output_path
+        self._finalize_recording()
+
     def _on_ffmpeg_error(self, error: str):
         """Handle FFmpeg recording error."""
         self._set_state(RecordingState.IDLE)
@@ -459,12 +525,27 @@ class RecordingController(QObject):
             self._start_audio_monitoring()
         self.recording_error.emit(error)
 
+    def _on_native_error(self, error: str):
+        """Handle native macOS recording error."""
+        self._set_state(RecordingState.IDLE)
+        if self._preview_active:
+            self._start_audio_monitoring()
+        self.recording_error.emit(error)
+
     def _on_ffmpeg_warning(self, message: str):
         """Handle FFmpeg recording warning (non-fatal)."""
         self.recording_warning.emit(message)
 
+    def _on_native_warning(self, message: str):
+        """Handle native macOS warning (non-fatal)."""
+        self.recording_warning.emit(message)
+
     def _on_ffmpeg_duration(self, duration: float):
         """Handle FFmpeg duration update."""
+        self.duration_changed.emit(int(duration * 1000))
+
+    def _on_native_duration(self, duration: float):
+        """Handle native macOS duration update."""
         self.duration_changed.emit(int(duration * 1000))
 
     def stop_recording(self):
@@ -475,6 +556,8 @@ class RecordingController(QObject):
         # Check if using FFmpeg recorder
         if self._ffmpeg_recorder.is_recording:
             self._ffmpeg_recorder.stop_recording()
+        elif self._native_recorder.is_recording:
+            self._native_recorder.stop_recording()
         else:
             self._recorder.stop()
             self._screen_capture.setActive(False)
@@ -482,6 +565,9 @@ class RecordingController(QObject):
     def pause_recording(self):
         """Pause the current recording."""
         if self._state != RecordingState.RECORDING:
+            return
+
+        if not self.can_pause_recording():
             return
 
         self._recorder.pause()
@@ -492,8 +578,15 @@ class RecordingController(QObject):
         if self._state != RecordingState.PAUSED:
             return
 
+        if not self.can_pause_recording():
+            return
+
         self._recorder.record()
         self._set_state(RecordingState.RECORDING)
+
+    def can_pause_recording(self) -> bool:
+        """Return True when the active recorder backend supports pause."""
+        return not self._ffmpeg_recorder.is_recording and not self._native_recorder.is_recording
 
     def set_screen(self, index: int):
         """Set the screen to capture."""
@@ -524,6 +617,10 @@ class RecordingController(QObject):
         else:
             self._session.setAudioInput(None)
             self._audio_input = None
+
+    def set_system_audio_enabled(self, enabled: bool):
+        """Enable or disable native macOS system audio recording."""
+        self._config.system_audio_enabled = enabled
 
     def set_aspect_ratio(self, ratio: tuple[int, int] | None):
         """Set the target aspect ratio for cropping.
@@ -667,6 +764,10 @@ class RecordingController(QObject):
         if self._preview_active:
             return
 
+        if not self.check_screen_capture_permission(request_if_needed=True):
+            print("[Screen] Waiting for macOS screen capture permission...")
+            return
+
         self._apply_config()
         self._screen_capture.setActive(True)
         self._preview_active = True
@@ -726,6 +827,33 @@ class RecordingController(QObject):
             self._permission_checked = True  # Don't keep checking
             return True
 
+    def _screen_permission_message(self) -> str:
+        """Build a macOS-specific screen access message."""
+        if not is_macos():
+            return "Screen capture permission is required to record."
+
+        return (
+            "macOS screen capture access is required before recording.\n\n"
+            "Approve the macOS prompt. If no permission entry appears for this app, "
+            "launching via Terminal or launch_gui.command usually assigns the permission "
+            "to Terminal instead.\n\n"
+            "If macOS system audio is enabled in the recorder, this permission also "
+            "covers native screen and system audio recording."
+        )
+
+    def check_screen_capture_permission(self, request_if_needed: bool = True) -> bool:
+        """Check and optionally request macOS screen capture access."""
+        granted = has_screen_capture_access()
+        if granted:
+            self.screen_permission_status_changed.emit(True)
+            return True
+
+        if request_if_needed:
+            granted = request_screen_capture_access()
+
+        self.screen_permission_status_changed.emit(granted)
+        return granted
+
     def _on_permission_result(self, permission):
         """Handle permission request result."""
         app = QCoreApplication.instance()
@@ -741,6 +869,10 @@ class RecordingController(QObject):
 
     def _start_audio_monitoring(self):
         """Start monitoring audio input levels."""
+        if not self._config.audio_enabled:
+            self.audio_level_changed.emit(0.0)
+            return
+
         if self._audio_source is not None:
             return  # Already monitoring
 

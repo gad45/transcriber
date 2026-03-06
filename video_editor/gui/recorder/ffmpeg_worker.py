@@ -5,6 +5,11 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from ...runtime_paths import ffmpeg_executable
+
+
+FFMPEG = ffmpeg_executable()
+
 
 class FFmpegCropWorker:
     """Run an FFmpeg crop job in a background thread."""
@@ -28,7 +33,7 @@ class FFmpegCropWorker:
         try:
             self._output_path.parent.mkdir(parents=True, exist_ok=True)
             cmd = [
-                "ffmpeg",
+                FFMPEG,
                 "-y",
                 "-i",
                 str(self._input_path),
