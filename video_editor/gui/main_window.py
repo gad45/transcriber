@@ -1,9 +1,12 @@
 """Main window for the video editor GUI."""
 
+import copy
+import shutil
 import tempfile
+import threading
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Slot, QTimer
+from PySide6.QtCore import Qt, Slot, QTimer, Signal
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QMenuBar, QMenu, QToolBar, QPushButton, QLabel, QStatusBar,
@@ -38,6 +41,9 @@ class MainWindow(QMainWindow):
     - Status bar: Statistics
     """
 
+    _export_progress_updated = Signal(str)
+    _export_finished = Signal(bool, object)
+
     def __init__(self, video_path: Path | None = None, parent=None):
         super().__init__(parent)
 
@@ -45,6 +51,8 @@ class MainWindow(QMainWindow):
         self._config = Config()
         self._project_path: Path | None = None
         self._unsaved_changes = False
+        self._export_thread: threading.Thread | None = None
+        self._export_progress_dialog: QProgressDialog | None = None
 
         # Load API keys from settings file into environment
         SettingsDialog.load_settings_to_env()
@@ -350,6 +358,10 @@ class MainWindow(QMainWindow):
 
         # Recorder tab
         self._recorder_tab.open_in_editor_requested.connect(self._on_recording_open_requested)
+
+        # Background export
+        self._export_progress_updated.connect(self._on_export_progress_updated)
+        self._export_finished.connect(self._on_export_finished)
 
     def _apply_dark_theme(self):
         """Apply dark theme styling."""
@@ -966,6 +978,10 @@ class MainWindow(QMainWindow):
         if not self._session:
             return
 
+        if self._export_thread and self._export_thread.is_alive():
+            QMessageBox.information(self, "Export In Progress", "Wait for the current export to finish.")
+            return
+
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export Video",
@@ -978,119 +994,163 @@ class MainWindow(QMainWindow):
         if not path.endswith(".mp4"):
             path += ".mp4"
 
-        # Show progress dialog
-        progress = QProgressDialog("Exporting video...", "Cancel", 0, 100, self)
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.setMinimumDuration(0)
-        progress.setValue(10)
-        QApplication.processEvents()
+        output_path = Path(path).resolve()
+        session_snapshot = copy.deepcopy(self._session)
+        config_snapshot = copy.deepcopy(self._config)
+
+        self._export_progress_dialog = QProgressDialog("Preparing export...", None, 0, 0, self)
+        self._export_progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        self._export_progress_dialog.setMinimumDuration(0)
+        self._export_progress_dialog.setAutoClose(False)
+        self._export_progress_dialog.setAutoReset(False)
+        self._export_progress_dialog.setCancelButton(None)
+        self._export_progress_dialog.show()
+
+        self._export_btn.setEnabled(False)
+        self._status_label.setText("Preparing export...")
+
+        def run_export() -> None:
+            try:
+                result_path = self._run_export_job(session_snapshot, config_snapshot, output_path)
+                self._export_finished.emit(True, result_path)
+            except Exception as exc:
+                try:
+                    output_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                self._export_finished.emit(False, str(exc))
+
+        self._export_thread = threading.Thread(
+            target=run_export,
+            name="video-export",
+            daemon=True,
+        )
+        self._export_thread.start()
+
+    def _run_export_job(self, session: EditSession, config: Config, output_path: Path) -> Path:
+        """Run the export pipeline outside the UI thread."""
+        from ..main import _adjust_tokens_for_cuts
+
+        if output_path == session.video_path.resolve():
+            raise RuntimeError("Choose a different output path than the source video.")
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Apply caption settings to config before export.
+        caption_settings = session.caption_settings
+        config.caption_font_size = caption_settings.font_size
+        config.caption_font = caption_settings.font_family
+
+        # Convert normalized position to old-style position/offset for FFmpeg.
+        if caption_settings.pos_y < 0.35:
+            config.caption_position = "top"
+            config.caption_vertical_offset = caption_settings.pos_y * 1080
+        elif caption_settings.pos_y < 0.65:
+            config.caption_position = "center"
+            config.caption_vertical_offset = 60.0
+        else:
+            config.caption_position = "bottom"
+            config.caption_vertical_offset = (1.0 - caption_settings.pos_y) * 1080
+
+        cutter = Cutter(config)
+        captioner = Captioner(config)
+
+        keep_ranges = session.get_final_keep_ranges(
+            config.segment_start_buffer,
+            config.segment_end_buffer
+        )
+
+        self._export_progress_updated.emit("Cutting video...")
+
+        crop_filter = None
+        segment_crop_filters = None
+
+        if session.crop_config and not session.crop_config.is_default:
+            video_w, video_h = cutter.get_video_dimensions(session.video_path)
+            crop_filter = session.crop_config.to_ffmpeg_filter(video_w, video_h)
+
+        if session.segment_crop_overrides:
+            video_w, video_h = cutter.get_video_dimensions(session.video_path)
+            segment_crop_filters = {
+                idx: crop.to_ffmpeg_filter(video_w, video_h)
+                for idx, crop in session.segment_crop_overrides.items()
+                if not crop.is_default
+            }
+            if not segment_crop_filters:
+                segment_crop_filters = None
+
+        with tempfile.NamedTemporaryFile(prefix="video_editor_export_", suffix=".mp4", delete=False) as tmp_file:
+            temp_cut = Path(tmp_file.name)
+
+        temp_cut.unlink(missing_ok=True)
 
         try:
-            # Apply caption settings to config before export
-            caption_settings = self._session.caption_settings
-            self._config.caption_font_size = caption_settings.font_size
-            self._config.caption_font = caption_settings.font_family
-
-            # Convert normalized position to old-style position/offset for FFmpeg
-            # pos_y: 0.0 = top, 0.5 = center, 1.0 = bottom
-            if caption_settings.pos_y < 0.35:
-                self._config.caption_position = "top"
-                # Calculate offset from top edge (assuming 1080p for estimation)
-                self._config.caption_vertical_offset = caption_settings.pos_y * 1080
-            elif caption_settings.pos_y < 0.65:
-                self._config.caption_position = "center"
-                self._config.caption_vertical_offset = 60.0  # Ignored for center
-            else:
-                self._config.caption_position = "bottom"
-                # Calculate offset from bottom edge
-                self._config.caption_vertical_offset = (1.0 - caption_settings.pos_y) * 1080
-
-            cutter = Cutter(self._config)
-            captioner = Captioner(self._config)
-
-            # Get final ranges with user edits
-            keep_ranges = self._session.get_final_keep_ranges(
-                self._config.segment_start_buffer,
-                self._config.segment_end_buffer
-            )
-
-            progress.setLabelText("Cutting video...")
-            progress.setValue(30)
-            QApplication.processEvents()
-
-            # Prepare crop configuration
-            crop_filter = None
-            segment_crop_filters = None
-
-            if self._session.crop_config and not self._session.crop_config.is_default:
-                # Get video dimensions for crop calculation
-                video_w, video_h = cutter.get_video_dimensions(self._session.video_path)
-                crop_filter = self._session.crop_config.to_ffmpeg_filter(video_w, video_h)
-
-            # Build per-segment crop overrides
-            if self._session.segment_crop_overrides:
-                video_w, video_h = cutter.get_video_dimensions(self._session.video_path)
-                segment_crop_filters = {
-                    idx: crop.to_ffmpeg_filter(video_w, video_h)
-                    for idx, crop in self._session.segment_crop_overrides.items()
-                    if not crop.is_default
-                }
-                if not segment_crop_filters:
-                    segment_crop_filters = None
-
-            # Cut to temp file with crop applied
-            temp_cut = Path(tempfile.gettempdir()) / "video_editor_temp_cut.mp4"
             cutter.cut_video(
-                self._session.video_path,
+                session.video_path,
                 keep_ranges,
                 temp_cut,
                 crop_filter=crop_filter,
                 segment_crop_filters=segment_crop_filters
             )
 
-            progress.setLabelText("Adding captions...")
-            progress.setValue(70)
-            QApplication.processEvents()
+            self._export_progress_updated.emit("Adding captions...")
 
-            # Get tokens with text edits applied
-            tokens = self._session.get_final_tokens()
+            tokens = session.get_final_tokens()
 
-            # Only burn captions if enabled and tokens exist
-            if tokens and self._session.caption_settings.enabled:
-                # Adjust token times for the cut video (accounting for gaps between segments)
-                from ..main import _adjust_tokens_for_cuts
+            if tokens and session.caption_settings.enabled:
                 adjusted_tokens = _adjust_tokens_for_cuts(tokens, keep_ranges, Cutter.SEGMENT_GAP)
-
-                # Get caption settings from session
-                caption_settings_dict = self._session.caption_settings.to_dict()
-
-                # Burn streaming captions with GUI settings
                 captioner.burn_streaming_captions(
                     temp_cut,
                     adjusted_tokens,
-                    Path(path),
-                    max_words=self._config.max_caption_words,
-                    caption_settings=caption_settings_dict
+                    output_path,
+                    max_words=config.max_caption_words,
+                    caption_settings=session.caption_settings.to_dict()
                 )
-
-                # Clean up temp file
-                if temp_cut.exists():
-                    temp_cut.unlink()
             else:
-                # No tokens or captions disabled - just copy the cut video
-                import shutil
-                shutil.move(str(temp_cut), path)
+                self._export_progress_updated.emit("Finalizing export...")
+                shutil.move(str(temp_cut), str(output_path))
 
-            progress.setValue(100)
-            QMessageBox.information(self, "Export Complete", f"Video exported to:\n{path}")
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Export failed: {e}")
+            return output_path
         finally:
-            progress.close()
+            temp_cut.unlink(missing_ok=True)
+
+    @Slot(str)
+    def _on_export_progress_updated(self, label: str) -> None:
+        """Update export progress text from the worker thread."""
+        if self._export_progress_dialog:
+            self._export_progress_dialog.setLabelText(label)
+        self._status_label.setText(label)
+
+    @Slot(bool, object)
+    def _on_export_finished(self, success: bool, payload: object) -> None:
+        """Handle export completion on the UI thread."""
+        if self._export_progress_dialog:
+            self._export_progress_dialog.close()
+            self._export_progress_dialog = None
+
+        self._export_thread = None
+        self._export_btn.setEnabled(self._session is not None)
+
+        if success:
+            output_path = Path(payload)
+            self._status_label.setText(f"Exported {output_path.name}")
+            QMessageBox.information(self, "Export Complete", f"Video exported to:\n{output_path}")
+            return
+
+        self._status_label.setText("Export failed")
+        QMessageBox.critical(self, "Error", f"Export failed: {payload}")
 
     def closeEvent(self, event):
         """Handle window close."""
+        if self._export_thread and self._export_thread.is_alive():
+            QMessageBox.warning(
+                self,
+                "Export In Progress",
+                "Wait for the current export to finish before closing the editor."
+            )
+            event.ignore()
+            return
+
         if self._unsaved_changes:
             reply = QMessageBox.question(
                 self,
