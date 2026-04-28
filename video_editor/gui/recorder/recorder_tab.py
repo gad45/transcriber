@@ -16,6 +16,7 @@ from .recording_controller import RecordingController, RecordingState
 from .recording_preview import RecordingPreview
 from .recording_settings import RecordingSettingsPanel
 from .ffmpeg_worker import FFmpegCropWorker
+from .macos_permissions import has_screen_capture_access, is_macos
 from ..models import RecordingConfig
 from ...encoder import get_encoder_args
 
@@ -52,6 +53,7 @@ class RecorderTab(QWidget):
 
         self._setup_ui()
         self._connect_signals()
+        QTimer.singleShot(0, self._start_preview)
 
     def _setup_ui(self):
         """Set up the recorder tab UI."""
@@ -88,6 +90,29 @@ class RecorderTab(QWidget):
         self._status_label = QLabel("Ready to record")
         status_layout.addWidget(self._status_label)
 
+        self._permissions_btn = QPushButton("Grant Access")
+        self._permissions_btn.setToolTip(
+            "Request macOS screen capture and microphone permissions."
+        )
+        self._permissions_btn.setVisible(is_macos())
+        self._permissions_btn.setStyleSheet("""
+            QPushButton {
+                background: #444;
+                color: white;
+                padding: 4px 10px;
+                border: 1px solid #555;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background: #555;
+            }
+            QPushButton:disabled {
+                background: #333;
+                color: #777;
+            }
+        """)
+        status_layout.addWidget(self._permissions_btn)
+
         status_layout.addStretch()
 
         self._timer_label = QLabel("00:00:00")
@@ -107,9 +132,6 @@ class RecorderTab(QWidget):
         if screens:
             screen_w, screen_h = RecordingController.get_screen_pixel_size(screens[0])
             self._preview.set_screen_size(screen_w, screen_h)
-
-        # Start preview immediately so users can see what they'll record
-        self._controller.start_preview()
 
     def _setup_toolbar(self):
         """Set up the toolbar with recording controls."""
@@ -203,6 +225,7 @@ class RecorderTab(QWidget):
         self._stop_btn.clicked.connect(self._on_stop_clicked)
         self._pause_btn.toggled.connect(self._on_pause_toggled)
         self._refresh_btn.clicked.connect(self._on_refresh_clicked)
+        self._permissions_btn.clicked.connect(self._on_permissions_clicked)
 
         # Settings panel
         self._settings_panel.screen_changed.connect(self._on_screen_changed)
@@ -258,6 +281,30 @@ class RecorderTab(QWidget):
         """Handle refresh devices button click."""
         self._settings_panel.refresh_devices()
 
+    def _start_preview(self):
+        """Start preview and keep the status bar in sync."""
+        if self._controller.start_preview():
+            self._status_label.setText("Ready to record")
+
+    def _on_permissions_clicked(self):
+        """Request macOS recording permissions."""
+        config = self._settings_panel.get_config()
+        self._controller.set_config(config)
+
+        self._permissions_btn.setEnabled(False)
+        screen_granted, microphone_granted = self._controller.request_recording_permissions()
+        preview_started = self._controller.start_preview()
+        self._permissions_btn.setEnabled(True)
+
+        if preview_started and microphone_granted:
+            self._status_label.setText("Ready to record")
+        elif preview_started:
+            self._status_label.setText("Screen capture ready - check microphone access if needed")
+        elif not screen_granted:
+            self._status_label.setText("Grant macOS screen capture access, then reopen the app")
+        else:
+            self._status_label.setText("Screen preview did not start - toggle access and reopen the app")
+
     def _on_screen_changed(self, index: int):
         """Handle screen selection change."""
         self._controller.set_screen(index)
@@ -294,10 +341,13 @@ class RecorderTab(QWidget):
 
     def _on_permission_changed(self, granted: bool):
         """Handle microphone permission result."""
-        if granted:
+        if is_macos() and not has_screen_capture_access():
+            self._status_label.setText("Grant macOS screen capture access, then reopen the app")
+        elif granted:
             self._status_label.setText("Microphone access granted")
         else:
             self._status_label.setText("Microphone access denied - check System Settings")
+        self._permissions_btn.setEnabled(True)
 
     def _on_screen_permission_changed(self, granted: bool):
         """Handle screen capture permission result."""
@@ -306,6 +356,7 @@ class RecorderTab(QWidget):
                 self._status_label.setText("Ready to record")
         else:
             self._status_label.setText("Grant macOS screen capture access, then reopen the app")
+        self._permissions_btn.setEnabled(True)
 
     def _on_recording_started(self):
         """Handle recording started."""
@@ -313,6 +364,7 @@ class RecorderTab(QWidget):
         self._record_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
         self._pause_btn.setEnabled(self._controller.can_pause_recording())
+        self._permissions_btn.setEnabled(False)
         self._settings_panel.setEnabled(False)
         self._status_label.setText("Recording...")
         self._timer_update.start(100)
@@ -479,6 +531,7 @@ class RecorderTab(QWidget):
         self._stop_btn.setEnabled(False)
         self._pause_btn.setEnabled(False)
         self._pause_btn.setChecked(False)
+        self._permissions_btn.setEnabled(True)
         self._settings_panel.setEnabled(True)
         self._status_label.setText("Ready to record")
 
@@ -500,7 +553,7 @@ class RecorderTab(QWidget):
         super().showEvent(event)
         # Restart preview when tab becomes visible
         if not self._controller.is_recording:
-            self._controller.start_preview()
+            self._start_preview()
 
     def hideEvent(self, event):
         """Handle widget being hidden."""

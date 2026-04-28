@@ -1,4 +1,5 @@
 import AVFoundation
+import AppKit
 import CoreGraphics
 import CoreMedia
 import Dispatch
@@ -90,6 +91,14 @@ private func emit(event: String, payload: [String: Any] = [:]) {
 
     FileHandle.standardOutput.write(data)
     FileHandle.standardOutput.write(newline)
+}
+
+private func prepareAppKitRuntime() {
+    // ScreenCaptureKit may create a status item while recording. Initializing
+    // NSApplication avoids AppKit exceptions inside the helper process.
+    precondition(Thread.isMainThread)
+    _ = NSApplication.shared
+    NSApp.setActivationPolicy(.prohibited)
 }
 
 @available(macOS 15.0, *)
@@ -200,8 +209,12 @@ final class RecorderApp: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
 
     private func run() async {
         do {
-            guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
-                throw ToolError.message("macOS screen and system audio recording access was denied")
+            guard CGPreflightScreenCaptureAccess() else {
+                throw ToolError.message(
+                    "macOS screen and system audio recording access is not available to the recorder helper. " +
+                    "Use the Grant Access button in Video Editor, then quit and reopen the app. " +
+                    "If Video Editor already appears enabled, remove it from Screen & System Audio Recording and add it again."
+                )
             }
 
             let includeMicrophone = try await resolveMicrophoneCapture()
@@ -381,9 +394,10 @@ struct MacOSSystemAudioRecorderTool {
                 throw ToolError.message("Native macOS system audio capture requires macOS 15 or later")
             }
 
+            prepareAppKitRuntime()
             let app = RecorderApp(options: options)
             app.start()
-            dispatchMain()
+            RunLoop.main.run()
         } catch {
             emit(event: "error", payload: ["message": error.localizedDescription])
             Foundation.exit(1)

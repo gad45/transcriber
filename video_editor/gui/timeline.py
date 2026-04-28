@@ -100,6 +100,8 @@ class TimelineView(QGraphicsView):
     toggle_segment = Signal(int)  # segment index
     highlight_created = Signal(float, float)  # start, end times
     highlight_removed = Signal(int)  # highlight index
+    viewport_resized = Signal()
+    zoom_requested = Signal(float)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -133,7 +135,7 @@ class TimelineView(QGraphicsView):
         self._drag_preview_item: HighlightItem | None = None
 
         # Configure view
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setBackgroundBrush(QBrush(QColor(30, 30, 30)))
@@ -249,6 +251,11 @@ class TimelineView(QGraphicsView):
 
     def set_scale(self, pixels_per_second: float):
         """Update the timeline scale (zoom level)."""
+        visible_rect = self.mapToScene(self.viewport().rect()).boundingRect()
+        center_time = 0.0
+        if self.pixels_per_second > 0:
+            center_time = visible_rect.center().x() / self.pixels_per_second
+
         self.pixels_per_second = pixels_per_second
 
         # Update scene size
@@ -263,9 +270,20 @@ class TimelineView(QGraphicsView):
         for item in self._highlight_items:
             item.update_scale(pixels_per_second)
 
+        if self.duration_seconds > 0:
+            target_center = center_time * self.pixels_per_second
+            target_scroll = int(target_center - self.viewport().width() / 2)
+            self.set_scroll_offset(target_scroll)
+
     def get_scroll_offset(self) -> int:
         """Get current horizontal scroll offset."""
         return self.horizontalScrollBar().value()
+
+    def set_scroll_offset(self, offset: int):
+        """Set current horizontal scroll offset."""
+        scrollbar = self.horizontalScrollBar()
+        clamped = max(scrollbar.minimum(), min(offset, scrollbar.maximum()))
+        scrollbar.setValue(clamped)
 
     # Event handlers
 
@@ -347,10 +365,20 @@ class TimelineView(QGraphicsView):
             delta = event.angleDelta().y()
             factor = 1.1 if delta > 0 else 0.9
             new_scale = max(5, min(200, self.pixels_per_second * factor))
-            self.set_scale(new_scale)
+            self.zoom_requested.emit(float(round(new_scale)))
+            event.accept()
+        elif event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+            pixel_delta = event.pixelDelta()
+            angle_delta = event.angleDelta()
+            delta = pixel_delta.y() if not pixel_delta.isNull() else angle_delta.y() / 8
+            self.set_scroll_offset(self.get_scroll_offset() - int(delta))
             event.accept()
         else:
             super().wheelEvent(event)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.viewport_resized.emit()
 
     # Private slots
 
@@ -399,6 +427,7 @@ class Timeline(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._updating_navigation = False
 
         self._setup_ui()
         self._connect_signals()
@@ -415,6 +444,65 @@ class Timeline(QWidget):
         # Timeline view
         self._view = TimelineView()
         layout.addWidget(self._view)
+
+        # Persistent timeline navigation. The native macOS scrollbar is an
+        # overlay control, so it can fade out even when Qt asks for it.
+        navigation_layout = QHBoxLayout()
+        navigation_layout.setContentsMargins(4, 4, 4, 2)
+        navigation_layout.setSpacing(8)
+
+        navigation_label = QLabel("Timeline:")
+        navigation_label.setFixedWidth(64)
+        navigation_layout.addWidget(navigation_label)
+
+        self._navigation_start_label = QLabel("0:00")
+        self._navigation_start_label.setFixedWidth(44)
+        navigation_layout.addWidget(self._navigation_start_label)
+
+        self._navigation_slider = QSlider(Qt.Orientation.Horizontal)
+        self._navigation_slider.setRange(0, 0)
+        self._navigation_slider.setTracking(True)
+        self._navigation_slider.setMinimumHeight(28)
+        self._navigation_slider.setToolTip("Move the visible timeline window")
+        self._navigation_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                background: #4a4a4a;
+                height: 8px;
+                border-radius: 4px;
+            }
+            QSlider::sub-page:horizontal {
+                background: #2196f3;
+                height: 8px;
+                border-radius: 4px;
+            }
+            QSlider::handle:horizontal {
+                background: #d0d0d0;
+                border: 1px solid #8a8a8a;
+                width: 22px;
+                margin: -8px 0;
+                border-radius: 11px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #ffffff;
+            }
+            QSlider::groove:horizontal:disabled {
+                background: #333333;
+            }
+            QSlider::handle:horizontal:disabled {
+                background: #666666;
+                border-color: #555555;
+            }
+        """)
+        navigation_layout.addWidget(self._navigation_slider, stretch=1)
+
+        self._navigation_range_label = QLabel("0:00 / 0:00")
+        self._navigation_range_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._navigation_range_label.setFixedWidth(104)
+        navigation_layout.addWidget(self._navigation_range_label)
+
+        layout.addLayout(navigation_layout)
 
         # Zoom controls
         zoom_layout = QHBoxLayout()
@@ -447,17 +535,21 @@ class Timeline(QWidget):
 
         # Zoom slider
         self._zoom_slider.valueChanged.connect(self._on_zoom_changed)
+        self._view.zoom_requested.connect(self._on_view_zoom_requested)
 
         # Scroll synchronization
-        self._view.horizontalScrollBar().valueChanged.connect(
-            lambda v: self._ruler.set_scroll_offset(v)
-        )
+        scrollbar = self._view.horizontalScrollBar()
+        scrollbar.valueChanged.connect(self._on_scroll_changed)
+        scrollbar.rangeChanged.connect(self._on_scroll_range_changed)
+        self._view.viewport_resized.connect(self._update_navigation_controls)
+        self._navigation_slider.valueChanged.connect(self._on_navigation_changed)
 
     def load_session(self, session: EditSession):
         """Load an edit session."""
         self._view.load_session(session)
         self._ruler.set_duration(session.video_duration)
         self._ruler.set_scale(self._view.pixels_per_second)
+        self._update_navigation_controls()
 
     def update_segment(self, index: int, is_kept: bool):
         """Update a segment's appearance."""
@@ -480,3 +572,64 @@ class Timeline(QWidget):
         self._view.set_scale(float(value))
         self._ruler.set_scale(float(value))
         self._zoom_label.setText(f"{value} px/s")
+        self._update_navigation_controls()
+
+    @Slot(float)
+    def _on_view_zoom_requested(self, value: float):
+        value = max(self._zoom_slider.minimum(), min(int(value), self._zoom_slider.maximum()))
+        if self._zoom_slider.value() == value:
+            self._on_zoom_changed(value)
+        else:
+            self._zoom_slider.setValue(value)
+
+    @Slot(int)
+    def _on_scroll_changed(self, value: int):
+        self._ruler.set_scroll_offset(value)
+        self._update_navigation_controls()
+
+    @Slot(int, int)
+    def _on_scroll_range_changed(self, minimum: int, maximum: int):
+        self._update_navigation_controls()
+
+    @Slot(int)
+    def _on_navigation_changed(self, value: int):
+        if self._updating_navigation:
+            return
+        self._view.set_scroll_offset(value)
+
+    def _update_navigation_controls(self):
+        """Sync the persistent navigation slider with the hidden view scrollbar."""
+        scrollbar = self._view.horizontalScrollBar()
+        maximum = scrollbar.maximum()
+        value = scrollbar.value()
+
+        self._updating_navigation = True
+        self._navigation_slider.setRange(0, maximum)
+        self._navigation_slider.setSingleStep(max(1, int(self._view.viewport().width() * 0.1)))
+        self._navigation_slider.setPageStep(max(1, self._view.viewport().width()))
+        self._navigation_slider.setValue(value)
+        self._navigation_slider.setEnabled(maximum > 0)
+        self._updating_navigation = False
+
+        start_time, end_time = self._visible_time_range()
+        self._navigation_start_label.setText(self._format_time(start_time))
+        self._navigation_range_label.setText(
+            f"{self._format_time(end_time)} / {self._format_time(self._view.duration_seconds)}"
+        )
+
+    def _visible_time_range(self) -> tuple[float, float]:
+        if self._view.pixels_per_second <= 0:
+            return 0.0, 0.0
+        start_time = self._view.get_scroll_offset() / self._view.pixels_per_second
+        visible_seconds = self._view.viewport().width() / self._view.pixels_per_second
+        end_time = min(self._view.duration_seconds, start_time + visible_seconds)
+        return max(0.0, start_time), max(0.0, end_time)
+
+    @staticmethod
+    def _format_time(seconds: float) -> str:
+        total_seconds = max(0, int(round(seconds)))
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        if hours:
+            return f"{hours}:{minutes:02d}:{seconds:02d}"
+        return f"{minutes}:{seconds:02d}"

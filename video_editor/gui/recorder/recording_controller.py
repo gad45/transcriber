@@ -155,10 +155,12 @@ class RecordingController(QObject):
 
     def _on_capture_error(self, error, error_string: str):
         """Handle screen capture errors."""
+        was_preview_active = self._preview_active
         self._set_state(RecordingState.IDLE)
-        # Resume audio monitoring for preview
-        if self._preview_active:
-            self._start_audio_monitoring()
+        self._screen_capture.setActive(False)
+        self._preview_active = False
+        if was_preview_active:
+            self._stop_audio_monitoring()
         self.recording_error.emit(f"Screen capture error: {error_string}")
 
     def _on_recorder_state_changed(self, state):
@@ -320,8 +322,14 @@ class RecordingController(QObject):
             return False
 
         if not self.check_screen_capture_permission(request_if_needed=True):
-            self.recording_warning.emit(self._screen_permission_message())
-            return False
+            if not is_macos():
+                self.recording_warning.emit(self._screen_permission_message())
+                return False
+            self.recording_warning.emit(
+                "macOS has not confirmed screen recording access yet. "
+                "Attempting to start recording anyway; if it fails, toggle "
+                "Video Editor off and on in Screen & System Audio Recording."
+            )
 
         if self._should_use_native_macos_recording():
             self._recording_config = self._config.copy()
@@ -515,7 +523,11 @@ class RecordingController(QObject):
     def _on_native_stopped(self, output_path: Path):
         """Handle native macOS recording stopped."""
         self._output_path = output_path
-        self._finalize_recording()
+        self._set_state(RecordingState.IDLE)
+        if self._preview_active:
+            self._start_audio_monitoring()
+        # Native recorder captures full display; no Qt post-crop step needed.
+        self.recording_stopped.emit(output_path, False)
 
     def _on_ffmpeg_error(self, error: str):
         """Handle FFmpeg recording error."""
@@ -755,25 +767,35 @@ class RecordingController(QObject):
 
     # Preview methods
 
-    def start_preview(self):
+    def start_preview(self) -> bool:
         """Start screen capture for live preview without recording.
 
-        This allows users to see what will be recorded and position
-        the crop overlay before starting the actual recording.
+        Only starts if screen capture permission is already granted.
+        Call check_screen_capture_permission(request_if_needed=True) first
+        if you want to prompt the user.
         """
         if self._preview_active:
-            return
+            return True
 
-        if not self.check_screen_capture_permission(request_if_needed=True):
-            print("[Screen] Waiting for macOS screen capture permission...")
-            return
+        # Only check — do NOT request here to avoid prompting on every app start.
+        if not has_screen_capture_access():
+            print("[Screen] Screen capture permission not yet granted; skipping preview.")
+            if not is_macos():
+                return False
+            print("[Screen] Attempting preview anyway (permission may update after TCC restart).")
 
         self._apply_config()
         self._screen_capture.setActive(True)
+
+        # QScreenCapture.isActive() is unreliable immediately after setActive(True)
+        # because the underlying AVFoundation session starts asynchronously.
+        # We optimistically mark preview as active; _on_capture_error will clear it
+        # if the hardware actually fails to start.
         self._preview_active = True
 
         # Start audio level monitoring
         self._start_audio_monitoring()
+        return True
 
     def stop_preview(self):
         """Stop screen capture preview.
@@ -827,6 +849,27 @@ class RecordingController(QObject):
             self._permission_checked = True  # Don't keep checking
             return True
 
+    def request_microphone_permission(self) -> bool:
+        """Explicitly request microphone permission for voice capture."""
+        permission = QMicrophonePermission()
+        app = QCoreApplication.instance()
+        status = app.checkPermission(permission)
+
+        if status == Qt.PermissionStatus.Granted:
+            print("[Audio] Microphone permission: GRANTED")
+            self._permission_checked = True
+            self.permission_status_changed.emit(True)
+            return True
+
+        if status == Qt.PermissionStatus.Undetermined:
+            print("[Audio] Microphone permission: UNDETERMINED - requesting...")
+            app.requestPermission(permission, self, self._on_permission_result)
+            return False
+
+        print("[Audio] Microphone permission: DENIED")
+        self.permission_status_changed.emit(False)
+        return False
+
     def _screen_permission_message(self) -> str:
         """Build a macOS-specific screen access message."""
         if not is_macos():
@@ -841,7 +884,7 @@ class RecordingController(QObject):
             "covers native screen and system audio recording."
         )
 
-    def check_screen_capture_permission(self, request_if_needed: bool = True) -> bool:
+    def check_screen_capture_permission(self, request_if_needed: bool = False) -> bool:
         """Check and optionally request macOS screen capture access."""
         granted = has_screen_capture_access()
         if granted:
@@ -853,6 +896,12 @@ class RecordingController(QObject):
 
         self.screen_permission_status_changed.emit(granted)
         return granted
+
+    def request_recording_permissions(self) -> tuple[bool, bool]:
+        """Request screen capture and microphone permissions for recording."""
+        screen_granted = self.check_screen_capture_permission(request_if_needed=True)
+        microphone_granted = self.request_microphone_permission()
+        return screen_granted, microphone_granted
 
     def _on_permission_result(self, permission):
         """Handle permission request result."""

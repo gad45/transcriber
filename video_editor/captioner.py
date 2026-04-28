@@ -441,6 +441,8 @@ class Captioner:
             capture_output=True,
             text=True
         )
+        if result.returncode != 0:
+            return False
         return filter_name in result.stdout
 
     def _generate_streaming_ass(
@@ -664,8 +666,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         Burn streaming captions into video using FFmpeg.
 
         Tries multiple approaches in order of preference:
-        1. drawtext filter (requires libfreetype)
-        2. ASS subtitles with karaoke effect (requires libass)
+        1. ASS subtitles with karaoke effect (requires libass)
+        2. drawtext filter (requires libfreetype)
         3. Falls back to regular SRT-based captions
 
         Args:
@@ -716,12 +718,25 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             video_width, video_height = 1920, 1080
             resolution = None
 
-        # Check for available filters
-        has_drawtext = self._check_ffmpeg_filter("drawtext")
+        # Prefer the file-based ASS path. Long videos can produce thousands of
+        # drawtext filters, which makes the FFmpeg command fragile and slow.
         has_ass = self._check_ffmpeg_filter(" ass ")  # Space-padded to avoid false matches
+        has_drawtext = self._check_ffmpeg_filter("drawtext")
+
+        if has_ass:
+            return self._burn_streaming_captions_ass(
+                video_path,
+                tokens,
+                output_path,
+                max_words,
+                resolution,
+                caption_settings,
+                video_width,
+                video_height,
+            )
 
         if has_drawtext:
-            # Use drawtext filter (best quality)
+            # Use drawtext when libass is unavailable.
             console.print("[dim]Using drawtext filter for streaming captions[/dim]")
             filter_chain = self._build_drawtext_filter(tokens, max_words, caption_settings)
 
@@ -737,18 +752,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             if resolution:
                 cmd.extend(["-s", resolution])
             cmd.extend(["-c:a", "copy", str(output_path)])
-
-        elif has_ass:
-            return self._burn_streaming_captions_ass(
-                video_path,
-                tokens,
-                output_path,
-                max_words,
-                resolution,
-                caption_settings,
-                video_width,
-                video_height,
-            )
 
         else:
             # No suitable filter available

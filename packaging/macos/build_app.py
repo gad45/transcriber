@@ -47,6 +47,39 @@ def _capture(cmd: list[str], *, cwd: Path | None = None) -> str:
     return result.stdout
 
 
+def _default_codesign_identity() -> str:
+    """Prefer a stable local signing identity so macOS TCC permissions persist."""
+    env_identity = os.getenv("VIDEO_EDITOR_CODESIGN_IDENTITY", "").strip()
+    if env_identity:
+        return env_identity
+
+    security = shutil.which("security")
+    if not security:
+        return "-"
+
+    try:
+        output = _capture([security, "find-identity", "-v", "-p", "codesigning"])
+    except subprocess.CalledProcessError:
+        return "-"
+
+    identities: list[str] = []
+    for line in output.splitlines():
+        line = line.strip()
+        if ")" not in line or '"' not in line:
+            continue
+        identity = line.split('"', 2)[1]
+        if identity:
+            identities.append(identity)
+
+    for identity in identities:
+        if identity.startswith("Apple Development:") and "@" not in identity:
+            return identity
+    for identity in identities:
+        if identity.startswith("Apple Development:"):
+            return identity
+    return identities[0] if identities else "-"
+
+
 def _project_version() -> str:
     pyproject_path = ROOT_DIR / "pyproject.toml"
     with pyproject_path.open("rb") as f:
@@ -380,8 +413,12 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--codesign-identity",
-        default="-",
-        help="codesign identity. Defaults to ad-hoc signing ('-').",
+        default=None,
+        help=(
+            "codesign identity. Defaults to VIDEO_EDITOR_CODESIGN_IDENTITY, then the "
+            "first named local Apple Development identity, then any Apple Development "
+            "identity, then ad-hoc signing ('-')."
+        ),
     )
     parser.add_argument(
         "--no-codesign",
@@ -448,8 +485,10 @@ def main() -> int:
 
     _update_info_plist(app_path, version)
 
+    codesign_identity = args.codesign_identity or _default_codesign_identity()
+
     if not args.no_codesign:
-        _codesign(app_path, args.codesign_identity)
+        _codesign(app_path, codesign_identity)
         _verify_signature(app_path)
 
     if not args.no_dmg:
@@ -471,6 +510,8 @@ def main() -> int:
         print(f"Bundled .env: {env_file}")
     else:
         print("Bundled .env: no")
+    if not args.no_codesign:
+        print(f"Code signed with: {codesign_identity}")
 
     return 0
 
