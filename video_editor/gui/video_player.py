@@ -1,18 +1,23 @@
 """Video player widget with playback controls and crop/pan support."""
 
+import hashlib
+import subprocess
+import tempfile
+import threading
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal, Slot, QUrl, QRectF, QSizeF, QPointF
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSlider, QLabel,
     QStyle, QSizePolicy, QGraphicsScene, QGraphicsView, QGraphicsRectItem,
-    QGraphicsTextItem
+    QGraphicsTextItem, QComboBox
 )
-from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QMediaDevices, QAudioDevice
 from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
 from PySide6.QtGui import QBrush, QColor, QPen, QPainter, QCursor, QFont
 
 from .models import CropConfig, CaptionSettings
+from ..runtime_paths import ffmpeg_executable
 from ..transcriber import Token
 
 
@@ -574,6 +579,8 @@ class VideoPlayer(QWidget):
     duration_changed = Signal(int)
     crop_changed = Signal(object)  # CropConfig
     caption_settings_changed = Signal(object)  # CaptionSettings - emitted when user drags caption
+    _preview_audio_ready = Signal(int, object)  # generation, Path
+    _preview_audio_failed = Signal(int, str)  # generation, error message
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -596,6 +603,14 @@ class VideoPlayer(QWidget):
         self._caption_chunks: list[list[Token]] = []
         self._caption_visible = True
         self._caption_mode = False
+        self._media_devices: QMediaDevices | None = None
+        self._audio_player: QMediaPlayer | None = None
+        self._video_audio_output: QAudioOutput | None = None
+        self._preview_audio_path: Path | None = None
+        self._preview_audio_ready_for_playback = False
+        self._preview_audio_generation = 0
+        self._preview_audio_thread: threading.Thread | None = None
+        self._use_video_audio_fallback = False
 
         self._setup_ui()
         self._setup_media_player()
@@ -692,7 +707,15 @@ class VideoPlayer(QWidget):
 
         controls_layout.addStretch()
 
-        # Volume control
+        # Audio output and volume controls
+        output_label = QLabel("Output")
+        controls_layout.addWidget(output_label)
+
+        self._audio_output_combo = QComboBox()
+        self._audio_output_combo.setFixedWidth(180)
+        self._audio_output_combo.setToolTip("Choose where preview audio plays")
+        controls_layout.addWidget(self._audio_output_combo)
+
         volume_icon = QLabel("Vol")
         controls_layout.addWidget(volume_icon)
 
@@ -707,10 +730,18 @@ class VideoPlayer(QWidget):
     def _setup_media_player(self):
         """Set up the media player."""
         self._player = QMediaPlayer()
-        self._audio_output = QAudioOutput()
+        self._audio_player = QMediaPlayer()
+        self._media_devices = QMediaDevices(self)
+        self._audio_output = QAudioOutput(QMediaDevices.defaultAudioOutput(), self)
         self._audio_output.setVolume(0.8)
+        self._audio_output.setMuted(False)
+        self._video_audio_output = QAudioOutput(self)
+        self._video_audio_output.setVolume(0)
+        self._video_audio_output.setMuted(True)
+        self._populate_audio_outputs()
 
-        self._player.setAudioOutput(self._audio_output)
+        self._player.setAudioOutput(self._video_audio_output)
+        self._audio_player.setAudioOutput(self._audio_output)
         self._player.setVideoOutput(self._video_item)
 
         # Connect to native size changed to update scene rect
@@ -727,13 +758,24 @@ class VideoPlayer(QWidget):
         self._slider.sliderReleased.connect(self._on_slider_released)
         self._slider.sliderMoved.connect(self._on_slider_moved)
 
-        # Volume
+        # Audio
+        self._audio_output_combo.currentIndexChanged.connect(self._on_audio_output_changed)
         self._volume_slider.valueChanged.connect(self._on_volume_changed)
 
         # Media player signals
         self._player.positionChanged.connect(self._on_position_changed)
         self._player.durationChanged.connect(self._on_duration_changed)
         self._player.playbackStateChanged.connect(self._on_playback_state_changed)
+        self._player.tracksChanged.connect(self._on_tracks_changed)
+        self._player.errorOccurred.connect(self._on_player_error)
+        self._audio_player.positionChanged.connect(self._on_audio_position_changed)
+        self._audio_player.errorOccurred.connect(self._on_audio_player_error)
+
+        if self._media_devices is not None:
+            self._media_devices.audioOutputsChanged.connect(self._on_audio_outputs_changed)
+
+        self._preview_audio_ready.connect(self._on_preview_audio_ready)
+        self._preview_audio_failed.connect(self._on_preview_audio_failed)
 
         # Crop interaction signals from view
         self._view.crop_rect_changed.connect(self._on_crop_rect_changed)
@@ -798,17 +840,21 @@ class VideoPlayer(QWidget):
     def load_video(self, path: Path) -> None:
         """Load a video file."""
         self._video_path = path
+        self._prepare_preview_audio(path)
+        self._ensure_audio_output()
         self._player.setSource(QUrl.fromLocalFile(str(path)))
 
     def play(self) -> None:
         """Start playback."""
         if self._player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
             self._player.play()
+        self._play_preview_audio()
 
     def pause(self) -> None:
         """Pause playback."""
         if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self._player.pause()
+        self._pause_preview_audio()
 
     def toggle_play(self) -> None:
         """Toggle between play and pause."""
@@ -821,6 +867,8 @@ class VideoPlayer(QWidget):
     def seek(self, position_ms: int) -> None:
         """Seek to a specific position in milliseconds."""
         self._player.setPosition(position_ms)
+        if self._preview_audio_ready_for_playback and self._audio_player is not None:
+            self._audio_player.setPosition(position_ms)
 
     def seek_seconds(self, seconds: float) -> None:
         """Seek to a specific position in seconds."""
@@ -828,6 +876,8 @@ class VideoPlayer(QWidget):
 
     def get_position_ms(self) -> int:
         """Get current position in milliseconds."""
+        if self._preview_audio_ready_for_playback and self._audio_player is not None:
+            return self._audio_player.position()
         return self._player.position()
 
     def get_position_seconds(self) -> float:
@@ -848,13 +898,13 @@ class VideoPlayer(QWidget):
 
     def jump_forward(self, seconds: float = 5.0) -> None:
         """Jump forward by specified seconds."""
-        new_pos = min(self._player.position() + int(seconds * 1000), self._duration_ms)
-        self._player.setPosition(new_pos)
+        new_pos = min(self.get_position_ms() + int(seconds * 1000), self._duration_ms)
+        self.seek(new_pos)
 
     def jump_backward(self, seconds: float = 5.0) -> None:
         """Jump backward by specified seconds."""
-        new_pos = max(self._player.position() - int(seconds * 1000), 0)
-        self._player.setPosition(new_pos)
+        new_pos = max(self.get_position_ms() - int(seconds * 1000), 0)
+        self.seek(new_pos)
 
     # Crop API
 
@@ -1066,13 +1116,18 @@ class VideoPlayer(QWidget):
     def _toggle_play(self):
         if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self._player.pause()
+            self._pause_preview_audio()
         else:
             self._player.play()
+            self._play_preview_audio()
 
     @Slot()
     def _stop(self):
         self._player.stop()
         self._player.setPosition(0)
+        if self._audio_player is not None:
+            self._audio_player.stop()
+            self._audio_player.setPosition(0)
 
     @Slot()
     def _on_slider_pressed(self):
@@ -1081,7 +1136,7 @@ class VideoPlayer(QWidget):
     @Slot()
     def _on_slider_released(self):
         self._seeking = False
-        self._player.setPosition(self._slider.value())
+        self.seek(self._slider.value())
 
     @Slot(int)
     def _on_slider_moved(self, value: int):
@@ -1090,9 +1145,39 @@ class VideoPlayer(QWidget):
     @Slot(int)
     def _on_volume_changed(self, value: int):
         self._audio_output.setVolume(value / 100.0)
+        self._audio_output.setMuted(value == 0)
+
+    @Slot(int)
+    def _on_audio_output_changed(self, index: int):
+        device_id = self._audio_output_combo.itemData(index)
+        if device_id is None:
+            return
+
+        for device in QMediaDevices.audioOutputs():
+            if self._audio_device_id(device) == device_id:
+                self._audio_output.setDevice(device)
+                self._audio_output.setMuted(self._volume_slider.value() == 0)
+                self._audio_output.setVolume(self._volume_slider.value() / 100.0)
+                self._audio_player.setAudioOutput(self._audio_output)
+                self._player.setAudioOutput(
+                    self._audio_output if self._use_video_audio_fallback else self._video_audio_output
+                )
+                self._audio_output_combo.setToolTip(f"Preview audio output: {device.description()}")
+                return
 
     @Slot(int)
     def _on_position_changed(self, position: int):
+        if self._preview_audio_ready_for_playback:
+            return
+        if not self._seeking:
+            self._slider.setValue(position)
+            self._time_label.setText(format_time(position))
+        self.position_changed.emit(position)
+
+    @Slot(int)
+    def _on_audio_position_changed(self, position: int):
+        if not self._preview_audio_ready_for_playback:
+            return
         if not self._seeking:
             self._slider.setValue(position)
             self._time_label.setText(format_time(position))
@@ -1109,8 +1194,166 @@ class VideoPlayer(QWidget):
     def _on_playback_state_changed(self, state: QMediaPlayer.PlaybackState):
         if state == QMediaPlayer.PlaybackState.PlayingState:
             self._play_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPause))
+            self._play_preview_audio()
         else:
             self._play_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
+            self._pause_preview_audio()
+
+    @Slot()
+    def _on_tracks_changed(self):
+        if self._player.activeAudioTrack() >= 0:
+            self._player.setActiveAudioTrack(-1)
+
+    @Slot()
+    def _on_audio_outputs_changed(self):
+        self._populate_audio_outputs(self._audio_device_id(self._audio_output.device()))
+        self._ensure_audio_output()
+
+    @Slot(QMediaPlayer.Error, str)
+    def _on_player_error(self, error: QMediaPlayer.Error, error_string: str):
+        if error != QMediaPlayer.Error.NoError:
+            print(f"[Playback] {error.name}: {error_string}")
+
+    @Slot(QMediaPlayer.Error, str)
+    def _on_audio_player_error(self, error: QMediaPlayer.Error, error_string: str):
+        if error != QMediaPlayer.Error.NoError:
+            print(f"[Preview audio] {error.name}: {error_string}")
+
+    @Slot(int, object)
+    def _on_preview_audio_ready(self, generation: int, audio_path_obj: object):
+        if generation != self._preview_audio_generation or not isinstance(audio_path_obj, Path):
+            return
+
+        self._preview_audio_path = audio_path_obj
+        self._preview_audio_ready_for_playback = True
+        self._use_video_audio_fallback = False
+        self._audio_player.setSource(QUrl.fromLocalFile(str(audio_path_obj)))
+        self._audio_player.setPosition(self._player.position())
+        self._ensure_audio_output()
+        if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            self._play_preview_audio()
+
+    @Slot(int, str)
+    def _on_preview_audio_failed(self, generation: int, error_message: str):
+        if generation != self._preview_audio_generation:
+            return
+        self._preview_audio_ready_for_playback = False
+        self._use_video_audio_fallback = True
+        self._preview_audio_path = None
+        self._audio_player.setSource(QUrl())
+        self._player.setAudioOutput(self._audio_output)
+        print(f"[Preview audio] Falling back to Qt media audio: {error_message}")
+
+    @staticmethod
+    def _audio_device_id(device: QAudioDevice) -> bytes:
+        return bytes(device.id())
+
+    def _populate_audio_outputs(self, selected_id: bytes | None = None):
+        """Refresh the playback output selector."""
+        if selected_id is None:
+            selected_id = self._audio_device_id(QMediaDevices.defaultAudioOutput())
+
+        self._audio_output_combo.blockSignals(True)
+        self._audio_output_combo.clear()
+
+        selected_index = -1
+        for index, device in enumerate(QMediaDevices.audioOutputs()):
+            device_id = self._audio_device_id(device)
+            self._audio_output_combo.addItem(device.description(), device_id)
+            if device_id == selected_id:
+                selected_index = index
+
+        if self._audio_output_combo.count() == 0:
+            self._audio_output_combo.addItem("No output", None)
+            self._audio_output_combo.setEnabled(False)
+        else:
+            self._audio_output_combo.setEnabled(True)
+            if selected_index < 0:
+                selected_index = 0
+            self._audio_output_combo.setCurrentIndex(selected_index)
+
+        self._audio_output_combo.blockSignals(False)
+
+    def _ensure_audio_output(self):
+        """Keep QMediaPlayer bound to a live, unmuted audio output."""
+        if self._audio_output_combo.count() > 0:
+            self._on_audio_output_changed(self._audio_output_combo.currentIndex())
+        self._audio_output.setMuted(self._volume_slider.value() == 0)
+        self._audio_output.setVolume(self._volume_slider.value() / 100.0)
+        self._audio_player.setAudioOutput(self._audio_output)
+        self._player.setAudioOutput(
+            self._audio_output if self._use_video_audio_fallback else self._video_audio_output
+        )
+
+    def _prepare_preview_audio(self, video_path: Path):
+        """Extract a stable audio-only preview track in the background."""
+        self._preview_audio_generation += 1
+        generation = self._preview_audio_generation
+        self._preview_audio_ready_for_playback = False
+        self._use_video_audio_fallback = False
+        self._preview_audio_path = None
+        self._audio_player.stop()
+        self._audio_player.setSource(QUrl())
+        self._player.setAudioOutput(self._video_audio_output)
+
+        def extract_audio() -> None:
+            try:
+                audio_path = self._preview_audio_cache_path(video_path)
+                if not audio_path.exists():
+                    tmp_path = audio_path.with_suffix(".tmp.wav")
+                    tmp_path.unlink(missing_ok=True)
+                    audio_path.parent.mkdir(parents=True, exist_ok=True)
+                    cmd = [
+                        ffmpeg_executable(),
+                        "-nostdin",
+                        "-y",
+                        "-loglevel",
+                        "error",
+                        "-i",
+                        str(video_path),
+                        "-map",
+                        "0:a:0",
+                        "-vn",
+                        "-ac",
+                        "2",
+                        "-ar",
+                        "48000",
+                        "-f",
+                        "wav",
+                        str(tmp_path),
+                    ]
+                    subprocess.run(cmd, check=True, capture_output=True, text=True)
+                    tmp_path.replace(audio_path)
+                self._preview_audio_ready.emit(generation, audio_path)
+            except Exception as exc:
+                self._preview_audio_failed.emit(generation, str(exc))
+
+        self._preview_audio_thread = threading.Thread(
+            target=extract_audio,
+            name="preview-audio-extract",
+            daemon=True,
+        )
+        self._preview_audio_thread.start()
+
+    @staticmethod
+    def _preview_audio_cache_path(video_path: Path) -> Path:
+        stat = video_path.stat()
+        cache_key = f"{video_path.resolve()}:{stat.st_size}:{stat.st_mtime_ns}"
+        digest = hashlib.sha1(cache_key.encode("utf-8")).hexdigest()
+        return Path(tempfile.gettempdir()) / "video_editor_preview_audio" / f"{digest}.wav"
+
+    def _play_preview_audio(self):
+        if not self._preview_audio_ready_for_playback or self._audio_player is None:
+            return
+        if self._audio_player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
+            self._audio_player.setPosition(self._player.position())
+            self._audio_player.play()
+
+    def _pause_preview_audio(self):
+        if self._audio_player is None:
+            return
+        if self._audio_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            self._audio_player.pause()
 
     # Caption API
 
