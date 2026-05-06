@@ -623,12 +623,17 @@ class EditSession:
         """
         ranges = []
 
-        # Add kept speech segments
-        for i, seg in enumerate(self.original_segments):
-            if self.is_segment_kept(i):
-                buffered_start = max(0.0, seg.start - start_buffer)
-                buffered_end = min(self.video_duration, seg.end + end_buffer)
-                ranges.append(TimeRange(buffered_start, buffered_end))
+        # A headless analysis can store token-aware safe boundaries. Reuse
+        # them until the user changes keep/cut decisions.
+        if self.original_keep_ranges and not self.keep_overrides:
+            ranges.extend(self.original_keep_ranges)
+        else:
+            # Add kept speech segments
+            for i, seg in enumerate(self.original_segments):
+                if self.is_segment_kept(i):
+                    buffered_start = max(0.0, seg.start - start_buffer)
+                    buffered_end = min(self.video_duration, seg.end + end_buffer)
+                    ranges.append(TimeRange(buffered_start, buffered_end))
 
         # Add highlight regions (force-include, no buffer needed)
         for highlight in self.highlight_regions:
@@ -695,6 +700,10 @@ class EditSession:
                 }
                 for aseg in self.analyzed_segments
             ],
+            "original_keep_ranges": [
+                {"start": r.start, "end": r.end}
+                for r in self.original_keep_ranges
+            ],
             "text_edits": {str(k): v for k, v in self.text_edits.items()},
             "keep_overrides": {str(k): v for k, v in self.keep_overrides.items()},
             "highlight_regions": [
@@ -742,6 +751,12 @@ class EditSession:
                     retake_group_id=a.get("retake_group_id")
                 ))
 
+        original_keep_ranges = [
+            TimeRange(start=r["start"], end=r["end"])
+            for r in data.get("original_keep_ranges", [])
+            if r.get("end", 0) > r.get("start", 0)
+        ]
+
         # Load highlight regions
         highlights = [
             HighlightRegion(start=h["start"], end=h["end"], label=h.get("label", ""))
@@ -769,6 +784,7 @@ class EditSession:
             original_segments=segments,
             analyzed_segments=analyzed,
             tokens=tokens,
+            original_keep_ranges=original_keep_ranges,
             text_edits={int(k): v for k, v in data.get("text_edits", {}).items()},
             keep_overrides={int(k): v for k, v in data.get("keep_overrides", {}).items()},
             highlight_regions=highlights,

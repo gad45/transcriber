@@ -93,6 +93,32 @@ python -m video_editor input.mp4 -o output.mp4
 python -m video_editor input.mp4 --preview
 ```
 
+**Codex/headless workflow after recording:**
+```bash
+video-editor-codex analyze ~/Movies/Recordings/recording_20260506_143000.mp4 \
+    --project ~/Movies/Recordings/recording_20260506_143000.vedproj \
+    --report ~/Movies/Recordings/recording_20260506_143000.analysis.json \
+    --markdown ~/Movies/Recordings/recording_20260506_143000.analysis.md
+```
+
+The generated `.vedproj` always points to the original recording, not the AI-cut
+video. Open it in the GUI to review the full raw source, change keep/cut
+decisions, or add highlight ranges for screen-only moments.
+
+To force-include a silent screen-demo section from the original recording:
+```bash
+video-editor-codex include-range recording_20260506_143000.vedproj \
+    --start 00:01:58.400 \
+    --end 00:02:12.800 \
+    --label "Screen demo"
+```
+
+To export from the editable project:
+```bash
+video-editor-codex export recording_20260506_143000.vedproj \
+    --output recording_20260506_143000_clean.mp4
+```
+
 **With options:**
 ```bash
 python -m video_editor input.mp4 \

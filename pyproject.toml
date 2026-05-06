@@ -37,6 +37,7 @@ macos-build = [
 [project.scripts]
 video-editor = "video_editor.main:main"
 video-editor-gui = "video_editor.gui_main:main"
+video-editor-codex = "video_editor.codex_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

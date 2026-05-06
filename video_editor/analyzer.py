@@ -118,6 +118,7 @@ class RetakeGroup:
     id: int
     segments: list[AnalyzedSegment] = field(default_factory=list)
     best_index: int | None = None
+    selection_reason: str = ""
 
 
 @dataclass
@@ -716,6 +717,7 @@ DECISION: [number]"""
             else:
                 best_index, reasoning = self.select_best_take_llm(group)
                 group.best_index = best_index
+                group.selection_reason = reasoning
 
                 # Summary output (1 line per group)
                 num_takes = len(group.segments)
