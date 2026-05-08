@@ -271,6 +271,14 @@ class RecordingConfig:
     audio_sample_rate: int = 48000  # Professional quality
     container_format: str = "mp4"
 
+    @property
+    def needs_crop_output(self) -> bool:
+        """Return True when recording should create a cropped output file."""
+        return (
+            not self.capture_full_screen and
+            (self.target_resolution is not None or self.target_aspect_ratio is not None)
+        )
+
     def get_crop_rect(self, screen_width: int, screen_height: int, margin: int = 50) -> tuple[int, int, int, int]:
         """Calculate the crop rectangle in pixels for FFmpeg post-processing.
 
@@ -331,18 +339,21 @@ class RecordingConfig:
 
         return (crop_x, crop_y, crop_width, crop_height)
 
-    def to_ffmpeg_crop_filter(self, screen_width: int, screen_height: int) -> str | None:
+    def to_ffmpeg_crop_filter(
+        self,
+        screen_width: int,
+        screen_height: int,
+        margin: int = 50,
+    ) -> str | None:
         """Generate FFmpeg crop filter string if cropping is needed.
 
         Returns:
             FFmpeg crop filter string, e.g., "crop=1920:1080:320:0", or None if no crop
         """
-        if self.capture_full_screen:
-            return None
-        if self.target_resolution is None and self.target_aspect_ratio is None:
+        if not self.needs_crop_output:
             return None
 
-        x, y, w, h = self.get_crop_rect(screen_width, screen_height)
+        x, y, w, h = self.get_crop_rect(screen_width, screen_height, margin=margin)
         return f"crop={w}:{h}:{x}:{y}"
 
     def to_dict(self) -> dict:

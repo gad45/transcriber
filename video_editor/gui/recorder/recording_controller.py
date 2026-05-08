@@ -77,7 +77,7 @@ class RecordingController(QObject):
         self._output_path: Path | None = None
         self._preview_active = False
         self._permission_checked = False  # Skip repeated permission checks
-        self._use_ffmpeg_recording = True  # Use FFmpeg for cropped recordings
+        self._use_ffmpeg_recording = False  # Legacy direct-crop mode; default preserves full-screen backups
 
         # FFmpeg recorder for direct crop recording
         self._ffmpeg_recorder = FFmpegRecorder(self)
@@ -183,12 +183,8 @@ class RecordingController(QObject):
     def _finalize_recording(self):
         """Finalize recording after stop."""
         if self._output_path and self._output_path.exists():
-            # Check if cropping is needed (resolution or aspect ratio is set)
             config = self._recording_config or self._config
-            needs_crop = (
-                not config.capture_full_screen and
-                (config.target_resolution is not None or config.target_aspect_ratio is not None)
-            )
+            needs_crop = config.needs_crop_output
             self._set_state(RecordingState.IDLE)
             # Resume audio monitoring for preview
             if self._preview_active:
@@ -307,8 +303,8 @@ class RecordingController(QObject):
     def set_use_ffmpeg_recording(self, use_ffmpeg: bool):
         """Toggle between FFmpeg and Qt recording.
 
-        FFmpeg recording applies crop during capture (faster, smaller files).
-        Qt recording captures full screen and crops in post-processing.
+        Direct FFmpeg crop recording does not keep a full-screen backup. The
+        default GUI path records full screen first and crops afterward.
         """
         self._use_ffmpeg_recording = use_ffmpeg
 
@@ -344,10 +340,11 @@ class RecordingController(QObject):
         # Snapshot config used for this recording (for post-crop consistency)
         self._recording_config = self._config.copy()
 
-        # Use FFmpeg for cropped recordings (applies crop during capture).
-        # If audio is enabled, prefer Qt recording to avoid FFmpeg audio issues.
+        # Cropped recordings must keep the full-screen raw file as a backup.
+        # Record full screen first, then let the recorder tab create the
+        # cropped parent-folder output from the raw file.
         if self._use_ffmpeg_recording and not self._config.capture_full_screen:
-            if self._config.audio_enabled:
+            if self._config.audio_enabled or self._config.needs_crop_output:
                 return self._start_qt_recording()
             return self._start_ffmpeg_recording()
 
@@ -526,8 +523,8 @@ class RecordingController(QObject):
         self._set_state(RecordingState.IDLE)
         if self._preview_active:
             self._start_audio_monitoring()
-        # Native recorder captures full display; no Qt post-crop step needed.
-        self.recording_stopped.emit(output_path, False)
+        config = self._recording_config or self._config
+        self.recording_stopped.emit(output_path, config.needs_crop_output)
 
     def _on_ffmpeg_error(self, error: str):
         """Handle FFmpeg recording error."""

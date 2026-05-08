@@ -438,7 +438,9 @@ class RecorderTab(QWidget):
             screen_width = 1920
             screen_height = 1080
 
-        crop_filter = config.to_ffmpeg_crop_filter(screen_width, screen_height)
+        # Use the exact preview-selected crop. The raw full-screen recording is
+        # kept unchanged in raw/, and this worker creates the cropped output.
+        crop_filter = config.to_ffmpeg_crop_filter(screen_width, screen_height, margin=0)
         if not crop_filter:
             self._set_ui_idle()
             self._show_completion_dialog(input_path, auto_open=auto_open)
