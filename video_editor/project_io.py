@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -316,3 +318,154 @@ def add_highlight_range(
     project.raw.setdefault("highlight_regions", []).append(highlight)
     write_project(project.path, project.raw)
     return highlight
+
+
+def crop_config_from_rect(
+    *,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    video_width: int,
+    video_height: int,
+) -> dict[str, float]:
+    """Build a GUI-compatible crop config from a source pixel rectangle."""
+    if video_width <= 0 or video_height <= 0:
+        raise ValueError("video dimensions must be positive")
+    if width <= 0 or height <= 0:
+        raise ValueError("crop width and height must be positive")
+    if x < 0 or y < 0:
+        raise ValueError("crop x/y cannot be negative")
+    if x + width > video_width or y + height > video_height:
+        raise ValueError("crop rectangle exceeds source video dimensions")
+
+    max_pan_x = video_width - width
+    max_pan_y = video_height - height
+    pan_x = (2 * x / max_pan_x) - 1 if max_pan_x > 0 else 0.0
+    pan_y = (2 * y / max_pan_y) - 1 if max_pan_y > 0 else 0.0
+
+    return {
+        "width": width / video_width,
+        "height": height / video_height,
+        "pan_x": max(-1.0, min(1.0, pan_x)),
+        "pan_y": max(-1.0, min(1.0, pan_y)),
+    }
+
+
+def set_project_crop(
+    project_path: Path,
+    *,
+    crop_config: dict[str, Any] | None,
+    output_path: Path | None = None,
+) -> Path:
+    """Set, clear, or copy a project's global crop config."""
+    project = load_project(project_path)
+    output = Path(output_path).expanduser().resolve() if output_path else project.path
+    if crop_config is None:
+        project.raw["crop_config"] = None
+    else:
+        project.raw["crop_config"] = {
+            "width": float(crop_config.get("width", 1.0)),
+            "height": float(crop_config.get("height", 1.0)),
+            "pan_x": float(crop_config.get("pan_x", 0.0)),
+            "pan_y": float(crop_config.get("pan_y", 0.0)),
+        }
+    write_project(output, project.raw)
+    return output
+
+
+def backup_project_file(project_path: Path, *, suffix: str | None = None) -> Path:
+    """Copy a project to a timestamped backup beside the original."""
+    source = Path(project_path).expanduser().resolve()
+    if not source.exists():
+        raise FileNotFoundError(f"project not found: {source}")
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    label = suffix or f"backup_{timestamp}"
+    backup = source.with_name(f"{source.stem}_{label}{source.suffix}")
+    counter = 2
+    while backup.exists():
+        backup = source.with_name(f"{source.stem}_{label}_{counter}{source.suffix}")
+        counter += 1
+
+    shutil.copy2(source, backup)
+    return backup
+
+
+def _dedupe_highlights(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Merge highlight arrays without duplicating identical ranges."""
+    highlights: list[dict[str, Any]] = []
+    seen: set[tuple[float, float, str]] = set()
+
+    for group in groups:
+        for highlight in group:
+            try:
+                start = float(highlight["start"])
+                end = float(highlight["end"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if end <= start:
+                continue
+
+            label = str(highlight.get("label", ""))
+            key = (round(start, 3), round(end, 3), label)
+            if key in seen:
+                continue
+            seen.add(key)
+            highlights.append({"start": start, "end": end, "label": label})
+
+    return highlights
+
+
+def merge_project_with_analysis(
+    manual_project_path: Path,
+    analysis_project_path: Path,
+    output_path: Path,
+) -> Path:
+    """
+    Combine a manually prepared project with a transcript/analyzed project.
+
+    The analysis project supplies speech segments, tokens, keep decisions, and
+    keep ranges. The manual project supplies presentation/editing settings such
+    as crop, captions, highlights, and compatible text/keep overrides.
+    """
+    manual = load_project(manual_project_path)
+    analysis = load_project(analysis_project_path)
+    if not analysis.segments:
+        raise ValueError("analysis project does not contain transcript segments")
+
+    merged = dict(analysis.raw)
+    merged["version"] = str(analysis.raw.get("version", "1.2"))
+
+    for key in ("crop_config", "segment_crop_overrides", "caption_settings"):
+        if key in manual.raw:
+            merged[key] = manual.raw.get(key)
+
+    merged["highlight_regions"] = _dedupe_highlights(
+        list(analysis.raw.get("highlight_regions", [])),
+        list(manual.raw.get("highlight_regions", [])),
+    )
+
+    compatible_segments = len(manual.segments) == len(analysis.segments)
+    for key in ("text_edits", "keep_overrides"):
+        manual_value = manual.raw.get(key)
+        if compatible_segments and manual_value:
+            merged[key] = manual_value
+        else:
+            merged.setdefault(key, {})
+
+    analysis_meta = dict(analysis.raw.get("codex_analysis", {}))
+    manual_meta = dict(manual.raw.get("codex_analysis", {}))
+    merged["codex_analysis"] = {
+        **analysis_meta,
+        "manual_project": str(manual.path),
+        "analysis_project": str(analysis.path),
+        "manual_project_metadata": manual_meta,
+        "merge_strategy": {
+            "analysis_fields": ["segments", "tokens", "analyzed", "original_keep_ranges"],
+            "manual_fields": ["crop_config", "segment_crop_overrides", "caption_settings", "highlight_regions"],
+            "manual_overrides_preserved": compatible_segments,
+        },
+    }
+
+    return write_project(output_path, merged)

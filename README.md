@@ -119,6 +119,71 @@ video-editor-codex export recording_20260506_143000.vedproj \
     --output recording_20260506_143000_clean.mp4
 ```
 
+To run a second-pass quality check before calling the edit final:
+```bash
+video-editor-codex qc recording_20260506_143000.vedproj \
+    --export recording_20260506_143000_clean.mp4 \
+    --analysis recording_20260506_143000.analysis.json \
+    --report recording_20260506_143000.qc.json \
+    --markdown recording_20260506_143000.qc.md \
+    --review-dir recording_20260506_143000_qc_clips
+```
+
+The QC command independently transcribes the export, compares it to the kept
+project transcript, checks token margins around cuts, audits removed retakes for
+unique content, and reports silent screen activity that may need force-including.
+It returns `needs_fix` when a cut appears to cross or lose speech, `needs_review`
+when the edit is structurally safe but has judgment calls, and `pass` only when
+no issues are found.
+
+For the full Codex-driven workflow, use `finish`. It analyzes missing transcript
+data, merges AI decisions into a manual crop project when needed, repairs
+mechanical word-boundary cuts, exports, runs QC, and can safely write the final
+editable project back over the input after creating a backup:
+```bash
+video-editor-codex finish "head of ai 8-5.vedproj" \
+    --write-back \
+    --export-output "head of ai 8-5_upload_ready.mp4" \
+    --review-dir "head of ai 8-5_qc_clips" \
+    --package-dir "head of ai 8-5_upload-ready"
+```
+
+To explicitly merge a manual crop/edit project with an already analyzed project:
+```bash
+video-editor-codex apply-analysis manual_crop.vedproj analyzed_ai.vedproj \
+    --output upload_ready.vedproj
+```
+
+To review no-speech sections in the same crop as the final export:
+```bash
+video-editor-codex review-silence upload_ready.vedproj \
+    --out-dir upload_ready_silent_review
+```
+
+To automatically repair cut boundaries that cross word tokens:
+```bash
+video-editor-codex repair-boundaries recording_20260506_143000.vedproj \
+    --output recording_20260506_143000_qc_fixed.vedproj
+```
+
+Re-export from the repaired project and run `qc` again before calling the video
+final. The repaired `.vedproj` still points to the original recording, so the GUI
+can expose more raw footage than the rendered export.
+
+To apply a browser-window crop from a manual reference project:
+```bash
+video-editor-codex set-crop recording_20260506_143000_qc_fixed.vedproj \
+    --copy-from manual_browser_crop.vedproj \
+    --output recording_20260506_143000_browser_crop.vedproj
+```
+
+To set an exact source-pixel crop rectangle:
+```bash
+video-editor-codex set-crop recording_20260506_143000_qc_fixed.vedproj \
+    --rect 760 180 1920 1080 \
+    --output recording_20260506_143000_browser_crop.vedproj
+```
+
 **With options:**
 ```bash
 python -m video_editor input.mp4 \

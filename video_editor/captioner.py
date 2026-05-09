@@ -3,6 +3,7 @@
 from pathlib import Path
 import subprocess
 import re
+import shutil
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -265,19 +266,190 @@ class Captioner:
             return [line1, line2]
         return [line1]
 
-    def _resolve_font_file(self, fontname: str, font_style: str) -> str | None:
-        """Resolve font family + style to a font file path using fontconfig."""
+    def _normalize_font_weight(self, font_weight: str | None) -> str:
+        """Normalize GUI/project font weight values to export keys."""
+        weight = str(font_weight or "bold").strip().lower()
+        weight = re.sub(r"[\s_]+", "-", weight)
+        weight = re.sub(r"-+", "-", weight)
+        aliases = {
+            "normal": "regular",
+            "book": "regular",
+            "roman": "regular",
+            "semibold": "semi-bold",
+            "demibold": "semi-bold",
+            "demi-bold": "semi-bold",
+            "extra-bold": "extra-bold",
+            "extrabold": "extra-bold",
+            "black": "extra-bold",
+            "heavy": "extra-bold",
+        }
+        return aliases.get(weight, weight)
+
+    def _font_style_for_weight(self, font_weight: str | None) -> str:
+        """Map normalized caption weight to the closest font style name."""
+        weight = self._normalize_font_weight(font_weight)
+        return {
+            "regular": "Regular",
+            "medium": "Medium",
+            "semi-bold": "Semibold",
+            "bold": "Bold",
+            "extra-bold": "Black",
+        }.get(weight, "Bold")
+
+    def _font_style_candidates(self, font_style: str) -> list[str]:
+        """Return style aliases for fonts that name the same weight differently."""
+        style_key = re.sub(r"[\s_-]+", "", str(font_style or "Regular").lower())
+        if style_key in {"regular", "book", "roman", "normal"}:
+            return ["Regular", "Book", "Roman"]
+        if style_key == "medium":
+            return ["Medium"]
+        if style_key in {"semibold", "demibold", "demi"}:
+            return ["Semibold", "SemiBold", "DemiBold", "Demi Bold"]
+        if style_key == "bold":
+            return ["Bold"]
+        if style_key in {"black", "heavy", "extrabold"}:
+            return ["Black", "Heavy", "ExtraBold", "Extra Bold"]
+        return [font_style]
+
+    def _normalize_font_name(self, value: str) -> str:
+        """Normalize a font family/style/file name for coarse matching."""
+        return re.sub(r"[^a-z0-9]+", "", str(value).lower())
+
+    def _font_family_matches(self, requested_family: str, matched_families: str) -> bool:
+        """Check that fontconfig did not fall back to an unrelated family."""
+        requested = self._normalize_font_name(requested_family)
+        if not requested:
+            return False
+        for family in matched_families.split(","):
+            normalized = self._normalize_font_name(family)
+            if normalized == requested or normalized.startswith(requested):
+                return True
+        return False
+
+    def _font_style_matches(self, expected_style: str, matched_styles: str) -> bool:
+        """Check that a resolved font file has the requested weight/style."""
+        expected = {
+            self._normalize_font_name(style)
+            for style in self._font_style_candidates(expected_style)
+        }
+        for style in matched_styles.split(","):
+            if self._normalize_font_name(style) in expected:
+                return True
+        return False
+
+    def _fontconfig_command(self, command: str) -> str | None:
+        """Find fontconfig even when the app is launched by Finder with a minimal PATH."""
+        candidates = [
+            shutil.which(command),
+            f"/opt/homebrew/bin/{command}",
+            f"/usr/local/bin/{command}",
+        ]
+        for candidate in candidates:
+            if candidate and Path(candidate).exists():
+                return candidate
+        return None
+
+    def _resolve_font_file_with_fontconfig(self, fontname: str, font_style: str) -> str | None:
+        """Resolve and verify a font file through fontconfig."""
+        fc_match = self._fontconfig_command("fc-match")
+        if not fc_match:
+            return None
+
+        fc_pattern = f"{fontname}:style={font_style}" if font_style != "Regular" else fontname
         try:
-            fc_pattern = f"{fontname}:style={font_style}" if font_style != "Regular" else fontname
             result = subprocess.run(
-                ["fc-match", fc_pattern, "--format=%{file}"],
+                [fc_match, fc_pattern, "--format=%{file}\t%{family}\t%{style}"],
                 capture_output=True, text=True, timeout=5
             )
-            if result.returncode == 0 and result.stdout.strip():
-                return result.stdout.strip()
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
+        except subprocess.TimeoutExpired:
+            return None
+
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+
+        parts = result.stdout.strip().split("\t")
+        if len(parts) < 3:
+            return None
+
+        file_path, matched_families, matched_styles = parts[:3]
+        if not file_path:
+            return None
+        if not self._font_family_matches(fontname, matched_families):
+            return None
+        if not self._font_style_matches(font_style, matched_styles):
+            return None
+        return file_path
+
+    def _resolve_font_file_from_paths(self, fontname: str, font_style: str) -> str | None:
+        """Resolve a font file by scanning standard macOS font directories."""
+        font_dirs = [
+            Path.home() / "Library" / "Fonts",
+            Path("/Library/Fonts"),
+            Path("/System/Library/Fonts"),
+            Path("/System/Library/Fonts/Supplemental"),
+        ]
+        family_key = self._normalize_font_name(fontname)
+        style_keys = [
+            self._normalize_font_name(style)
+            for style in self._font_style_candidates(font_style)
+        ]
+        fallback_regular: Path | None = None
+
+        for font_dir in font_dirs:
+            if not font_dir.exists():
+                continue
+            for font_path in font_dir.rglob("*"):
+                if font_path.suffix.lower() not in {".ttf", ".otf", ".ttc"}:
+                    continue
+                stem_key = self._normalize_font_name(font_path.stem)
+                if family_key not in stem_key:
+                    continue
+                if font_style == "Regular":
+                    if "regular" in stem_key:
+                        return str(font_path)
+                    fallback_regular = fallback_regular or font_path
+                    continue
+                if any(style_key in stem_key for style_key in style_keys):
+                    return str(font_path)
+
+        if font_style == "Regular" and fallback_regular:
+            return str(fallback_regular)
         return None
+
+    def _resolve_font_file(self, fontname: str, font_style: str) -> str | None:
+        """Resolve font family + style to a verified font file path."""
+        fontname = str(fontname or "").strip()
+        font_style = str(font_style or "Regular").strip()
+        if not fontname:
+            return None
+
+        for style in self._font_style_candidates(font_style):
+            font_file = self._resolve_font_file_with_fontconfig(fontname, style)
+            if font_file:
+                return font_file
+
+        for style in self._font_style_candidates(font_style):
+            font_file = self._resolve_font_file_from_paths(fontname, style)
+            if font_file:
+                return font_file
+
+        return None
+
+    def _quote_filter_value(self, value: str | Path) -> str:
+        """Quote a value for an FFmpeg filter option."""
+        escaped = str(value).replace("\\", "\\\\").replace("'", "\\'").replace(":", "\\:")
+        return f"'{escaped}'"
+
+    def _escape_ass_override_value(self, value: str) -> str:
+        """Remove characters that would break an ASS override tag."""
+        return re.sub(r"[{}\\\r\n]", " ", str(value)).strip()
+
+    def _escape_ass_text(self, value: str) -> str:
+        """Escape text for ASS dialogue payloads."""
+        text = str(value).replace("\\", r"\\")
+        text = text.replace("{", r"\{").replace("}", r"\}")
+        text = text.replace("\n", r"\N")
+        return text
 
     def _build_drawtext_filter(self, tokens: list[Token], max_words: int = 15, caption_settings: dict = None) -> str:
         """
@@ -309,7 +481,7 @@ class Captioner:
             fontname = caption_settings.get("font_family", "Arial")
             text_color = caption_settings.get("text_color", "white")
             show_background = caption_settings.get("show_background", True)
-            font_weight = caption_settings.get("font_weight", "bold")
+            font_weight = self._normalize_font_weight(caption_settings.get("font_weight", "bold"))
             pos_x = caption_settings.get("pos_x", 0.5)
             pos_y = caption_settings.get("pos_y", 0.92)
             box_width = caption_settings.get("box_width", 0.6)
@@ -327,24 +499,15 @@ class Captioner:
         borderw = 3
         bordercolor = "white" if text_color == "black" else "black"
 
-        # Map font weight to FFmpeg font style suffix
-        # FFmpeg drawtext uses font family with style, e.g., "Roboto:style=SemiBold"
-        # Different fonts use different naming conventions (SemiBold vs Semibold, ExtraBold vs Heavy)
-        weight_style_map = {
-            "regular": "Regular",
-            "medium": "Medium",
-            "semi-bold": "Semibold",  # Use lowercase 'b' for broader compatibility (Lato uses this)
-            "bold": "Bold",
-            "extra-bold": "Black",  # Most fonts use "Black" for extra-bold weight
-        }
-        font_style = weight_style_map.get(font_weight, "Bold")
+        font_style = self._font_style_for_weight(font_weight)
 
-        # Resolve actual font file path via fontconfig for reliable weight rendering
+        # Resolve the actual font file path so drawtext does not pick Regular by
+        # family name only. This matters when the app is launched outside a shell.
         font_file = self._resolve_font_file(fontname, font_style)
         if font_file:
-            font_param = f"fontfile='{font_file}'"
+            font_param = f"fontfile={self._quote_filter_value(font_file)}"
         else:
-            font_param = f"font='{fontname}'"
+            font_param = f"font={self._quote_filter_value(fontname)}"
 
         # Box settings based on show_background
         if show_background:
@@ -457,7 +620,9 @@ class Captioner:
         """
         Generate an ASS subtitle file with streaming word-by-word captions.
 
-        Uses ASS format with karaoke-style timing for word-by-word reveal.
+        Emits one event per revealed word so future words are not visible before
+        their start time. This preserves the preview/drawtext streaming behavior
+        while keeping the file-based ASS export path.
 
         Args:
             tokens: List of word-level tokens
@@ -473,7 +638,7 @@ class Captioner:
         if caption_settings:
             font_size = int(caption_settings.get("font_size", self.config.caption_font_size))
             font_family = str(caption_settings.get("font_family", "Arial")).replace(",", " ")
-            font_weight = caption_settings.get("font_weight", "bold")
+            font_weight = self._normalize_font_weight(caption_settings.get("font_weight", "bold"))
             text_color = caption_settings.get("text_color", "white")
             show_background = bool(caption_settings.get("show_background", True))
             pos_x = float(caption_settings.get("pos_x", 0.5))
@@ -504,8 +669,14 @@ class Captioner:
             outline = 3
             shadow = 1
 
-        # ASS has binary bold in style; map medium+ weights to bold.
-        bold = 1 if font_weight in {"semi-bold", "bold", "extra-bold"} else 0
+        # ASS style Bold uses -1 for true. Inline \b1 below reinforces the
+        # style because libass/font providers can otherwise fall back to Regular.
+        is_bold = font_weight in {"semi-bold", "bold", "extra-bold"}
+        bold = -1 if is_bold else 0
+        bold_override = 1 if is_bold else 0
+        font_override = (
+            f"{{\\fn{self._escape_ass_override_value(font_family)}\\b{bold_override}}}"
+        )
 
         # Use box width to approximate line wrapping similar to UI caption box.
         box_px = max(120.0, box_width * max(1, video_width))
@@ -552,38 +723,38 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             centis = int((seconds % 1) * 100)
             return f"{hours}:{minutes:02d}:{secs:02d}.{centis:02d}"
 
-        # Generate dialogue lines for each chunk
+        # Generate dialogue lines for each revealed word.
         for chunk in chunks:
             if not chunk:
                 continue
 
-            chunk_start = chunk[0].start
             chunk_end = chunk[-1].end + 0.1
 
-            # Build text with karaoke tags. Insert line break to approximate
-            # UI wrapping (fixed-width caption box) using words-per-line.
-            karaoke_text = ""
-            line_break_index = approx_words_per_line if len(chunk) > approx_words_per_line else None
             for i, token in enumerate(chunk):
-                # Duration from this word start to next word start (or chunk end)
+                accumulated_text = "".join(t.text for t in chunk[:i + 1]).strip()
+                accumulated_text = self._ensure_punctuation_spacing(accumulated_text)
+                lines = self._split_into_lines(
+                    accumulated_text,
+                    words_per_line=approx_words_per_line,
+                )
+                visible_text = r"\N".join(self._escape_ass_text(line) for line in lines)
+
+                delay = self.config.caption_delay
+                word_start = token.start + delay
                 if i < len(chunk) - 1:
-                    duration_cs = int((chunk[i + 1].start - token.start) * 100)
+                    word_end = chunk[i + 1].start + delay
                 else:
-                    duration_cs = int((token.end - token.start) * 100)
+                    word_end = chunk_end + delay
 
-                if line_break_index is not None and i == line_break_index:
-                    karaoke_text += r"\N"
+                if word_end <= word_start:
+                    word_end = word_start + 0.01
 
-                # Use \kf for progressive fill effect
-                karaoke_text += f"{{\\kf{duration_cs}}}{token.text}"
-
-            # Write the dialogue line
-            start_time = format_ass_time(chunk_start)
-            end_time = format_ass_time(chunk_end)
-            ass_content += (
-                f"Dialogue: 0,{start_time},{end_time},Default,,0,0,0,,"
-                f"{{\\pos({pos_x_px},{pos_y_px})}}{karaoke_text}\n"
-            )
+                start_time = format_ass_time(word_start)
+                end_time = format_ass_time(word_end)
+                ass_content += (
+                    f"Dialogue: 0,{start_time},{end_time},Default,,0,0,0,,"
+                    f"{{\\pos({pos_x_px},{pos_y_px})}}{font_override}{visible_text}\n"
+                )
 
         output_path = Path(output_path)
         with open(output_path, "w", encoding="utf-8") as f:
@@ -602,10 +773,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         video_width: int,
         video_height: int,
     ) -> Path:
-        """Burn streaming captions using ASS karaoke subtitles."""
+        """Burn streaming captions using ASS subtitles."""
         import os
 
-        console.print("[dim]Using ASS subtitles with karaoke effect[/dim]")
+        console.print("[dim]Using ASS subtitles for streaming captions[/dim]")
 
         ass_path = output_path.parent / "streaming_captions.ass"
         self._generate_streaming_ass(
@@ -616,6 +787,20 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             video_width=video_width,
             video_height=video_height,
         )
+        if caption_settings:
+            font_family = str(caption_settings.get("font_family", "Arial")).replace(",", " ")
+            font_weight = self._normalize_font_weight(caption_settings.get("font_weight", "bold"))
+        else:
+            font_family = "Arial"
+            font_weight = "bold"
+        font_file = self._resolve_font_file(
+            font_family,
+            self._font_style_for_weight(font_weight),
+        )
+
+        ass_filter = f"ass={self._quote_filter_value(ass_path.name)}"
+        if font_file:
+            ass_filter += f":fontsdir={self._quote_filter_value(Path(font_file).parent)}"
 
         original_cwd = os.getcwd()
         os.chdir(output_path.parent)
@@ -626,7 +811,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 FFMPEG, "-y",
                 "-hide_banner", "-loglevel", "error", "-nostats",
                 "-i", str(video_path),
-                "-vf", f"ass={ass_path.name}",
+                "-vf", ass_filter,
                 *encoder_args,
                 "-pix_fmt", "yuv420p",
             ]

@@ -60,7 +60,7 @@ def adjust_tokens_for_cuts(
     return adjusted
 
 
-def _crop_filter_from_project(project: ProjectData, cutter: Cutter) -> str | None:
+def crop_filter_from_project(project: ProjectData, cutter: Cutter) -> str | None:
     """Build the global crop filter stored by the GUI, if present."""
     crop = project.raw.get("crop_config")
     if not crop:
@@ -86,6 +86,9 @@ def _crop_filter_from_project(project: ProjectData, cutter: Cutter) -> str | Non
     crop_x = max(0, min(crop_x, video_width - crop_width))
     crop_y = max(0, min(crop_y, video_height - crop_height))
     return f"crop={crop_width}:{crop_height}:{crop_x}:{crop_y}"
+
+
+_crop_filter_from_project = crop_filter_from_project
 
 
 def _apply_caption_settings(config: Config, caption_settings: dict[str, Any]) -> None:
@@ -132,7 +135,7 @@ def export_project(
         start_buffer=config.segment_start_buffer,
         end_buffer=config.segment_end_buffer,
     )
-    crop_filter = _crop_filter_from_project(project, cutter)
+    crop_filter = crop_filter_from_project(project, cutter)
 
     if no_captions or not project.caption_settings.get("enabled", True):
         return cutter.cut_video(source_path, keep_ranges, output_path, crop_filter=crop_filter)
@@ -159,4 +162,3 @@ def export_project(
         temp_cut.unlink(missing_ok=True)
 
     return output_path
-
