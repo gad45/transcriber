@@ -78,6 +78,7 @@ class RecordingController(QObject):
         self._preview_active = False
         self._permission_checked = False  # Skip repeated permission checks
         self._use_ffmpeg_recording = False  # Legacy direct-crop mode; default preserves full-screen backups
+        self._stop_requested = False
 
         # FFmpeg recorder for direct crop recording
         self._ffmpeg_recorder = FFmpegRecorder(self)
@@ -147,26 +148,51 @@ class RecordingController(QObject):
 
     def _on_recorder_error(self, error, error_string: str):
         """Handle recorder errors."""
+        message = self._describe_backend_error("Qt recorder error", error, error_string)
         self._set_state(RecordingState.IDLE)
+        self._stop_requested = False
         # Resume audio monitoring for preview
         if self._preview_active:
             self._start_audio_monitoring()
-        self.recording_error.emit(error_string)
+        self.recording_error.emit(message)
 
     def _on_capture_error(self, error, error_string: str):
         """Handle screen capture errors."""
         was_preview_active = self._preview_active
+        was_recording = self._state in (RecordingState.RECORDING, RecordingState.PAUSED)
+        stop_requested = self._stop_requested
+        message = self._describe_backend_error("Screen capture error", error, error_string)
+
+        if was_recording and stop_requested:
+            # QScreenCapture can report a shutdown error while QMediaRecorder is
+            # still finalizing after a user stop. Keep the recorder state intact
+            # so the StoppedState signal can finish the file normally.
+            self._screen_capture.setActive(False)
+            if was_preview_active:
+                self._stop_audio_monitoring()
+            return
+
         self._set_state(RecordingState.IDLE)
+        self._stop_requested = False
         self._screen_capture.setActive(False)
         self._preview_active = False
         if was_preview_active:
             self._stop_audio_monitoring()
-        self.recording_error.emit(f"Screen capture error: {error_string}")
+        if was_recording:
+            message = (
+                "Recording stopped because screen capture failed before Stop was pressed.\n\n"
+                f"{message}"
+                f"{self._recording_file_details()}"
+            )
+        self.recording_error.emit(message)
 
     def _on_recorder_state_changed(self, state):
         """Handle recorder state changes."""
         if state == QMediaRecorder.RecorderState.StoppedState:
-            if self._state == RecordingState.RECORDING:
+            if self._state in (RecordingState.RECORDING, RecordingState.PAUSED):
+                if not self._stop_requested:
+                    self._handle_unexpected_qt_stop()
+                    return
                 self._finalize_recording()
 
     def _on_location_changed(self, location: QUrl):
@@ -186,16 +212,77 @@ class RecordingController(QObject):
             config = self._recording_config or self._config
             needs_crop = config.needs_crop_output
             self._set_state(RecordingState.IDLE)
+            self._stop_requested = False
             # Resume audio monitoring for preview
             if self._preview_active:
                 self._start_audio_monitoring()
             self.recording_stopped.emit(self._output_path, needs_crop)
         else:
             self._set_state(RecordingState.IDLE)
+            self._stop_requested = False
             # Resume audio monitoring for preview
             if self._preview_active:
                 self._start_audio_monitoring()
-            self.recording_error.emit("Recording file not found")
+            self.recording_error.emit(
+                "Recording stopped, but the output file was not created."
+                f"{self._recording_file_details()}"
+            )
+
+    @staticmethod
+    def _describe_backend_error(prefix: str, error, error_string: str) -> str:
+        """Return a useful backend error even when Qt provides an empty string."""
+        detail = (error_string or "").strip()
+        error_name = getattr(error, "name", str(error)).strip()
+        if detail and error_name:
+            return f"{prefix}: {detail} ({error_name})"
+        if detail:
+            return f"{prefix}: {detail}"
+        if error_name:
+            return f"{prefix}: {error_name}"
+        return prefix
+
+    def _recording_file_details(self) -> str:
+        """Describe the current output file for recovery/debug messages."""
+        if self._output_path is None:
+            return "\n\nNo output path had been assigned yet."
+
+        if self._output_path.exists():
+            try:
+                size_mb = self._output_path.stat().st_size / (1024 * 1024)
+                return (
+                    "\n\nPartial recording saved at:\n"
+                    f"{self._output_path}\n"
+                    f"Size: {size_mb:.1f} MB"
+                )
+            except OSError:
+                return f"\n\nPartial recording saved at:\n{self._output_path}"
+
+        return (
+            "\n\nExpected output path:\n"
+            f"{self._output_path}\n"
+            "The file was not created."
+        )
+
+    def _handle_unexpected_qt_stop(self) -> None:
+        """Report a Qt backend stop that was not initiated by the user."""
+        self._set_state(RecordingState.IDLE)
+        self._stop_requested = False
+        self._screen_capture.setActive(False)
+        self._preview_active = False
+        self._stop_audio_monitoring()
+
+        recorder_error = self._recorder.error()
+        recorder_error_string = self._recorder.errorString()
+        details = self._describe_backend_error(
+            "Qt recorder stopped unexpectedly",
+            recorder_error,
+            recorder_error_string,
+        )
+        self.recording_error.emit(
+            "Recording stopped before Stop was pressed.\n\n"
+            f"{details}"
+            f"{self._recording_file_details()}"
+        )
 
     @property
     def state(self) -> RecordingState:
@@ -316,6 +403,8 @@ class RecordingController(QObject):
         """
         if self._state != RecordingState.IDLE:
             return False
+
+        self._stop_requested = False
 
         if not self.check_screen_capture_permission(request_if_needed=True):
             if not is_macos():
@@ -511,6 +600,7 @@ class RecordingController(QObject):
     def _on_ffmpeg_stopped(self, output_path: Path):
         """Handle FFmpeg recording stopped."""
         self._set_state(RecordingState.IDLE)
+        self._stop_requested = False
         # Resume audio monitoring for preview
         if self._preview_active:
             self._start_audio_monitoring()
@@ -521,6 +611,7 @@ class RecordingController(QObject):
         """Handle native macOS recording stopped."""
         self._output_path = output_path
         self._set_state(RecordingState.IDLE)
+        self._stop_requested = False
         if self._preview_active:
             self._start_audio_monitoring()
         config = self._recording_config or self._config
@@ -529,6 +620,7 @@ class RecordingController(QObject):
     def _on_ffmpeg_error(self, error: str):
         """Handle FFmpeg recording error."""
         self._set_state(RecordingState.IDLE)
+        self._stop_requested = False
         # Resume audio monitoring for preview
         if self._preview_active:
             self._start_audio_monitoring()
@@ -537,6 +629,7 @@ class RecordingController(QObject):
     def _on_native_error(self, error: str):
         """Handle native macOS recording error."""
         self._set_state(RecordingState.IDLE)
+        self._stop_requested = False
         if self._preview_active:
             self._start_audio_monitoring()
         self.recording_error.emit(error)
@@ -561,6 +654,8 @@ class RecordingController(QObject):
         """Stop the current recording."""
         if self._state not in (RecordingState.RECORDING, RecordingState.PAUSED):
             return
+
+        self._stop_requested = True
 
         # Check if using FFmpeg recorder
         if self._ffmpeg_recorder.is_recording:

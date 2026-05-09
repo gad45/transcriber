@@ -223,7 +223,7 @@ Build a Finder-launchable `.app` and `.dmg` with:
 ```bash
 python packaging/macos/build_app.py
 ```
-This produces `dist/macos/Video Editor.app` and `dist/macos/VideoEditor-0.1.0.dmg`.
+This produces `dist/macos/Video Editor.app` and a versioned `dist/macos/VideoEditor-<version>.dmg`.
 The packaged app requests permissions as `Video Editor` instead of `Terminal`.
 By default, the build auto-detects `ffmpeg` and `ffprobe` on your Mac and bundles them into the app, including their required non-system dylibs. To override the binaries manually, pass both:
 ```bash

@@ -8,6 +8,7 @@ from typing import Any
 
 from ..transcriber import Segment, Token
 from ..analyzer import AnalyzedSegment, TimeRange, SegmentAction
+from ..project_io import infer_recording_crop_config
 
 
 @dataclass
@@ -722,6 +723,7 @@ class EditSession:
                 for h in self.highlight_regions
             ],
             "crop_config": self.crop_config.to_dict() if not self.crop_config.is_default else None,
+            "recording_crop_cleared": self.crop_config.is_default,
             "segment_crop_overrides": {
                 str(k): v.to_dict() for k, v in self.segment_crop_overrides.items()
             } if self.segment_crop_overrides else None,
@@ -776,6 +778,8 @@ class EditSession:
 
         # Load crop configuration (v1.1+)
         crop_data = data.get("crop_config")
+        if not crop_data and not data.get("recording_crop_cleared"):
+            crop_data = infer_recording_crop_config(Path(data["video_path"]))
         crop_config = CropConfig.from_dict(crop_data) if crop_data else CropConfig()
 
         # Load per-segment crop overrides

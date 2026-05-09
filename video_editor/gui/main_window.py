@@ -27,6 +27,7 @@ from ..analyzer import Analyzer, AnalyzedSegment, SegmentAction
 from ..cutter import Cutter
 from ..captioner import Captioner
 from ..config import Config
+from ..project_io import infer_recording_crop_config
 
 
 class MainWindow(QMainWindow):
@@ -479,13 +480,23 @@ class MainWindow(QMainWindow):
         self._video_player.load_video(path)
         self.setWindowTitle(f"Video Editor - {path.name}")
         self._process_btn.setEnabled(True)
-        self._status_label.setText(f"Loaded: {path.name}")
+
+        crop_data = infer_recording_crop_config(path)
+        crop_config = CropConfig.from_dict(crop_data) if crop_data else CropConfig()
 
         # Create initial session without analysis
         self._session = EditSession(
             video_path=path,
-            video_duration=0  # Will be updated when duration is known
+            video_duration=0,  # Will be updated when duration is known
+            crop_config=crop_config,
         )
+        self._video_player.set_crop_config(crop_config)
+        self._unsaved_changes = False
+
+        if crop_config.is_default:
+            self._status_label.setText(f"Loaded: {path.name}")
+        else:
+            self._status_label.setText(f"Loaded: {path.name} | Recorder crop restored")
 
     def _analyze_video(self):
         """Run the full analysis pipeline."""
@@ -530,6 +541,7 @@ class MainWindow(QMainWindow):
                     pass
 
         path = self._session.video_path
+        existing_crop = self._session.crop_config.copy()
 
         # Show progress dialog
         progress = QProgressDialog("Analyzing video...", "Cancel", 0, 100, self)
@@ -595,7 +607,8 @@ class MainWindow(QMainWindow):
                 original_segments=segments,
                 analyzed_segments=analyzed_segments,
                 tokens=tokens,
-                original_keep_ranges=keep_ranges
+                original_keep_ranges=keep_ranges,
+                crop_config=existing_crop,
             )
 
             # Update UI

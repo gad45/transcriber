@@ -33,6 +33,8 @@ class NativeMacOSRecorder(QObject):
     recording_error = Signal(str)
     recording_warning = Signal(str)
     duration_changed = Signal(float)
+    _helper_event = Signal(dict)
+    _process_exited = Signal(int)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -46,8 +48,11 @@ class NativeMacOSRecorder(QObject):
         self._last_error = ""
         self._stderr_tail: deque[str] = deque(maxlen=20)
         self._terminal_event_seen = False
+        self._stop_requested = False
         self._duration_timer = QTimer(self)
         self._duration_timer.timeout.connect(self._emit_duration)
+        self._helper_event.connect(self._handle_event)
+        self._process_exited.connect(self._on_process_exited)
 
     @property
     def state(self) -> NativeMacOSRecorderState:
@@ -193,6 +198,7 @@ class NativeMacOSRecorder(QObject):
         self._last_error = ""
         self._stderr_tail.clear()
         self._terminal_event_seen = False
+        self._stop_requested = False
         self._duration_timer.start(100)
 
         self._stdout_thread = threading.Thread(target=self._read_stdout, name="macos-recorder-stdout", daemon=True)
@@ -210,6 +216,7 @@ class NativeMacOSRecorder(QObject):
             return
 
         self._state = NativeMacOSRecorderState.STOPPING
+        self._stop_requested = True
         self._duration_timer.stop()
 
         if self._process and self._process.poll() is None and self._process.stdin:
@@ -254,7 +261,7 @@ class NativeMacOSRecorder(QObject):
                 payload = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            self._handle_event(payload)
+            self._helper_event.emit(payload)
 
     def _read_stderr(self) -> None:
         process = self._process
@@ -272,6 +279,9 @@ class NativeMacOSRecorder(QObject):
             return
 
         return_code = process.wait()
+        self._process_exited.emit(return_code)
+
+    def _on_process_exited(self, return_code: int) -> None:
         self._duration_timer.stop()
 
         if self._terminal_event_seen:
@@ -281,21 +291,29 @@ class NativeMacOSRecorder(QObject):
             self._wait_thread = None
             return
 
+        stop_requested = self._stop_requested
         self._state = NativeMacOSRecorderState.IDLE
+        self._stop_requested = False
         self._process = None
         self._stdout_thread = None
         self._stderr_thread = None
         self._wait_thread = None
 
         if return_code == 0 and self._output_path and self._output_path.exists():
-            self.recording_stopped.emit(self._output_path)
+            if stop_requested:
+                self.recording_stopped.emit(self._output_path)
+            else:
+                self.recording_error.emit(
+                    "Native macOS recorder exited before Stop was pressed."
+                    f"{self._recording_file_details()}"
+                )
             return
 
         details = self._last_error
         if not details and self._stderr_tail:
             details = self._stderr_tail[-1]
         if not details:
-            details = "Native macOS recorder exited unexpectedly."
+            details = f"Native macOS recorder exited unexpectedly with code {return_code}."
         self.recording_error.emit(details)
 
     def _handle_event(self, payload: dict) -> None:
@@ -317,6 +335,7 @@ class NativeMacOSRecorder(QObject):
         if event == "error":
             self._terminal_event_seen = True
             self._state = NativeMacOSRecorderState.IDLE
+            self._stop_requested = False
             self._last_error = str(payload.get("message", "Native macOS recorder failed.")).strip()
             self._duration_timer.stop()
             self.recording_error.emit(self._last_error)
@@ -328,9 +347,41 @@ class NativeMacOSRecorder(QObject):
             self._duration_timer.stop()
             output_path_raw = str(payload.get("output_path", "")).strip()
             output_path = Path(output_path_raw) if output_path_raw else None
+            requested_stop = bool(payload.get("requested_stop")) or self._stop_requested
+            self._stop_requested = False
+
+            if not requested_stop:
+                self.recording_error.emit(
+                    "Native macOS recorder finished before Stop was pressed."
+                    f"{self._recording_file_details(output_path)}"
+                )
+                return
+
             if output_path is not None and output_path.exists():
                 self.recording_stopped.emit(output_path)
             elif self._output_path and self._output_path.exists():
                 self.recording_stopped.emit(self._output_path)
             else:
                 self.recording_error.emit("Native macOS recorder finished without creating an output file.")
+
+    def _recording_file_details(self, output_path: Path | None = None) -> str:
+        path = output_path or self._output_path
+        if path is None:
+            return "\n\nNo output path had been assigned yet."
+
+        if path.exists():
+            try:
+                size_mb = path.stat().st_size / (1024 * 1024)
+                return (
+                    "\n\nPartial recording saved at:\n"
+                    f"{path}\n"
+                    f"Size: {size_mb:.1f} MB"
+                )
+            except OSError:
+                return f"\n\nPartial recording saved at:\n{path}"
+
+        return (
+            "\n\nExpected output path:\n"
+            f"{path}\n"
+            "The file was not created."
+        )

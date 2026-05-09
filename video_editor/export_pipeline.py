@@ -11,7 +11,12 @@ from .analyzer import TimeRange
 from .captioner import Captioner
 from .config import Config
 from .cutter import Cutter
-from .project_io import ProjectData, get_final_keep_ranges, get_final_tokens
+from .project_io import (
+    ProjectData,
+    get_final_keep_ranges,
+    get_final_tokens,
+    infer_recording_crop_config,
+)
 from .transcriber import Token
 
 
@@ -63,6 +68,8 @@ def adjust_tokens_for_cuts(
 def crop_filter_from_project(project: ProjectData, cutter: Cutter) -> str | None:
     """Build the global crop filter stored by the GUI, if present."""
     crop = project.raw.get("crop_config")
+    if not crop and not project.raw.get("recording_crop_cleared"):
+        crop = infer_recording_crop_config(project.video_path)
     if not crop:
         return None
 

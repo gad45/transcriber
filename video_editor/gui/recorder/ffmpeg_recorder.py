@@ -5,6 +5,7 @@ import signal
 import subprocess
 import time
 import re
+from collections import deque
 from pathlib import Path
 from enum import Enum, auto
 
@@ -158,6 +159,7 @@ class FFmpegRecorder(QObject):
     recording_warning = Signal(str)
     duration_changed = Signal(float)
     _finalize_done = Signal(bool, object, str, str)
+    _process_exited = Signal(int, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -169,10 +171,15 @@ class FFmpegRecorder(QObject):
         self._remux_audio_sample_rate: int | None = None
         self._remux_audio_channels: int | None = None
         self._finalize_thread: threading.Thread | None = None
+        self._stderr_thread: threading.Thread | None = None
+        self._wait_thread: threading.Thread | None = None
+        self._stderr_tail: deque[str] = deque(maxlen=20)
+        self._stop_requested = False
         self._start_time: float = 0
         self._duration_timer = QTimer(self)
         self._duration_timer.timeout.connect(self._update_duration)
         self._finalize_done.connect(self._on_finalize_done)
+        self._process_exited.connect(self._on_process_exited)
 
     @property
     def state(self) -> FFmpegRecorderState:
@@ -282,13 +289,18 @@ class FFmpegRecorder(QObject):
                 cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
             )
 
             self._state = FFmpegRecorderState.RECORDING
             self._output_path = output_path
             self._final_output_path = final_output_path or output_path
+            self._stderr_tail.clear()
+            self._stop_requested = False
             self._start_time = time.time()
+            self._start_process_watchers()
             self._duration_timer.start(100)  # Update every 100ms
 
             self.recording_started.emit()
@@ -322,6 +334,7 @@ class FFmpegRecorder(QObject):
             return
 
         self._state = FFmpegRecorderState.STOPPING
+        self._stop_requested = True
         self._duration_timer.stop()
 
         worker = _FFmpegFinalizeWorker(
@@ -346,8 +359,11 @@ class FFmpegRecorder(QObject):
 
     def _on_finalize_done(self, success: bool, output_path_obj: object, warning: str, error: str) -> None:
         self._state = FFmpegRecorderState.IDLE
+        self._stop_requested = False
         self._process = None
         self._finalize_thread = None
+        self._stderr_thread = None
+        self._wait_thread = None
 
         if warning:
             self.recording_warning.emit(warning)
@@ -357,6 +373,77 @@ class FFmpegRecorder(QObject):
             return
 
         self.recording_error.emit(error or "Recording file not created")
+
+    def _start_process_watchers(self) -> None:
+        process = self._process
+        if process is None:
+            return
+
+        def read_stderr() -> None:
+            if process.stderr is None:
+                return
+            for raw_line in process.stderr:
+                line = raw_line.strip()
+                if line:
+                    self._stderr_tail.append(line)
+
+        def wait_for_exit() -> None:
+            return_code = process.wait()
+            stderr_tail = "\n".join(self._stderr_tail)
+            self._process_exited.emit(return_code, stderr_tail)
+
+        self._stderr_thread = threading.Thread(
+            target=read_stderr,
+            name="ffmpeg-recording-stderr",
+            daemon=True,
+        )
+        self._stderr_thread.start()
+        self._wait_thread = threading.Thread(
+            target=wait_for_exit,
+            name="ffmpeg-recording-wait",
+            daemon=True,
+        )
+        self._wait_thread.start()
+
+    def _on_process_exited(self, return_code: int, stderr_tail: str) -> None:
+        if self._state != FFmpegRecorderState.RECORDING or self._stop_requested:
+            return
+
+        self._state = FFmpegRecorderState.IDLE
+        self._duration_timer.stop()
+        self._process = None
+        self._stderr_thread = None
+        self._wait_thread = None
+
+        message = (
+            f"FFmpeg recorder exited before Stop was pressed (exit code {return_code})."
+            f"{self._recording_file_details()}"
+        )
+        if stderr_tail.strip():
+            lines = stderr_tail.strip().splitlines()
+            message += "\n\nFFmpeg output:\n" + "\n".join(lines[-6:])
+        self.recording_error.emit(message)
+
+    def _recording_file_details(self) -> str:
+        if self._output_path is None:
+            return "\n\nNo output path had been assigned yet."
+
+        if self._output_path.exists():
+            try:
+                size_mb = self._output_path.stat().st_size / (1024 * 1024)
+                return (
+                    "\n\nPartial recording saved at:\n"
+                    f"{self._output_path}\n"
+                    f"Size: {size_mb:.1f} MB"
+                )
+            except OSError:
+                return f"\n\nPartial recording saved at:\n{self._output_path}"
+
+        return (
+            "\n\nExpected output path:\n"
+            f"{self._output_path}\n"
+            "The file was not created."
+        )
 
     def _update_duration(self):
         """Update duration signal."""

@@ -1,11 +1,14 @@
+import json
 from pathlib import Path
 
 from video_editor.analyzer import SegmentAction, TimeRange
+from video_editor.export_pipeline import crop_filter_from_project
 from video_editor.project_io import (
     add_highlight_range,
     backup_project_file,
     build_project_payload,
     crop_config_from_rect,
+    infer_recording_crop_config,
     get_final_keep_ranges,
     get_final_tokens,
     load_project,
@@ -15,6 +18,39 @@ from video_editor.project_io import (
     write_project,
 )
 from video_editor.transcriber import Segment, Token
+
+
+def _write_recorder_crop_sidecar(
+    video_path: Path,
+    *,
+    crop_filter: str = "crop=1920:1080:760:180",
+    screen_size: tuple[int, int] = (3440, 1440),
+) -> Path:
+    video_path.parent.mkdir(parents=True, exist_ok=True)
+    video_path.write_bytes(b"")
+
+    if video_path.parent.name == "raw":
+        sidecar_path = video_path.parent.parent / f"{video_path.stem}.crop.json"
+    else:
+        sidecar_path = video_path.with_suffix(".crop.json")
+
+    payload = {
+        "raw_path": str(video_path),
+        "events": [
+            {
+                "stage": "crop_queued",
+                "screen_size": list(screen_size),
+                "crop_filter": crop_filter,
+            },
+            {
+                "stage": "crop_finished",
+                "screen_size": None,
+                "crop_filter": crop_filter,
+            },
+        ],
+    }
+    sidecar_path.write_text(json.dumps(payload), encoding="utf-8")
+    return sidecar_path
 
 
 def test_parse_time_accepts_common_formats():
@@ -108,6 +144,106 @@ def test_crop_config_from_rect_round_trips_to_project(tmp_path: Path):
     assert project.raw["crop_config"] == crop
     assert crop["width"] == 1920 / 3440
     assert crop["height"] == 1080 / 1440
+
+
+def test_recorder_crop_sidecar_is_restored_for_raw_recording(tmp_path: Path):
+    video_path = tmp_path / "raw" / "recording_20260509_210344.mp4"
+    _write_recorder_crop_sidecar(video_path)
+
+    crop = infer_recording_crop_config(video_path)
+
+    assert crop == {
+        "width": 1920 / 3440,
+        "height": 1080 / 1440,
+        "pan_x": 0.0,
+        "pan_y": 0.0,
+    }
+
+
+def test_recorder_crop_sidecar_is_not_applied_to_cropped_output(tmp_path: Path):
+    raw_video_path = tmp_path / "raw" / "recording_20260509_210344.mp4"
+    cropped_video_path = tmp_path / "recording_20260509_210344.mp4"
+    _write_recorder_crop_sidecar(raw_video_path)
+    cropped_video_path.write_bytes(b"")
+
+    assert infer_recording_crop_config(cropped_video_path) is None
+
+
+def test_build_and_load_project_restore_recorder_crop_sidecar(tmp_path: Path):
+    video_path = tmp_path / "raw" / "recording_20260509_210344.mp4"
+    project_path = tmp_path / "head_of_ai.vedproj"
+    _write_recorder_crop_sidecar(video_path)
+
+    payload = build_project_payload(
+        video_path=video_path,
+        video_duration=10.0,
+        segments=[],
+        tokens=[],
+        analyzed=[],
+        keep_ranges=[],
+    )
+    expected_crop = {
+        "width": 1920 / 3440,
+        "height": 1080 / 1440,
+        "pan_x": 0.0,
+        "pan_y": 0.0,
+    }
+    assert payload["crop_config"] == expected_crop
+
+    payload["crop_config"] = None
+    payload.pop("recording_crop_cleared", None)
+    write_project(project_path, payload)
+
+    project = load_project(project_path)
+
+    assert project.raw["crop_config"] == expected_crop
+
+
+def test_cleared_recorder_crop_is_not_reinferred(tmp_path: Path):
+    video_path = tmp_path / "raw" / "recording_20260509_210344.mp4"
+    project_path = tmp_path / "head_of_ai.vedproj"
+    _write_recorder_crop_sidecar(video_path)
+    payload = build_project_payload(
+        video_path=video_path,
+        video_duration=10.0,
+        segments=[],
+        tokens=[],
+        analyzed=[],
+        keep_ranges=[],
+    )
+    write_project(project_path, payload)
+    set_project_crop(project_path, crop_config=None)
+
+    project = load_project(project_path)
+
+    assert project.raw["crop_config"] is None
+    assert project.raw["recording_crop_cleared"] is True
+
+
+def test_export_crop_filter_falls_back_to_recorder_sidecar(tmp_path: Path):
+    video_path = tmp_path / "raw" / "recording_20260509_210344.mp4"
+    project_path = tmp_path / "head_of_ai.vedproj"
+    _write_recorder_crop_sidecar(video_path)
+    payload = build_project_payload(
+        video_path=video_path,
+        video_duration=10.0,
+        segments=[],
+        tokens=[],
+        analyzed=[],
+        keep_ranges=[],
+    )
+    payload["crop_config"] = None
+    payload.pop("recording_crop_cleared", None)
+    write_project(project_path, payload)
+    project = load_project(project_path)
+    project.raw["crop_config"] = None
+
+    class StubCutter:
+        def get_video_dimensions(self, path: Path) -> tuple[int, int]:
+            assert path == video_path.resolve()
+            return 3440, 1440
+
+    assert crop_filter_from_project(project, StubCutter()) == "crop=1920:1080:760:180"
 
 
 def test_merge_project_with_analysis_preserves_manual_presentation_settings(tmp_path: Path):

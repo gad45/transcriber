@@ -134,6 +134,7 @@ def build_project_payload(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a `.vedproj` payload that remains editable in the GUI."""
+    inferred_crop = infer_recording_crop_config(video_path)
     return {
         "version": "1.2",
         "video_path": str(Path(video_path).expanduser().resolve()),
@@ -148,7 +149,8 @@ def build_project_payload(
         "text_edits": {},
         "keep_overrides": {},
         "highlight_regions": highlight_regions or [],
-        "crop_config": None,
+        "crop_config": inferred_crop,
+        "recording_crop_cleared": False,
         "segment_crop_overrides": None,
         "caption_settings": DEFAULT_CAPTION_SETTINGS.copy(),
         "codex_analysis": metadata or {},
@@ -170,6 +172,11 @@ def load_project(path: Path) -> ProjectData:
     path = Path(path).expanduser().resolve()
     with path.open("r", encoding="utf-8") as file:
         raw = json.load(file)
+
+    if not raw.get("crop_config") and not raw.get("recording_crop_cleared"):
+        inferred_crop = infer_recording_crop_config(Path(raw["video_path"]).expanduser())
+        if inferred_crop:
+            raw["crop_config"] = inferred_crop
 
     segments = [
         Segment(
@@ -352,6 +359,115 @@ def crop_config_from_rect(
     }
 
 
+def recording_crop_sidecar_candidates(video_path: Path) -> list[Path]:
+    """Return possible recorder crop sidecar locations for a video."""
+    path = Path(video_path).expanduser()
+    candidates: list[Path] = []
+
+    if path.parent.name == "raw":
+        candidates.append(path.parent.parent / f"{path.stem}.crop.json")
+
+    candidates.append(path.with_suffix(".crop.json"))
+
+    # Preserve order while avoiding duplicate paths.
+    unique: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.expanduser()
+        if resolved not in seen:
+            seen.add(resolved)
+            unique.append(resolved)
+    return unique
+
+
+def find_recording_crop_sidecar(video_path: Path) -> Path | None:
+    """Find a crop sidecar written by the recorder, if one exists."""
+    for candidate in recording_crop_sidecar_candidates(video_path):
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _parse_crop_filter(crop_filter: str) -> tuple[int, int, int, int] | None:
+    match = re.search(r"(?:^|,)crop=(\d+):(\d+):(\d+):(\d+)(?:,|$)", crop_filter)
+    if not match:
+        return None
+    width, height, x, y = (int(value) for value in match.groups())
+    return x, y, width, height
+
+
+def crop_config_from_recording_sidecar(
+    sidecar_path: Path,
+    *,
+    expected_raw_path: Path | None = None,
+) -> dict[str, float] | None:
+    """Recover a GUI crop config from a recorder `.crop.json` sidecar."""
+    try:
+        payload = json.loads(Path(sidecar_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    if expected_raw_path is not None:
+        raw_path = payload.get("raw_path")
+        if isinstance(raw_path, str) and raw_path.strip():
+            try:
+                sidecar_raw_path = Path(raw_path).expanduser().resolve()
+                expected_path = Path(expected_raw_path).expanduser().resolve()
+                if sidecar_raw_path != expected_path:
+                    return None
+            except OSError:
+                return None
+        elif Path(expected_raw_path).expanduser().parent.name != "raw":
+            return None
+
+    screen_size: tuple[int, int] | None = None
+    crop_rect: tuple[int, int, int, int] | None = None
+
+    for event in payload.get("events", []):
+        raw_screen_size = event.get("screen_size")
+        if (
+            isinstance(raw_screen_size, list)
+            and len(raw_screen_size) == 2
+            and all(isinstance(value, (int, float)) for value in raw_screen_size)
+        ):
+            screen_size = (int(raw_screen_size[0]), int(raw_screen_size[1]))
+
+        raw_filter = event.get("crop_filter")
+        if isinstance(raw_filter, str):
+            parsed = _parse_crop_filter(raw_filter)
+            if parsed:
+                crop_rect = parsed
+
+    if not crop_rect or not screen_size:
+        return None
+
+    x, y, width, height = crop_rect
+    video_width, video_height = screen_size
+    try:
+        crop = crop_config_from_rect(
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            video_width=video_width,
+            video_height=video_height,
+        )
+    except ValueError:
+        return None
+
+    if crop["width"] == 1.0 and crop["height"] == 1.0:
+        return None
+    return crop
+
+
+def infer_recording_crop_config(video_path: Path) -> dict[str, float] | None:
+    """Infer a crop config from recorder metadata next to a raw recording."""
+    sidecar = find_recording_crop_sidecar(video_path)
+    if sidecar is None:
+        return None
+    return crop_config_from_recording_sidecar(sidecar, expected_raw_path=video_path)
+
+
 def set_project_crop(
     project_path: Path,
     *,
@@ -363,6 +479,7 @@ def set_project_crop(
     output = Path(output_path).expanduser().resolve() if output_path else project.path
     if crop_config is None:
         project.raw["crop_config"] = None
+        project.raw["recording_crop_cleared"] = True
     else:
         project.raw["crop_config"] = {
             "width": float(crop_config.get("width", 1.0)),
@@ -370,6 +487,7 @@ def set_project_crop(
             "pan_x": float(crop_config.get("pan_x", 0.0)),
             "pan_y": float(crop_config.get("pan_y", 0.0)),
         }
+        project.raw["recording_crop_cleared"] = False
     write_project(output, project.raw)
     return output
 
@@ -437,7 +555,7 @@ def merge_project_with_analysis(
     merged = dict(analysis.raw)
     merged["version"] = str(analysis.raw.get("version", "1.2"))
 
-    for key in ("crop_config", "segment_crop_overrides", "caption_settings"):
+    for key in ("crop_config", "recording_crop_cleared", "segment_crop_overrides", "caption_settings"):
         if key in manual.raw:
             merged[key] = manual.raw.get(key)
 

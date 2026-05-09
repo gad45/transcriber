@@ -93,6 +93,13 @@ private func emit(event: String, payload: [String: Any] = [:]) {
     FileHandle.standardOutput.write(newline)
 }
 
+private func describeError(_ error: Error, context: String) -> String {
+    let nsError = error as NSError
+    let detail = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+    let message = detail.isEmpty ? "\(nsError.domain) code \(nsError.code)" : detail
+    return "\(context): \(message) [domain=\(nsError.domain), code=\(nsError.code)]"
+}
+
 private func prepareAppKitRuntime() {
     // ScreenCaptureKit may create a status item while recording. Initializing
     // NSApplication avoids AppKit exceptions inside the helper process.
@@ -273,7 +280,7 @@ final class RecorderApp: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
 
             try await startCapture(stream: stream)
         } catch {
-            failAndExit(error.localizedDescription)
+            failAndExit(describeError(error, context: "Failed to start native macOS recorder"))
         }
     }
 
@@ -318,9 +325,17 @@ final class RecorderApp: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
             }
 
             Task {
-                await self.requestStop()
+                await self.controlPipeClosed()
             }
         }
+    }
+
+    private func controlPipeClosed() async {
+        if stopping || hasExited {
+            return
+        }
+
+        failAndExit("Native macOS recorder control pipe closed before Stop was requested.")
     }
 
     private func requestStop() async {
@@ -330,14 +345,14 @@ final class RecorderApp: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
 
         stopping = true
         guard let stream else {
-            finishAndExit()
+            finishAndExit(reason: "stop_requested_before_stream_started")
             return
         }
 
         do {
             try await stopCapture(stream: stream)
         } catch {
-            failAndExit(error.localizedDescription)
+            failAndExit(describeError(error, context: "Failed to stop native macOS recorder"))
         }
     }
 
@@ -346,7 +361,7 @@ final class RecorderApp: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
             return
         }
 
-        failAndExit(error.localizedDescription)
+        failAndExit(describeError(error, context: "ScreenCaptureKit stream stopped unexpectedly"))
     }
 
     func recordingOutputDidStartRecording(_ recordingOutput: SCRecordingOutput) {
@@ -354,14 +369,19 @@ final class RecorderApp: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
     }
 
     func recordingOutput(_ recordingOutput: SCRecordingOutput, didFailWithError error: Error) {
-        failAndExit(error.localizedDescription)
+        failAndExit(describeError(error, context: "ScreenCaptureKit recording output failed"))
     }
 
     func recordingOutputDidFinishRecording(_ recordingOutput: SCRecordingOutput) {
-        finishAndExit()
+        if stopping {
+            finishAndExit(reason: "stop_requested")
+            return
+        }
+
+        failAndExit("ScreenCaptureKit recording output finished before Stop was requested.")
     }
 
-    private func finishAndExit() {
+    private func finishAndExit(reason: String) {
         guard !hasExited else {
             return
         }
@@ -369,7 +389,11 @@ final class RecorderApp: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
         hasExited = true
         emit(
             event: "finished",
-            payload: ["output_path": options.outputURL.path]
+            payload: [
+                "output_path": options.outputURL.path,
+                "requested_stop": stopping,
+                "reason": reason
+            ]
         )
         Foundation.exit(0)
     }
@@ -399,7 +423,12 @@ struct MacOSSystemAudioRecorderTool {
             app.start()
             RunLoop.main.run()
         } catch {
-            emit(event: "error", payload: ["message": error.localizedDescription])
+            emit(
+                event: "error",
+                payload: [
+                    "message": describeError(error, context: "Native macOS recorder helper failed")
+                ]
+            )
             Foundation.exit(1)
         }
     }
