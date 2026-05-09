@@ -1,5 +1,6 @@
 """Main recorder tab widget combining all recording components."""
 
+import json
 import threading
 from pathlib import Path
 from datetime import datetime
@@ -19,6 +20,42 @@ from .ffmpeg_worker import FFmpegCropWorker
 from .macos_permissions import has_screen_capture_access, is_macos
 from ..models import RecordingConfig
 from ...encoder import get_encoder_args
+
+
+def cropped_recording_output_path(input_path: Path) -> Path:
+    """Return the cropped output path for a raw recorder capture."""
+    if input_path.parent.name == "raw":
+        return input_path.parent.parent / input_path.name
+    return input_path.with_name(f"{input_path.stem}_cropped{input_path.suffix}")
+
+
+def is_raw_recording_backup_path(input_path: Path) -> bool:
+    """Return True when the path is the recorder's full-screen raw backup."""
+    return input_path.parent.name == "raw"
+
+
+def select_recording_crop_config(
+    recording_config: RecordingConfig | None,
+    ui_config: RecordingConfig | None,
+) -> RecordingConfig | None:
+    """Pick the best available crop config for post-recording processing."""
+    if recording_config and recording_config.needs_crop_output:
+        return recording_config
+    if ui_config and ui_config.needs_crop_output:
+        return ui_config
+    return recording_config or ui_config
+
+
+def should_post_process_crop(
+    output_path: Path,
+    backend_needs_crop: bool,
+    config: RecordingConfig | None,
+) -> bool:
+    """Return True when a stopped recording should be cropped after capture."""
+    return bool(
+        backend_needs_crop or
+        (is_raw_recording_backup_path(output_path) and config and config.needs_crop_output)
+    )
 
 
 class RecorderTab(QWidget):
@@ -50,6 +87,10 @@ class RecorderTab(QWidget):
         self._crop_worker: FFmpegCropWorker | None = None
         self._crop_progress: QProgressDialog | None = None
         self._crop_auto_open = False
+        self._active_crop_input_path: Path | None = None
+        self._active_crop_output_path: Path | None = None
+        self._active_crop_filter = ""
+        self._active_crop_config: RecordingConfig | None = None
 
         self._setup_ui()
         self._connect_signals()
@@ -372,10 +413,29 @@ class RecorderTab(QWidget):
     def _on_recording_stopped(self, output_path: Path, needs_crop: bool):
         """Handle recording stopped."""
         self._timer_update.stop()
-        config = self._controller.get_last_recording_config()
+        recording_config = self._controller.get_last_recording_config()
+        ui_config = self._settings_panel.get_config()
+        config = select_recording_crop_config(recording_config, ui_config)
+        needs_post_crop = should_post_process_crop(output_path, needs_crop, config)
         auto_open = bool(config and not config.capture_full_screen)
 
-        if needs_crop:
+        if config and (needs_crop or needs_post_crop or config.needs_crop_output):
+            self._write_crop_audit(
+                output_path,
+                stage="recording_stopped",
+                config=config,
+                backend_needs_crop=needs_crop,
+                effective_needs_crop=needs_post_crop,
+            )
+            print(
+                "[Recording] Stop crop decision: "
+                f"backend_needs_crop={needs_crop}, "
+                f"effective_needs_crop={needs_post_crop}, "
+                f"raw_path={output_path}, "
+                f"config={config.to_dict()}"
+            )
+
+        if needs_post_crop:
             self._set_ui_processing()
             self._process_crop(output_path, config, auto_open=auto_open)
         else:
@@ -443,14 +503,35 @@ class RecorderTab(QWidget):
         crop_filter = config.to_ffmpeg_crop_filter(screen_width, screen_height, margin=0)
         if not crop_filter:
             self._set_ui_idle()
-            self._show_completion_dialog(input_path, auto_open=auto_open)
+            self._crop_auto_open = False
+            self._show_crop_failure(
+                input_path,
+                "The recording was marked for cropping, but no crop settings were "
+                "available. Raw full-screen backup saved at:\n"
+                f"{input_path}"
+            )
             return
 
-        # Cropped file goes to parent directory (raw stays in raw/)
-        # e.g., raw/recording_123.mp4 -> Recordings/recording_123.mp4
-        output_path = input_path.parent.parent / input_path.name
+        output_path = cropped_recording_output_path(input_path)
+        print(
+            "[Recording] Creating cropped output: "
+            f"{output_path} from {input_path} using {crop_filter}"
+        )
+        self._write_crop_audit(
+            input_path,
+            stage="crop_queued",
+            config=config,
+            effective_needs_crop=True,
+            crop_filter=crop_filter,
+            output_path=output_path,
+            screen_size=(screen_width, screen_height),
+        )
 
         self._crop_auto_open = auto_open
+        self._active_crop_input_path = input_path
+        self._active_crop_output_path = output_path
+        self._active_crop_filter = crop_filter
+        self._active_crop_config = config.copy()
         self._start_crop_worker(input_path, output_path, crop_filter)
 
     def _start_crop_worker(self, input_path: Path, output_path: Path, crop_filter: str) -> None:
@@ -496,10 +577,112 @@ class RecorderTab(QWidget):
 
         self._set_ui_idle()
 
-        if not success and message:
-            QMessageBox.warning(self, "Crop Warning", message)
+        if not success:
+            self._crop_auto_open = False
+            if self._active_crop_input_path:
+                self._write_crop_audit(
+                    self._active_crop_input_path,
+                    stage="crop_failed",
+                    config=self._active_crop_config,
+                    effective_needs_crop=True,
+                    crop_filter=self._active_crop_filter,
+                    output_path=self._active_crop_output_path,
+                    success=False,
+                    message=message,
+                )
+            self._clear_active_crop()
+            self._show_crop_failure(result_path, message)
+            return
 
+        if self._active_crop_input_path:
+            self._write_crop_audit(
+                self._active_crop_input_path,
+                stage="crop_finished",
+                config=self._active_crop_config,
+                effective_needs_crop=True,
+                crop_filter=self._active_crop_filter,
+                output_path=result_path,
+                success=True,
+                message=message,
+            )
+        self._clear_active_crop()
         self._show_completion_dialog(result_path, auto_open=self._crop_auto_open)
+
+    def _clear_active_crop(self) -> None:
+        self._active_crop_input_path = None
+        self._active_crop_output_path = None
+        self._active_crop_filter = ""
+        self._active_crop_config = None
+
+    def _show_crop_failure(self, raw_path: Path, message: str) -> None:
+        """Warn that crop output was not created without opening the raw backup."""
+        self._status_label.setText("Cropping failed - raw backup saved")
+        warning = message or (
+            "Cropping failed. Raw full-screen backup saved at:\n"
+            f"{raw_path}"
+        )
+        QMessageBox.warning(self, "Crop Failed", warning)
+        self.recording_completed.emit(raw_path)
+
+    def _write_crop_audit(
+        self,
+        raw_path: Path,
+        *,
+        stage: str,
+        config: RecordingConfig | None,
+        backend_needs_crop: bool | None = None,
+        effective_needs_crop: bool | None = None,
+        crop_filter: str | None = None,
+        output_path: Path | None = None,
+        screen_size: tuple[int, int] | None = None,
+        success: bool | None = None,
+        message: str = "",
+    ) -> None:
+        """Write a small crop sidecar so recorder decisions can be inspected."""
+        audit_path = cropped_recording_output_path(raw_path).with_suffix(".crop.json")
+        cropped_path = output_path or cropped_recording_output_path(raw_path)
+        payload = {
+            "raw_path": str(raw_path),
+            "cropped_output_path": str(cropped_path),
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
+        }
+
+        try:
+            if audit_path.exists():
+                payload.update(json.loads(audit_path.read_text(encoding="utf-8")))
+        except Exception:
+            pass
+
+        payload.update({
+            "raw_path": str(raw_path),
+            "cropped_output_path": str(cropped_path),
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
+        })
+        event = {
+            "time": datetime.now().isoformat(timespec="seconds"),
+            "stage": stage,
+            "backend_needs_crop": backend_needs_crop,
+            "effective_needs_crop": effective_needs_crop,
+            "crop_filter": crop_filter,
+            "screen_size": list(screen_size) if screen_size else None,
+            "success": success,
+            "message": message,
+            "config": config.to_dict() if config else None,
+        }
+        events = payload.setdefault("events", [])
+        if isinstance(events, list):
+            events.append(event)
+        else:
+            payload["events"] = [event]
+
+        try:
+            audit_path.parent.mkdir(parents=True, exist_ok=True)
+            audit_path.write_text(
+                json.dumps(payload, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            print(f"[Recording] Failed to write crop audit file: {exc}")
 
     def _show_completion_dialog(self, output_path: Path, auto_open: bool = False):
         """Show recording completion dialog or auto-open."""
