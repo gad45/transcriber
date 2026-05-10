@@ -76,6 +76,7 @@ class RecordingController(QObject):
         self._state = RecordingState.IDLE
         self._output_path: Path | None = None
         self._preview_active = False
+        self._resume_preview_after_external_recording = False
         self._permission_checked = False  # Skip repeated permission checks
         self._use_ffmpeg_recording = False  # Legacy direct-crop mode; default preserves full-screen backups
         self._stop_requested = False
@@ -473,6 +474,7 @@ class RecordingController(QObject):
         """Start recording with the native macOS system-audio backend."""
         try:
             self._stop_audio_monitoring()
+            self._suspend_preview_for_external_recording()
 
             output_path = self._get_output_path()
             self._output_path = output_path
@@ -482,7 +484,7 @@ class RecordingController(QObject):
             if self._config.audio_enabled and qt_device is not None:
                 microphone_name = qt_device.description()
 
-            return self._native_recorder.start_recording(
+            started = self._native_recorder.start_recording(
                 screen_index=self._config.screen_index,
                 output_path=output_path,
                 capture_system_audio=True,
@@ -492,7 +494,11 @@ class RecordingController(QObject):
                 sample_rate=self._config.audio_sample_rate,
                 channel_count=2,
             )
+            if not started:
+                self._resume_preview_after_external_recording_if_needed()
+            return started
         except Exception as e:
+            self._resume_preview_after_external_recording_if_needed()
             self.recording_error.emit(str(e))
             return False
 
@@ -501,10 +507,12 @@ class RecordingController(QObject):
         try:
             # Stop audio monitoring to release the device for recording
             self._stop_audio_monitoring()
+            self._suspend_preview_for_external_recording()
 
             # Get screen dimensions
             screens = QGuiApplication.screens()
             if self._config.screen_index >= len(screens):
+                self._resume_preview_after_external_recording_if_needed()
                 self.recording_error.emit("Invalid screen index")
                 return False
 
@@ -536,7 +544,7 @@ class RecordingController(QObject):
                 self._output_path = final_output_path
 
             # Start FFmpeg recording
-            return self._ffmpeg_recorder.start_recording(
+            started = self._ffmpeg_recorder.start_recording(
                 screen_index=self._config.screen_index,
                 crop_rect=crop_rect,
                 audio_device_index=audio_device_index,
@@ -547,8 +555,12 @@ class RecordingController(QObject):
                 use_hardware=True,
                 framerate=30
             )
+            if not started:
+                self._resume_preview_after_external_recording_if_needed()
+            return started
 
         except Exception as e:
+            self._resume_preview_after_external_recording_if_needed()
             self.recording_error.emit(str(e))
             return False
 
@@ -601,9 +613,7 @@ class RecordingController(QObject):
         """Handle FFmpeg recording stopped."""
         self._set_state(RecordingState.IDLE)
         self._stop_requested = False
-        # Resume audio monitoring for preview
-        if self._preview_active:
-            self._start_audio_monitoring()
+        self._resume_preview_after_external_recording_if_needed()
         # FFmpeg recordings are already cropped, no post-processing needed
         self.recording_stopped.emit(output_path, False)
 
@@ -612,8 +622,7 @@ class RecordingController(QObject):
         self._output_path = output_path
         self._set_state(RecordingState.IDLE)
         self._stop_requested = False
-        if self._preview_active:
-            self._start_audio_monitoring()
+        self._resume_preview_after_external_recording_if_needed()
         config = self._recording_config or self._config
         self.recording_stopped.emit(output_path, config.needs_crop_output)
 
@@ -621,17 +630,14 @@ class RecordingController(QObject):
         """Handle FFmpeg recording error."""
         self._set_state(RecordingState.IDLE)
         self._stop_requested = False
-        # Resume audio monitoring for preview
-        if self._preview_active:
-            self._start_audio_monitoring()
+        self._resume_preview_after_external_recording_if_needed()
         self.recording_error.emit(error)
 
     def _on_native_error(self, error: str):
         """Handle native macOS recording error."""
         self._set_state(RecordingState.IDLE)
         self._stop_requested = False
-        if self._preview_active:
-            self._start_audio_monitoring()
+        self._resume_preview_after_external_recording_if_needed()
         self.recording_error.emit(error)
 
     def _on_ffmpeg_warning(self, message: str):
@@ -888,6 +894,21 @@ class RecordingController(QObject):
         # Start audio level monitoring
         self._start_audio_monitoring()
         return True
+
+    def _suspend_preview_for_external_recording(self) -> None:
+        """Stop the Qt preview while an external recorder owns screen capture."""
+        self._resume_preview_after_external_recording = self._preview_active
+        if self._preview_active:
+            self._screen_capture.setActive(False)
+            self._preview_active = False
+
+    def _resume_preview_after_external_recording_if_needed(self) -> None:
+        """Restore the preview that was suspended for native/FFmpeg recording."""
+        if not self._resume_preview_after_external_recording:
+            return
+
+        self._resume_preview_after_external_recording = False
+        self.start_preview()
 
     def stop_preview(self):
         """Stop screen capture preview.

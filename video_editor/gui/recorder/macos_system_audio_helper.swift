@@ -370,12 +370,6 @@ final class RecorderApp: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
             stopping = true
             finishReason = "system_stopped_stream"
             interruptionMessage = message
-            emit(
-                event: "warning",
-                payload: [
-                    "message": "\(message). Finalizing the partial recording."
-                ]
-            )
             scheduleInterruptedFinishFallback()
             return
         }

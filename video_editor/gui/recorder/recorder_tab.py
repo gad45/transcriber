@@ -451,6 +451,10 @@ class RecorderTab(QWidget):
 
     def _on_recording_warning(self, message: str):
         """Handle recording warning (non-fatal)."""
+        if self._controller.is_recording:
+            print(f"[Recording] Warning while recording: {message}")
+            self._status_label.setText("Recording warning - continuing")
+            return
         QMessageBox.warning(self, "Recording Warning", message)
 
     def _on_duration_changed(self, duration_ms: int):
