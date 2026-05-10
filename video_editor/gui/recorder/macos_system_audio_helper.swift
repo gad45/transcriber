@@ -201,6 +201,9 @@ final class RecorderApp: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
     private var recordingOutput: SCRecordingOutput?
     private var stopping = false
     private var hasExited = false
+    private var finishReason = "stop_requested"
+    private var interruptionMessage: String?
+    private var interruptionFinalizerScheduled = false
 
     init(options: Options) {
         self.options = options
@@ -344,6 +347,7 @@ final class RecorderApp: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
         }
 
         stopping = true
+        finishReason = "stop_requested"
         guard let stream else {
             finishAndExit(reason: "stop_requested_before_stream_started")
             return
@@ -361,7 +365,22 @@ final class RecorderApp: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
             return
         }
 
-        failAndExit(describeError(error, context: "ScreenCaptureKit stream stopped unexpectedly"))
+        let message = describeError(error, context: "ScreenCaptureKit stream stopped unexpectedly")
+        if isSystemStoppedStreamError(error) {
+            stopping = true
+            finishReason = "system_stopped_stream"
+            interruptionMessage = message
+            emit(
+                event: "warning",
+                payload: [
+                    "message": "\(message). Finalizing the partial recording."
+                ]
+            )
+            scheduleInterruptedFinishFallback()
+            return
+        }
+
+        failAndExit(message)
     }
 
     func recordingOutputDidStartRecording(_ recordingOutput: SCRecordingOutput) {
@@ -369,16 +388,57 @@ final class RecorderApp: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
     }
 
     func recordingOutput(_ recordingOutput: SCRecordingOutput, didFailWithError error: Error) {
+        if isSystemStoppedStreamError(error) {
+            stopping = true
+            finishReason = "system_stopped_stream"
+            interruptionMessage = describeError(error, context: "ScreenCaptureKit recording output stopped")
+            scheduleInterruptedFinishFallback()
+            return
+        }
+
         failAndExit(describeError(error, context: "ScreenCaptureKit recording output failed"))
     }
 
     func recordingOutputDidFinishRecording(_ recordingOutput: SCRecordingOutput) {
         if stopping {
-            finishAndExit(reason: "stop_requested")
+            finishAndExit(reason: finishReason)
             return
         }
 
         failAndExit("ScreenCaptureKit recording output finished before Stop was requested.")
+    }
+
+    private func isSystemStoppedStreamError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == SCStreamErrorDomain else {
+            return false
+        }
+
+        // -3821 is SCStreamErrorSystemStoppedStream on macOS 15.
+        // -3817 is SCStreamErrorUserStopped on older ScreenCaptureKit headers.
+        return nsError.code == -3821 || nsError.code == -3817
+    }
+
+    private func scheduleInterruptedFinishFallback() {
+        if interruptionFinalizerScheduled {
+            return
+        }
+
+        interruptionFinalizerScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+            guard let self, !self.hasExited, self.stopping else {
+                return
+            }
+
+            if FileManager.default.fileExists(atPath: self.options.outputURL.path) {
+                self.finishAndExit(reason: self.finishReason)
+            } else {
+                self.failAndExit(
+                    self.interruptionMessage ??
+                    "ScreenCaptureKit stopped the stream and no output file was created."
+                )
+            }
+        }
     }
 
     private func finishAndExit(reason: String) {
@@ -387,14 +447,16 @@ final class RecorderApp: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
         }
 
         hasExited = true
-        emit(
-            event: "finished",
-            payload: [
-                "output_path": options.outputURL.path,
-                "requested_stop": stopping,
-                "reason": reason
-            ]
-        )
+        var payload: [String: Any] = [
+            "output_path": options.outputURL.path,
+            "requested_stop": stopping,
+            "reason": reason
+        ]
+        if let interruptionMessage {
+            payload["interrupted"] = true
+            payload["message"] = interruptionMessage
+        }
+        emit(event: "finished", payload: payload)
         Foundation.exit(0)
     }
 

@@ -315,6 +315,8 @@ def _codesign(app_path: Path, identity: str) -> None:
             "--deep",
             "--sign",
             identity,
+            "--prefix",
+            f"{BUNDLE_ID}.",
             "--timestamp=none",
             str(app_path),
         ]

@@ -348,6 +348,8 @@ class NativeMacOSRecorder(QObject):
             output_path_raw = str(payload.get("output_path", "")).strip()
             output_path = Path(output_path_raw) if output_path_raw else None
             requested_stop = bool(payload.get("requested_stop")) or self._stop_requested
+            interrupted = bool(payload.get("interrupted"))
+            interruption_message = str(payload.get("message", "")).strip()
             self._stop_requested = False
 
             if not requested_stop:
@@ -358,8 +360,20 @@ class NativeMacOSRecorder(QObject):
                 return
 
             if output_path is not None and output_path.exists():
+                if interrupted:
+                    self.recording_warning.emit(
+                        "macOS stopped the ScreenCaptureKit stream before Stop was pressed. "
+                        "The partial recording was saved.\n\n"
+                        f"{interruption_message or 'No additional macOS error detail was provided.'}"
+                    )
                 self.recording_stopped.emit(output_path)
             elif self._output_path and self._output_path.exists():
+                if interrupted:
+                    self.recording_warning.emit(
+                        "macOS stopped the ScreenCaptureKit stream before Stop was pressed. "
+                        "The partial recording was saved.\n\n"
+                        f"{interruption_message or 'No additional macOS error detail was provided.'}"
+                    )
                 self.recording_stopped.emit(self._output_path)
             else:
                 self.recording_error.emit("Native macOS recorder finished without creating an output file.")
