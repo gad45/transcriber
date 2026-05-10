@@ -1,7 +1,6 @@
 """Data models for GUI state management."""
 
 import json
-import sys
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any
@@ -262,7 +261,7 @@ class RecordingConfig:
     # Audio settings
     audio_device_id: str = ""  # Empty string = system default
     audio_enabled: bool = True
-    system_audio_enabled: bool = sys.platform == "darwin"
+    system_audio_enabled: bool = False
     audio_volume: float = 1.0  # 0.0-1.0
 
     # Output settings
@@ -391,7 +390,7 @@ class RecordingConfig:
             crop_offset_y=data.get("crop_offset_y", 0.5),
             audio_device_id=data.get("audio_device_id", ""),
             audio_enabled=data.get("audio_enabled", True),
-            system_audio_enabled=data.get("system_audio_enabled", sys.platform == "darwin"),
+            system_audio_enabled=data.get("system_audio_enabled", False),
             audio_volume=data.get("audio_volume", 1.0),
             output_directory=data.get("output_directory", ""),
             filename_pattern=data.get("filename_pattern", "recording_{timestamp}"),

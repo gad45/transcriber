@@ -19,6 +19,11 @@ def test_recording_config_only_needs_crop_when_crop_mode_selected():
     assert config.needs_crop_output is True
 
 
+def test_recording_config_system_audio_defaults_off():
+    assert RecordingConfig().system_audio_enabled is False
+    assert RecordingConfig.from_dict({}).system_audio_enabled is False
+
+
 def test_recording_config_exact_preview_crop_filter_uses_no_margin():
     config = RecordingConfig(
         capture_full_screen=False,
