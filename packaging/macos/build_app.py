@@ -72,6 +72,9 @@ def _default_codesign_identity() -> str:
             identities.append(identity)
 
     for identity in identities:
+        if identity.startswith("Apple Distribution:"):
+            return identity
+    for identity in identities:
         if identity.startswith("Apple Development:") and "@" not in identity:
             return identity
     for identity in identities:
