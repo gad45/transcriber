@@ -430,6 +430,11 @@ class RecordingSettingsPanel(QWidget):
         """Get the current recording configuration."""
         return self._config.copy()
 
+    def set_crop_offset(self, x: float, y: float):
+        """Store the crop overlay position selected in the preview."""
+        self._config.crop_offset_x = max(0.0, min(1.0, x))
+        self._config.crop_offset_y = max(0.0, min(1.0, y))
+
     def set_config(self, config: RecordingConfig):
         """Set the recording configuration."""
         self._updating = True

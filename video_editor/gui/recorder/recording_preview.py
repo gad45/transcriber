@@ -386,6 +386,8 @@ class RecordingPreview(QWidget):
         self._aspect_ratio: tuple[int, int] | None = None
         self._resolution: tuple[int, int] | None = None
         self._screen_size: tuple[int, int] | None = None
+        self._crop_offset_x = 0.5
+        self._crop_offset_y = 0.5
         self._show_overlay = False
 
         self._setup_ui()
@@ -435,6 +437,8 @@ class RecordingPreview(QWidget):
 
     def _on_crop_changed(self, x: float, y: float):
         """Handle crop region being moved."""
+        self._crop_offset_x = x
+        self._crop_offset_y = y
         self.crop_offset_changed.emit(x, y)
 
     def _update_overlays(self):
@@ -450,6 +454,7 @@ class RecordingPreview(QWidget):
             elif self._aspect_ratio is not None:
                 self._crop_overlay.set_aspect_ratio(self._aspect_ratio)
 
+            self._crop_overlay.set_normalized_offset(self._crop_offset_x, self._crop_offset_y)
             self._crop_overlay.setVisible(True)
             self._dark_overlay.set_crop_rect(self._crop_overlay.rect())
             self._dark_overlay.setVisible(True)
@@ -503,6 +508,8 @@ class RecordingPreview(QWidget):
 
     def set_crop_offset(self, x: float, y: float):
         """Set the crop region position."""
+        self._crop_offset_x = max(0.0, min(1.0, x))
+        self._crop_offset_y = max(0.0, min(1.0, y))
         self._crop_overlay.set_normalized_offset(x, y)
         if self._show_overlay:
             self._dark_overlay.set_crop_rect(self._crop_overlay.rect())

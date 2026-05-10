@@ -298,6 +298,11 @@ class RecorderTab(QWidget):
         """Handle record button click."""
         # Apply current settings
         config = self._settings_panel.get_config()
+        if config.needs_crop_output:
+            offset_x, offset_y = self._preview.get_crop_offset()
+            config.crop_offset_x = offset_x
+            config.crop_offset_y = offset_y
+            self._settings_panel.set_crop_offset(offset_x, offset_y)
         self._controller.set_config(config)
 
         self._controller.start_recording()
@@ -378,6 +383,7 @@ class RecorderTab(QWidget):
 
     def _on_crop_offset_changed(self, x: float, y: float):
         """Handle crop region being moved."""
+        self._settings_panel.set_crop_offset(x, y)
         self._controller.set_crop_offset(x, y)
 
     def _on_permission_changed(self, granted: bool):
@@ -736,6 +742,7 @@ class RecorderTab(QWidget):
             self._preview.set_crop_mode(None, None)
         else:
             self._preview.set_crop_mode(config.target_resolution, config.target_aspect_ratio)
+            self._preview.set_crop_offset(config.crop_offset_x, config.crop_offset_y)
 
     def showEvent(self, event):
         """Handle widget becoming visible."""

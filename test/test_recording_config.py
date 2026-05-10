@@ -35,6 +35,17 @@ def test_recording_config_exact_preview_crop_filter_uses_no_margin():
     assert config.to_ffmpeg_crop_filter(3440, 1440, margin=0) == "crop=1920:1080:760:180"
 
 
+def test_recording_config_preview_offset_changes_crop_filter_position():
+    config = RecordingConfig(
+        capture_full_screen=False,
+        target_resolution=(1920, 1080),
+        crop_offset_x=1.0,
+        crop_offset_y=0.0,
+    )
+
+    assert config.to_ffmpeg_crop_filter(3440, 1440, margin=0) == "crop=1920:1080:1520:0"
+
+
 def test_recording_config_crop_filter_can_keep_legacy_margin():
     config = RecordingConfig(
         capture_full_screen=False,
