@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, Signal, QStandardPaths
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLabel, QComboBox, QSlider, QCheckBox, QPushButton,
-    QGroupBox, QFileDialog, QLineEdit, QSpinBox
+    QGroupBox, QFileDialog, QLineEdit, QPlainTextEdit, QSpinBox
 )
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtMultimedia import QMediaDevices
@@ -61,6 +61,10 @@ class RecordingSettingsPanel(QWidget):
         audio_enabled_changed: Emitted when microphone/input audio is enabled/disabled
         system_audio_enabled_changed: Emitted when macOS system audio capture is enabled/disabled
         audio_only_changed: Emitted when audio-only recording is enabled/disabled
+        teleprompter_enabled_changed: Emitted when the audio teleprompter is shown/hidden
+        teleprompter_script_changed: Emitted when the teleprompter script changes
+        teleprompter_speed_changed: Emitted with the scroll speed in pixels per second
+        teleprompter_auto_start_changed: Emitted when record-triggered scrolling changes
     """
 
     settings_changed = Signal()
@@ -71,16 +75,23 @@ class RecordingSettingsPanel(QWidget):
     audio_enabled_changed = Signal(bool)
     system_audio_enabled_changed = Signal(bool)
     audio_only_changed = Signal(bool)
+    teleprompter_enabled_changed = Signal(bool)
+    teleprompter_script_changed = Signal(str)
+    teleprompter_speed_changed = Signal(int)
+    teleprompter_auto_start_changed = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
         self._config = RecordingConfig()
         self._updating = False  # Prevent signal loops
+        self._teleprompter_enabled = False
+        self._teleprompter_auto_start = True
 
         self._setup_ui()
         self._populate_devices()
         self._connect_signals()
+        self._sync_teleprompter_controls()
 
     def _setup_ui(self):
         """Set up the settings panel UI."""
@@ -178,6 +189,46 @@ class RecordingSettingsPanel(QWidget):
 
         layout.addWidget(audio_group)
 
+        # Teleprompter settings group
+        teleprompter_group = QGroupBox("Teleprompter")
+        teleprompter_layout = QVBoxLayout(teleprompter_group)
+
+        self._teleprompter_enabled_check = QCheckBox("Show while recording audio")
+        self._teleprompter_enabled_check.setToolTip(
+            "Shows your script in the recording area without adding it to the audio file."
+        )
+        teleprompter_layout.addWidget(self._teleprompter_enabled_check)
+
+        script_label = QLabel("Script:")
+        teleprompter_layout.addWidget(script_label)
+        self._teleprompter_script_edit = QPlainTextEdit()
+        self._teleprompter_script_edit.setPlaceholderText(
+            "Paste or type the script you want to read..."
+        )
+        self._teleprompter_script_edit.setMinimumHeight(100)
+        self._teleprompter_script_edit.setToolTip(
+            "This text is only displayed for you; it is not saved in the recording."
+        )
+        teleprompter_layout.addWidget(self._teleprompter_script_edit)
+
+        speed_layout = QHBoxLayout()
+        speed_layout.addWidget(QLabel("Scroll speed:"))
+        self._teleprompter_speed_slider = QSlider(Qt.Orientation.Horizontal)
+        self._teleprompter_speed_slider.setRange(10, 200)
+        self._teleprompter_speed_slider.setValue(45)
+        self._teleprompter_speed_slider.setToolTip("Set how quickly the script scrolls.")
+        self._teleprompter_speed_label = QLabel("45 px/s")
+        self._teleprompter_speed_label.setMinimumWidth(52)
+        speed_layout.addWidget(self._teleprompter_speed_slider, 1)
+        speed_layout.addWidget(self._teleprompter_speed_label)
+        teleprompter_layout.addLayout(speed_layout)
+
+        self._teleprompter_auto_start_check = QCheckBox("Start scrolling when recording starts")
+        self._teleprompter_auto_start_check.setChecked(True)
+        teleprompter_layout.addWidget(self._teleprompter_auto_start_check)
+
+        layout.addWidget(teleprompter_group)
+
         # Output settings group
         output_group = QGroupBox("Output")
         output_layout = QFormLayout(output_group)
@@ -232,7 +283,7 @@ class RecordingSettingsPanel(QWidget):
                 left: 8px;
                 padding: 0 4px;
             }
-            QComboBox, QLineEdit, QSpinBox {
+            QComboBox, QLineEdit, QPlainTextEdit, QSpinBox {
                 background: #333;
                 border: 1px solid #555;
                 border-radius: 3px;
@@ -355,6 +406,10 @@ class RecordingSettingsPanel(QWidget):
         self._volume_slider.valueChanged.connect(self._on_volume_changed)
         self._browse_btn.clicked.connect(self._on_browse_clicked)
         self._quality_combo.currentIndexChanged.connect(self._on_quality_changed)
+        self._teleprompter_enabled_check.toggled.connect(self._on_teleprompter_enabled_changed)
+        self._teleprompter_script_edit.textChanged.connect(self._on_teleprompter_script_changed)
+        self._teleprompter_speed_slider.valueChanged.connect(self._on_teleprompter_speed_changed)
+        self._teleprompter_auto_start_check.toggled.connect(self._on_teleprompter_auto_start_changed)
 
     def _on_screen_changed(self, index: int):
         """Handle screen selection change."""
@@ -477,6 +532,34 @@ class RecordingSettingsPanel(QWidget):
         self._config.video_quality = quality
         self.settings_changed.emit()
 
+    def _on_teleprompter_enabled_changed(self, enabled: bool):
+        """Show or hide the teleprompter in audio-only mode."""
+        if self._updating:
+            return
+
+        self._teleprompter_enabled = enabled
+        self._sync_teleprompter_controls()
+        self.teleprompter_enabled_changed.emit(enabled)
+
+    def _on_teleprompter_script_changed(self):
+        """Forward script changes to the live teleprompter."""
+        if not self._updating:
+            self.teleprompter_script_changed.emit(self._teleprompter_script_edit.toPlainText())
+
+    def _on_teleprompter_speed_changed(self, value: int):
+        """Forward the requested script speed to the live teleprompter."""
+        self._teleprompter_speed_label.setText(f"{value} px/s")
+        if not self._updating:
+            self.teleprompter_speed_changed.emit(value)
+
+    def _on_teleprompter_auto_start_changed(self, enabled: bool):
+        """Update whether recording begins the script scroll automatically."""
+        if self._updating:
+            return
+
+        self._teleprompter_auto_start = enabled
+        self.teleprompter_auto_start_changed.emit(enabled)
+
     def _sync_audio_only_controls(self):
         """Keep controls that do not apply to audio-only recording unavailable."""
         audio_only = self._config.audio_only
@@ -494,6 +577,23 @@ class RecordingSettingsPanel(QWidget):
             self._system_audio_enabled_check.setEnabled(
                 not audio_only and self._supports_native_system_audio()
             )
+
+    def _sync_teleprompter_controls(self):
+        """Disable text and speed controls until the teleprompter is enabled."""
+        enabled = self._teleprompter_enabled
+        self._teleprompter_script_edit.setEnabled(enabled)
+        self._teleprompter_speed_slider.setEnabled(enabled)
+        self._teleprompter_auto_start_check.setEnabled(enabled)
+
+    @property
+    def teleprompter_enabled(self) -> bool:
+        """Return whether the teleprompter should replace the audio-only notice."""
+        return self._teleprompter_enabled
+
+    @property
+    def teleprompter_auto_start(self) -> bool:
+        """Return whether recording automatically starts script scrolling."""
+        return self._teleprompter_auto_start
 
     def get_config(self) -> RecordingConfig:
         """Get the current recording configuration."""

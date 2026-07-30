@@ -16,6 +16,7 @@ from PySide6.QtGui import QGuiApplication
 from .recording_controller import RecordingController, RecordingState
 from .recording_preview import RecordingPreview
 from .recording_settings import RecordingSettingsPanel
+from .teleprompter import TeleprompterView
 from .ffmpeg_worker import FFmpegCropWorker
 from .macos_permissions import has_screen_capture_access, is_macos
 from ..models import RecordingConfig
@@ -127,6 +128,8 @@ class RecorderTab(QWidget):
             "background: #1f1f1f; color: #bbb; font-size: 16px; padding: 32px;"
         )
         self._preview_stack.addWidget(self._audio_only_placeholder)
+        self._teleprompter = TeleprompterView()
+        self._preview_stack.addWidget(self._teleprompter)
         splitter.addWidget(self._preview_stack)
 
         # Settings panel (right side)
@@ -290,6 +293,9 @@ class RecorderTab(QWidget):
         self._settings_panel.audio_enabled_changed.connect(self._on_audio_enabled_changed)
         self._settings_panel.system_audio_enabled_changed.connect(self._on_system_audio_enabled_changed)
         self._settings_panel.audio_only_changed.connect(self._on_audio_only_changed)
+        self._settings_panel.teleprompter_enabled_changed.connect(self._on_teleprompter_enabled_changed)
+        self._settings_panel.teleprompter_script_changed.connect(self._teleprompter.set_script)
+        self._settings_panel.teleprompter_speed_changed.connect(self._teleprompter.set_scroll_speed)
 
         # Preview
         self._preview.crop_offset_changed.connect(self._on_crop_offset_changed)
@@ -335,8 +341,11 @@ class RecorderTab(QWidget):
         """Handle pause button toggle."""
         if checked:
             self._controller.pause_recording()
+            self._teleprompter.pause()
         else:
             self._controller.resume_recording()
+            if self._is_audio_teleprompter_active():
+                self._teleprompter.start()
 
     def _on_refresh_clicked(self):
         """Handle refresh devices button click."""
@@ -404,12 +413,30 @@ class RecorderTab(QWidget):
     def _on_audio_only_changed(self, enabled: bool):
         """Switch the recorder between screen capture and audio-only capture."""
         self._controller.set_audio_only(enabled)
-        self._preview_stack.setCurrentWidget(
-            self._audio_only_placeholder if enabled else self._preview
-        )
+        self._update_primary_view()
         self._status_label.setText(
             "Ready to record audio" if enabled else "Ready to record"
         )
+
+    def _on_teleprompter_enabled_changed(self, enabled: bool):
+        """Show the script in place of the audio-only recording notice."""
+        self._update_primary_view()
+
+    def _is_audio_teleprompter_active(self) -> bool:
+        """Return True when the current recording should drive the teleprompter."""
+        return bool(
+            self._settings_panel.get_config().audio_only and
+            self._settings_panel.teleprompter_enabled
+        )
+
+    def _update_primary_view(self) -> None:
+        """Select the preview, audio notice, or teleprompter for the recorder canvas."""
+        if not self._settings_panel.get_config().audio_only:
+            self._preview_stack.setCurrentWidget(self._preview)
+        elif self._settings_panel.teleprompter_enabled:
+            self._preview_stack.setCurrentWidget(self._teleprompter)
+        else:
+            self._preview_stack.setCurrentWidget(self._audio_only_placeholder)
 
     def _on_crop_offset_changed(self, x: float, y: float):
         """Handle crop region being moved."""
@@ -445,11 +472,16 @@ class RecorderTab(QWidget):
         self._settings_panel.setEnabled(False)
         config = self._controller.get_last_recording_config()
         self._status_label.setText("Recording audio..." if config and config.audio_only else "Recording...")
+        if config and config.audio_only and self._settings_panel.teleprompter_enabled:
+            self._teleprompter.reset()
+            if self._settings_panel.teleprompter_auto_start:
+                self._teleprompter.start()
         self._timer_update.start(100)
 
     def _on_recording_stopped(self, output_path: Path, needs_crop: bool):
         """Handle recording stopped."""
         self._timer_update.stop()
+        self._teleprompter.reset()
         recording_config = self._controller.get_last_recording_config()
         ui_config = self._settings_panel.get_config()
         config = select_recording_crop_config(recording_config, ui_config)
@@ -482,6 +514,7 @@ class RecorderTab(QWidget):
     def _on_recording_error(self, error: str):
         """Handle recording error."""
         self._timer_update.stop()
+        self._teleprompter.reset()
         self._set_ui_idle()
 
         QMessageBox.critical(self, "Recording Error", error)
@@ -775,9 +808,7 @@ class RecorderTab(QWidget):
         self._settings_panel.set_config(config)
         self._controller.set_config(config)
         self._controller.set_audio_only(config.audio_only)
-        self._preview_stack.setCurrentWidget(
-            self._audio_only_placeholder if config.audio_only else self._preview
-        )
+        self._update_primary_view()
         if config.capture_full_screen:
             self._preview.set_crop_mode(None, None)
         else:
@@ -797,3 +828,4 @@ class RecorderTab(QWidget):
         # Stop preview when tab is hidden (to save resources)
         if not self._controller.is_recording:
             self._controller.stop_preview()
+            self._teleprompter.pause()
