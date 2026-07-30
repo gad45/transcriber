@@ -377,7 +377,6 @@ class FFmpegRecorder(QObject):
             "-rtbufsize", "64M",
             "-f", "avfoundation",
             "-i", f":{audio_device_index}",
-            "-af", "aresample=async=1000:first_pts=0",
             "-c:a", cls._get_best_aac_encoder(),
             "-b:a", str(audio_bitrate),
             "-ar", str(audio_sample_rate),
