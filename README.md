@@ -9,7 +9,7 @@ An AI-powered video editing tool for spoken content. Automatically removes bad t
 - **Silence Removal**: Configurable silence detection and removal
 - **Streaming Captions**: Word-by-word captions burned into video with draggable positioning
 - **Video Cropping & Panning**: Interactive crop selection with aspect ratio constraints
-- **Screen and Audio Recording**: Built-in screen capture with aspect ratio selection and audio input, plus 48 kHz stereo AAC audio-only recording
+- **Screen and Audio Recording**: Built-in screen capture with aspect ratio selection and audio input, plus reliable audio-only recording and a configurable teleprompter. See [Recorder features](docs/recorder-features.md).
 - **GUI Editor**: Full graphical interface for reviewing and adjusting edits
 - **Timeline Highlights**: Mark non-speech regions to force-include (for screencasts)
 - **Project Files**: Save/load editing sessions for later refinement
