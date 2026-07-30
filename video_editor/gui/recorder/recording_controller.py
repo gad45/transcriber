@@ -77,6 +77,8 @@ class RecordingController(QObject):
         self._output_path: Path | None = None
         self._preview_active = False
         self._resume_preview_after_external_recording = False
+        self._audio_only_recorder_active = False
+        self._resume_preview_after_audio_only_recording = False
         self._permission_checked = False  # Skip repeated permission checks
         self._use_ffmpeg_recording = False  # Legacy direct-crop mode; default preserves full-screen backups
         self._stop_requested = False
@@ -117,7 +119,10 @@ class RecordingController(QObject):
         self._session.setScreenCapture(self._screen_capture)
         self._session.setRecorder(self._recorder)
 
-        # Configure recorder format
+        self._configure_video_recorder_format()
+
+    def _configure_video_recorder_format(self) -> None:
+        """Configure the shared recorder for screen recordings."""
         format = QMediaFormat()
         format.setFileFormat(QMediaFormat.FileFormat.MPEG4)
         format.setVideoCodec(QMediaFormat.VideoCodec.H264)
@@ -134,6 +139,18 @@ class RecordingController(QObject):
 
         print(f"[Audio] Recorder configured: {self._recorder.audioSampleRate()}Hz, "
               f"{self._recorder.audioChannelCount()}ch, {self._recorder.audioBitRate()}bps")
+
+    def _configure_audio_only_recorder_format(self) -> None:
+        """Configure a high-quality audio-only M4A recording."""
+        format = QMediaFormat()
+        m4a_format = getattr(QMediaFormat.FileFormat, "Mpeg4Audio", None)
+        format.setFileFormat(m4a_format or QMediaFormat.FileFormat.MPEG4)
+        format.setAudioCodec(QMediaFormat.AudioCodec.AAC)
+        self._recorder.setMediaFormat(format)
+        self._recorder.setQuality(QMediaRecorder.Quality.VeryHighQuality)
+        self._recorder.setAudioSampleRate(48000)
+        self._recorder.setAudioChannelCount(2)
+        self._recorder.setAudioBitRate(256000)
 
     def _connect_signals(self):
         """Connect Qt signals to handlers."""
@@ -152,13 +169,18 @@ class RecordingController(QObject):
         message = self._describe_backend_error("Qt recorder error", error, error_string)
         self._set_state(RecordingState.IDLE)
         self._stop_requested = False
-        # Resume audio monitoring for preview
-        if self._preview_active:
-            self._start_audio_monitoring()
+        self._restore_after_audio_only_recording()
+        self._resume_audio_monitoring_if_needed()
         self.recording_error.emit(message)
 
     def _on_capture_error(self, error, error_string: str):
         """Handle screen capture errors."""
+        if self._audio_only_recorder_active:
+            # The audio-only recorder deliberately detaches the screen source.
+            # Some backends report that normal shutdown as a capture error.
+            self._screen_capture.setActive(False)
+            return
+
         was_preview_active = self._preview_active
         was_recording = self._state in (RecordingState.RECORDING, RecordingState.PAUSED)
         stop_requested = self._stop_requested
@@ -214,20 +236,37 @@ class RecordingController(QObject):
             needs_crop = config.needs_crop_output
             self._set_state(RecordingState.IDLE)
             self._stop_requested = False
-            # Resume audio monitoring for preview
-            if self._preview_active:
-                self._start_audio_monitoring()
+            self._restore_after_audio_only_recording()
+            self._resume_audio_monitoring_if_needed()
             self.recording_stopped.emit(self._output_path, needs_crop)
         else:
             self._set_state(RecordingState.IDLE)
             self._stop_requested = False
-            # Resume audio monitoring for preview
-            if self._preview_active:
-                self._start_audio_monitoring()
+            self._restore_after_audio_only_recording()
+            self._resume_audio_monitoring_if_needed()
             self.recording_error.emit(
                 "Recording stopped, but the output file was not created."
                 f"{self._recording_file_details()}"
             )
+
+    def _restore_after_audio_only_recording(self) -> None:
+        """Reconnect the screen source after an audio-only capture finishes."""
+        if not self._audio_only_recorder_active:
+            return
+
+        self._audio_only_recorder_active = False
+        self._session.setScreenCapture(self._screen_capture)
+        resume_preview = self._resume_preview_after_audio_only_recording
+        self._resume_preview_after_audio_only_recording = False
+        self._configure_video_recorder_format()
+
+        if resume_preview and not self._config.audio_only:
+            self.start_preview()
+
+    def _resume_audio_monitoring_if_needed(self) -> None:
+        """Resume levels after recording when a preview or audio-only mode needs them."""
+        if self._preview_active or self._config.audio_only:
+            self._start_audio_monitoring()
 
     @staticmethod
     def _describe_backend_error(prefix: str, error, error_string: str) -> str:
@@ -271,6 +310,7 @@ class RecordingController(QObject):
         self._screen_capture.setActive(False)
         self._preview_active = False
         self._stop_audio_monitoring()
+        self._restore_after_audio_only_recording()
 
         recorder_error = self._recorder.error()
         recorder_error_string = self._recorder.errorString()
@@ -302,7 +342,10 @@ class RecordingController(QObject):
 
     def set_config(self, config: RecordingConfig):
         """Update recording configuration."""
-        self._config = config
+        self._config = config.copy()
+        if self._config.audio_only:
+            self._config.audio_enabled = True
+            self._config.system_audio_enabled = False
         self._apply_config()
 
     def _apply_config(self):
@@ -365,9 +408,9 @@ class RecordingController(QObject):
     def _get_output_path(self) -> Path:
         """Generate output file path based on config.
 
-        Raw recordings are saved to a 'raw' subdirectory to ensure they are
-        never lost during post-processing (cropping). The raw files are kept
-        even after processing, so users can always recover the original.
+        Screen recordings are saved to a 'raw' subdirectory to ensure they are
+        never lost during post-processing (cropping). Audio-only recordings are
+        already final files, so they are saved directly to the output folder.
         """
         # Determine base output directory
         if self._config.output_directory:
@@ -376,13 +419,19 @@ class RecordingController(QObject):
             movies_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.MoviesLocation)
             base_dir = Path(movies_path) / "Recordings"
 
-        # Raw recordings go in a subdirectory - never deleted automatically
-        raw_dir = base_dir / "raw"
-        raw_dir.mkdir(parents=True, exist_ok=True)
-
         # Generate filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = self._config.filename_pattern.format(timestamp=timestamp)
+
+        if self._config.audio_only:
+            output_path = base_dir / f"{filename}.m4a"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            print(f"[Recording] Audio file will be saved to: {output_path}")
+            return output_path
+
+        # Raw recordings go in a subdirectory - never deleted automatically
+        raw_dir = base_dir / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
         filename = f"{filename}.{self._config.container_format}"
 
         print(f"[Recording] Raw file will be saved to: {raw_dir / filename}")
@@ -406,6 +455,19 @@ class RecordingController(QObject):
             return False
 
         self._stop_requested = False
+
+        if self._config.audio_only:
+            if not self._config.audio_enabled:
+                self.recording_error.emit("Enable an input device before starting an audio-only recording.")
+                return False
+            if not self.check_microphone_permission():
+                self.recording_warning.emit(
+                    "Microphone access was requested. Approve the macOS prompt, then start recording again."
+                )
+                return False
+
+            self._recording_config = self._config.copy()
+            return self._start_audio_only_recording()
 
         if not self.check_screen_capture_permission(request_if_needed=True):
             if not is_macos():
@@ -447,6 +509,8 @@ class RecordingController(QObject):
             # Stop audio monitoring to release the device for recording
             self._stop_audio_monitoring()
 
+            self._session.setScreenCapture(self._screen_capture)
+            self._configure_video_recorder_format()
             self._apply_config()
 
             # Set output location
@@ -463,6 +527,33 @@ class RecordingController(QObject):
             return True
 
         except Exception as e:
+            self.recording_error.emit(str(e))
+            return False
+
+    def _start_audio_only_recording(self) -> bool:
+        """Start a 48 kHz stereo AAC recording without a video source."""
+        try:
+            self._stop_audio_monitoring()
+            self._resume_preview_after_audio_only_recording = self._preview_active
+            self._audio_only_recorder_active = True
+            self._screen_capture.setActive(False)
+            self._preview_active = False
+            self._session.setScreenCapture(None)
+
+            self._apply_config()
+            self._configure_audio_only_recorder_format()
+
+            output_path = self._get_output_path()
+            self._recorder.setOutputLocation(QUrl.fromLocalFile(str(output_path)))
+            self._output_path = output_path
+            self._recorder.record()
+
+            self._set_state(RecordingState.RECORDING)
+            self.recording_started.emit()
+            return True
+        except Exception as e:
+            self._restore_after_audio_only_recording()
+            self._resume_audio_monitoring_if_needed()
             self.recording_error.emit(str(e))
             return False
 
@@ -670,7 +761,8 @@ class RecordingController(QObject):
             self._native_recorder.stop_recording()
         else:
             self._recorder.stop()
-            self._screen_capture.setActive(False)
+            if not self._audio_only_recorder_active:
+                self._screen_capture.setActive(False)
 
     def pause_recording(self):
         """Pause the current recording."""
@@ -721,6 +813,8 @@ class RecordingController(QObject):
 
     def set_audio_enabled(self, enabled: bool):
         """Enable or disable audio recording."""
+        if self._config.audio_only:
+            enabled = True
         self._config.audio_enabled = enabled
         if enabled:
             self._setup_audio_input()
@@ -730,7 +824,21 @@ class RecordingController(QObject):
 
     def set_system_audio_enabled(self, enabled: bool):
         """Enable or disable native macOS system audio recording."""
-        self._config.system_audio_enabled = enabled
+        self._config.system_audio_enabled = enabled and not self._config.audio_only
+
+    def set_audio_only(self, enabled: bool):
+        """Enable or disable capture that writes only high-quality input audio."""
+        self._config.audio_only = enabled
+        if enabled:
+            self._config.audio_enabled = True
+            self._config.system_audio_enabled = False
+            self.stop_preview()
+            self._setup_audio_input()
+            self._start_audio_monitoring()
+        else:
+            self._session.setScreenCapture(self._screen_capture)
+            self._configure_video_recorder_format()
+            self.start_preview()
 
     def set_aspect_ratio(self, ratio: tuple[int, int] | None):
         """Set the target aspect ratio for cropping.
@@ -872,6 +980,12 @@ class RecordingController(QObject):
         Call check_screen_capture_permission(request_if_needed=True) first
         if you want to prompt the user.
         """
+        if self._config.audio_only:
+            self._screen_capture.setActive(False)
+            self._preview_active = False
+            self._start_audio_monitoring()
+            return False
+
         if self._preview_active:
             return True
 
@@ -1012,6 +1126,8 @@ class RecordingController(QObject):
 
     def request_recording_permissions(self) -> tuple[bool, bool]:
         """Request screen capture and microphone permissions for recording."""
+        if self._config.audio_only:
+            return True, self.request_microphone_permission()
         screen_granted = self.check_screen_capture_permission(request_if_needed=True)
         microphone_granted = self.request_microphone_permission()
         return screen_granted, microphone_granted
@@ -1138,5 +1254,5 @@ class RecordingController(QObject):
     def restart_audio_monitoring(self):
         """Restart audio monitoring with current device settings."""
         self._stop_audio_monitoring()
-        if self._preview_active or self.is_recording:
+        if self._preview_active or self.is_recording or self._config.audio_only:
             self._start_audio_monitoring()

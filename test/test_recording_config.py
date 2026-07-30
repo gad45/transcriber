@@ -24,6 +24,21 @@ def test_recording_config_system_audio_defaults_off():
     assert RecordingConfig.from_dict({}).system_audio_enabled is False
 
 
+def test_audio_only_config_round_trips_and_never_requests_crop_output():
+    config = RecordingConfig(
+        audio_only=True,
+        capture_full_screen=False,
+        target_resolution=(1920, 1080),
+    )
+
+    restored = RecordingConfig.from_dict(config.to_dict())
+
+    assert restored.audio_only is True
+    assert restored.copy().audio_only is True
+    assert restored.needs_crop_output is False
+    assert restored.to_ffmpeg_crop_filter(3440, 1440, margin=0) is None
+
+
 def test_recording_config_exact_preview_crop_filter_uses_no_margin():
     config = RecordingConfig(
         capture_full_screen=False,

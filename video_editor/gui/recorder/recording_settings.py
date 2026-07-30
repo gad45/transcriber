@@ -60,6 +60,7 @@ class RecordingSettingsPanel(QWidget):
         audio_volume_changed: Emitted when volume changes (0.0-1.0)
         audio_enabled_changed: Emitted when microphone/input audio is enabled/disabled
         system_audio_enabled_changed: Emitted when macOS system audio capture is enabled/disabled
+        audio_only_changed: Emitted when audio-only recording is enabled/disabled
     """
 
     settings_changed = Signal()
@@ -69,6 +70,7 @@ class RecordingSettingsPanel(QWidget):
     audio_volume_changed = Signal(float)
     audio_enabled_changed = Signal(bool)
     system_audio_enabled_changed = Signal(bool)
+    audio_only_changed = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -86,8 +88,8 @@ class RecordingSettingsPanel(QWidget):
         layout.setSpacing(16)
 
         # Screen settings group
-        screen_group = QGroupBox("Screen")
-        screen_layout = QFormLayout(screen_group)
+        self._screen_group = QGroupBox("Screen")
+        screen_layout = QFormLayout(self._screen_group)
 
         self._screen_combo = QComboBox()
         self._screen_combo.setToolTip("Select which screen to record")
@@ -99,11 +101,24 @@ class RecordingSettingsPanel(QWidget):
             self._crop_combo.addItem(name)
         screen_layout.addRow("Crop:", self._crop_combo)
 
-        layout.addWidget(screen_group)
+        layout.addWidget(self._screen_group)
 
         # Audio settings group
         audio_group = QGroupBox("Audio")
         audio_layout = QVBoxLayout(audio_group)
+
+        self._audio_only_check = QCheckBox("Record audio only (high quality)")
+        self._audio_only_check.setToolTip(
+            "Saves the selected input as a 48 kHz stereo AAC audio file without "
+            "capturing the screen."
+        )
+        audio_layout.addWidget(self._audio_only_check)
+
+        self._audio_only_hint = QLabel("48 kHz stereo AAC at 256 kb/s (.m4a)")
+        self._audio_only_hint.setObjectName("audioOnlyHint")
+        self._audio_only_hint.setWordWrap(True)
+        self._audio_only_hint.setVisible(False)
+        audio_layout.addWidget(self._audio_only_hint)
 
         self._system_audio_enabled_check: QCheckBox | None = None
         self._macos_audio_hint: QLabel | None = None
@@ -184,6 +199,15 @@ class RecordingSettingsPanel(QWidget):
             self._quality_combo.addItem(name)
         self._quality_combo.setCurrentIndex(2)  # Default to High
         output_layout.addRow("Quality:", self._quality_combo)
+        self._quality_label = output_layout.labelForField(self._quality_combo)
+
+        self._audio_quality_value = QLabel("48 kHz stereo AAC, 256 kb/s (.m4a)")
+        self._audio_quality_value.setObjectName("audioOnlyHint")
+        output_layout.addRow("Audio quality:", self._audio_quality_value)
+        self._audio_quality_label = output_layout.labelForField(self._audio_quality_value)
+        self._audio_quality_value.setVisible(False)
+        if self._audio_quality_label is not None:
+            self._audio_quality_label.setVisible(False)
 
         layout.addWidget(output_group)
 
@@ -232,6 +256,11 @@ class RecordingSettingsPanel(QWidget):
                 background: #555;
             }
             QLabel#macosAudioHint {
+                color: #aaa;
+                font-size: 12px;
+                line-height: 1.3em;
+            }
+            QLabel#audioOnlyHint {
                 color: #aaa;
                 font-size: 12px;
                 line-height: 1.3em;
@@ -320,6 +349,7 @@ class RecordingSettingsPanel(QWidget):
         self._crop_combo.currentIndexChanged.connect(self._on_crop_changed)
         if self._system_audio_enabled_check is not None:
             self._system_audio_enabled_check.toggled.connect(self._on_system_audio_enabled_changed)
+        self._audio_only_check.toggled.connect(self._on_audio_only_changed)
         self._audio_enabled_check.toggled.connect(self._on_audio_enabled_changed)
         self._audio_device_combo.currentIndexChanged.connect(self._on_audio_device_changed)
         self._volume_slider.valueChanged.connect(self._on_volume_changed)
@@ -360,6 +390,27 @@ class RecordingSettingsPanel(QWidget):
 
         self._config.system_audio_enabled = enabled
         self.system_audio_enabled_changed.emit(enabled)
+        self.settings_changed.emit()
+
+    def _on_audio_only_changed(self, enabled: bool):
+        """Switch between screen recording and high-quality audio-only capture."""
+        if self._updating:
+            return
+
+        self._config.audio_only = enabled
+        if enabled:
+            # Audio-only capture requires an input and does not use the native
+            # macOS ScreenCaptureKit system-audio backend.
+            self._config.audio_enabled = True
+            self._config.system_audio_enabled = False
+            self._updating = True
+            self._audio_enabled_check.setChecked(True)
+            if self._system_audio_enabled_check is not None:
+                self._system_audio_enabled_check.setChecked(False)
+            self._updating = False
+
+        self._sync_audio_only_controls()
+        self.audio_only_changed.emit(enabled)
         self.settings_changed.emit()
 
     def _on_audio_enabled_changed(self, enabled: bool):
@@ -426,6 +477,24 @@ class RecordingSettingsPanel(QWidget):
         self._config.video_quality = quality
         self.settings_changed.emit()
 
+    def _sync_audio_only_controls(self):
+        """Keep controls that do not apply to audio-only recording unavailable."""
+        audio_only = self._config.audio_only
+        self._screen_group.setEnabled(not audio_only)
+        self._audio_enabled_check.setEnabled(not audio_only)
+        self._quality_combo.setVisible(not audio_only)
+        if self._quality_label is not None:
+            self._quality_label.setVisible(not audio_only)
+        self._audio_only_hint.setVisible(audio_only)
+        self._audio_quality_value.setVisible(audio_only)
+        if self._audio_quality_label is not None:
+            self._audio_quality_label.setVisible(audio_only)
+
+        if self._system_audio_enabled_check is not None:
+            self._system_audio_enabled_check.setEnabled(
+                not audio_only and self._supports_native_system_audio()
+            )
+
     def get_config(self) -> RecordingConfig:
         """Get the current recording configuration."""
         return self._config.copy()
@@ -467,6 +536,14 @@ class RecordingSettingsPanel(QWidget):
             )
             self._config.system_audio_enabled = self._system_audio_enabled_check.isChecked()
         self._audio_enabled_check.setChecked(config.audio_enabled)
+        self._audio_only_check.setChecked(config.audio_only)
+
+        if self._config.audio_only:
+            self._config.audio_enabled = True
+            self._config.system_audio_enabled = False
+            self._audio_enabled_check.setChecked(True)
+            if self._system_audio_enabled_check is not None:
+                self._system_audio_enabled_check.setChecked(False)
 
         # Find audio device index
         for i in range(self._audio_device_combo.count()):
@@ -485,6 +562,7 @@ class RecordingSettingsPanel(QWidget):
                 self._quality_combo.setCurrentIndex(i)
                 break
 
+        self._sync_audio_only_controls()
         self._updating = False
 
     def set_audio_level(self, level: float):

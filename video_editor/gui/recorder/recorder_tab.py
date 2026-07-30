@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QToolBar, QPushButton, QLabel, QMessageBox,
-    QProgressDialog
+    QProgressDialog, QStackedWidget
 )
 from PySide6.QtGui import QGuiApplication
 
@@ -61,8 +61,8 @@ def should_post_process_crop(
 class RecorderTab(QWidget):
     """Main recorder tab with preview, settings, and controls.
 
-    Provides a complete screen and audio recording interface with:
-    - Live preview of the screen being captured
+    Provides a complete screen or audio-only recording interface with:
+    - Live preview of the screen being captured, or an audio-only status view
     - Draggable crop overlay for aspect ratio selection
     - Audio device selection and volume control
     - Record/Stop/Pause controls
@@ -111,9 +111,23 @@ class RecorderTab(QWidget):
         # Main content splitter
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # Preview (left side, larger)
+        # Preview (left side, larger). Audio-only mode swaps this for an
+        # explanation instead of keeping screen capture running in the background.
+        self._preview_stack = QStackedWidget()
         self._preview = RecordingPreview()
-        splitter.addWidget(self._preview)
+        self._preview_stack.addWidget(self._preview)
+        self._audio_only_placeholder = QLabel(
+            "Audio-only recording\n\n"
+            "The selected input will be saved as a high-quality 48 kHz stereo AAC file.\n"
+            "Screen capture is disabled."
+        )
+        self._audio_only_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._audio_only_placeholder.setWordWrap(True)
+        self._audio_only_placeholder.setStyleSheet(
+            "background: #1f1f1f; color: #bbb; font-size: 16px; padding: 32px;"
+        )
+        self._preview_stack.addWidget(self._audio_only_placeholder)
+        splitter.addWidget(self._preview_stack)
 
         # Settings panel (right side)
         self._settings_panel = RecordingSettingsPanel()
@@ -275,6 +289,7 @@ class RecorderTab(QWidget):
         self._settings_panel.audio_volume_changed.connect(self._on_audio_volume_changed)
         self._settings_panel.audio_enabled_changed.connect(self._on_audio_enabled_changed)
         self._settings_panel.system_audio_enabled_changed.connect(self._on_system_audio_enabled_changed)
+        self._settings_panel.audio_only_changed.connect(self._on_audio_only_changed)
 
         # Preview
         self._preview.crop_offset_changed.connect(self._on_crop_offset_changed)
@@ -342,7 +357,12 @@ class RecorderTab(QWidget):
         preview_started = self._controller.start_preview()
         self._permissions_btn.setEnabled(True)
 
-        if preview_started and microphone_granted:
+        if config.audio_only:
+            if microphone_granted:
+                self._status_label.setText("Ready to record audio")
+            else:
+                self._status_label.setText("Microphone access is required for audio recording")
+        elif preview_started and microphone_granted:
             self._status_label.setText("Ready to record")
         elif preview_started:
             self._status_label.setText("Screen capture ready - check microphone access if needed")
@@ -381,6 +401,16 @@ class RecorderTab(QWidget):
         """Handle macOS system audio enable/disable."""
         self._controller.set_system_audio_enabled(enabled)
 
+    def _on_audio_only_changed(self, enabled: bool):
+        """Switch the recorder between screen capture and audio-only capture."""
+        self._controller.set_audio_only(enabled)
+        self._preview_stack.setCurrentWidget(
+            self._audio_only_placeholder if enabled else self._preview
+        )
+        self._status_label.setText(
+            "Ready to record audio" if enabled else "Ready to record"
+        )
+
     def _on_crop_offset_changed(self, x: float, y: float):
         """Handle crop region being moved."""
         self._settings_panel.set_crop_offset(x, y)
@@ -413,7 +443,8 @@ class RecorderTab(QWidget):
         self._pause_btn.setEnabled(self._controller.can_pause_recording())
         self._permissions_btn.setEnabled(False)
         self._settings_panel.setEnabled(False)
-        self._status_label.setText("Recording...")
+        config = self._controller.get_last_recording_config()
+        self._status_label.setText("Recording audio..." if config and config.audio_only else "Recording...")
         self._timer_update.start(100)
 
     def _on_recording_stopped(self, output_path: Path, needs_crop: bool):
@@ -423,7 +454,7 @@ class RecorderTab(QWidget):
         ui_config = self._settings_panel.get_config()
         config = select_recording_crop_config(recording_config, ui_config)
         needs_post_crop = should_post_process_crop(output_path, needs_crop, config)
-        auto_open = bool(config and not config.capture_full_screen)
+        auto_open = bool(config and not config.audio_only and not config.capture_full_screen)
 
         if config and (needs_crop or needs_post_crop or config.needs_crop_output):
             self._write_crop_audit(
@@ -472,7 +503,9 @@ class RecorderTab(QWidget):
         if state == RecordingState.PAUSED:
             self._status_label.setText("Paused")
         elif state == RecordingState.RECORDING:
-            self._status_label.setText("Recording...")
+            self._status_label.setText(
+                "Recording audio..." if self._controller.config.audio_only else "Recording..."
+            )
         elif state == RecordingState.PROCESSING:
             self._status_label.setText("Processing...")
 
@@ -702,10 +735,13 @@ class RecorderTab(QWidget):
             self.open_in_editor_requested.emit(output_path)
             return
 
+        is_audio_only = output_path.suffix.lower() in {".m4a", ".aac", ".wav", ".mp3"}
+        title = "Audio Recording Complete" if is_audio_only else "Recording Complete"
+        noun = "Audio recording" if is_audio_only else "Recording"
         reply = QMessageBox.question(
             self,
-            "Recording Complete",
-            f"Recording saved to:\n{output_path}\n\nOpen in editor?",
+            title,
+            f"{noun} saved to:\n{output_path}\n\nOpen in editor?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes
         )
@@ -738,6 +774,10 @@ class RecorderTab(QWidget):
         """Set recording configuration."""
         self._settings_panel.set_config(config)
         self._controller.set_config(config)
+        self._controller.set_audio_only(config.audio_only)
+        self._preview_stack.setCurrentWidget(
+            self._audio_only_placeholder if config.audio_only else self._preview
+        )
         if config.capture_full_screen:
             self._preview.set_crop_mode(None, None)
         else:

@@ -263,6 +263,7 @@ class RecordingConfig:
     audio_enabled: bool = True
     system_audio_enabled: bool = False
     audio_volume: float = 1.0  # 0.0-1.0
+    audio_only: bool = False  # Capture the selected input without a video stream
 
     # Output settings
     output_directory: str = ""  # Empty = user's Videos folder
@@ -275,6 +276,7 @@ class RecordingConfig:
     def needs_crop_output(self) -> bool:
         """Return True when recording should create a cropped output file."""
         return (
+            not self.audio_only and
             not self.capture_full_screen and
             (self.target_resolution is not None or self.target_aspect_ratio is not None)
         )
@@ -369,6 +371,7 @@ class RecordingConfig:
             "audio_enabled": self.audio_enabled,
             "system_audio_enabled": self.system_audio_enabled,
             "audio_volume": self.audio_volume,
+            "audio_only": self.audio_only,
             "output_directory": self.output_directory,
             "filename_pattern": self.filename_pattern,
             "video_quality": self.video_quality,
@@ -392,6 +395,7 @@ class RecordingConfig:
             audio_enabled=data.get("audio_enabled", True),
             system_audio_enabled=data.get("system_audio_enabled", False),
             audio_volume=data.get("audio_volume", 1.0),
+            audio_only=data.get("audio_only", False),
             output_directory=data.get("output_directory", ""),
             filename_pattern=data.get("filename_pattern", "recording_{timestamp}"),
             video_quality=data.get("video_quality", "high"),
@@ -412,6 +416,7 @@ class RecordingConfig:
             audio_enabled=self.audio_enabled,
             system_audio_enabled=self.system_audio_enabled,
             audio_volume=self.audio_volume,
+            audio_only=self.audio_only,
             output_directory=self.output_directory,
             filename_pattern=self.filename_pattern,
             video_quality=self.video_quality,
