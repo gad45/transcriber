@@ -531,25 +531,32 @@ class RecordingController(QObject):
             return False
 
     def _start_audio_only_recording(self) -> bool:
-        """Start a deterministic 48 kHz, 256 kb/s AAC audio-only recording."""
+        """Start audio-only recording with the native Qt multimedia backend."""
         try:
             self._stop_audio_monitoring()
-            self._session.setAudioInput(None)
-            self._audio_input = None
+
+            # QMediaRecorder uses macOS's AVFoundation capture pipeline here.
+            # This is intentionally separate from the direct FFmpeg input used
+            # for optional screen-crop recordings: the native pipeline has
+            # proven reliable for uninterrupted microphone capture.
+            self._resume_preview_after_audio_only_recording = self._preview_active
+            self._audio_only_recorder_active = True
+            self._screen_capture.setActive(False)
+            self._preview_active = False
+            self._session.setScreenCapture(None)
+
+            self._apply_config()
+            self._configure_audio_only_recorder_format()
             output_path = self._get_output_path()
+            self._recorder.setOutputLocation(QUrl.fromLocalFile(str(output_path)))
             self._output_path = output_path
-            audio_device_index = self._get_ffmpeg_audio_device_index()
-            started = self._ffmpeg_recorder.start_audio_recording(
-                audio_device_index=audio_device_index,
-                output_path=output_path,
-                audio_sample_rate=self._config.audio_sample_rate,
-                audio_channels=2,
-                audio_bitrate=256000,
-            )
-            if not started:
-                self._resume_audio_monitoring_if_needed()
-            return started
+            self._recorder.record()
+
+            self._set_state(RecordingState.RECORDING)
+            self.recording_started.emit()
+            return True
         except Exception as e:
+            self._restore_after_audio_only_recording()
             self._resume_audio_monitoring_if_needed()
             self.recording_error.emit(str(e))
             return False
