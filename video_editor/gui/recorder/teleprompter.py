@@ -7,8 +7,8 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QPlainTextEdit,
     QPushButton,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -50,10 +50,10 @@ class TeleprompterView(QWidget):
         header.addWidget(self._speed_label)
         layout.addLayout(header)
 
-        self._script_view = QPlainTextEdit()
+        self._script_view = QTextEdit()
         self._script_view.setReadOnly(True)
         self._script_view.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self._script_view.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        self._script_view.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
         self._script_view.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
@@ -62,7 +62,7 @@ class TeleprompterView(QWidget):
         )
         self._script_view.setFont(QFont("Avenir Next", self._text_size))
         self._script_view.setStyleSheet(
-            "QPlainTextEdit {"
+            "QTextEdit {"
             "background: #171717; color: #f4f4f4; border: 1px solid #3d3d3d; "
             "border-radius: 10px; padding: 56px 84px; line-height: 1.45;"
             "}"
@@ -182,7 +182,7 @@ class TeleprompterView(QWidget):
             return
 
         self._scroll_remainder += (
-            self._scroll_units_per_second() * elapsed_ms / 1000.0
+            self._scroll_pixels_per_second() * elapsed_ms / 1000.0
         )
         pixels = int(self._scroll_remainder)
         if pixels <= 0:
@@ -201,21 +201,15 @@ class TeleprompterView(QWidget):
         self._scroll_remainder = 0.0
         self._script_view.verticalScrollBar().setValue(0)
 
-    def _scroll_units_per_second(self) -> float:
-        """Convert the target reading pace into QPlainTextEdit scroll units."""
+    def _scroll_pixels_per_second(self) -> float:
+        """Convert the target reading pace into a smooth pixel scroll rate."""
         word_count = len(re.findall(r"\S+", self._script))
         if word_count == 0:
             return 0.0
 
-        visual_line_count = 0
-        block = self._script_view.document().begin()
-        while block.isValid():
-            layout = block.layout()
-            visual_line_count += max(1, layout.lineCount() if layout else 0)
-            block = block.next()
-
+        content_height = self._script_view.document().documentLayout().documentSize().height()
         script_duration_seconds = word_count * 60 / self._reading_speed
-        return visual_line_count / script_duration_seconds
+        return content_height / script_duration_seconds
 
     def _show_placeholder(self) -> None:
         self._script_view.setPlainText(

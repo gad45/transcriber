@@ -51,9 +51,9 @@ def test_teleprompter_calibrates_scroll_rate_to_reading_speed():
     app.processEvents()
 
     teleprompter.set_reading_speed(60)
-    slow_rate = teleprompter._scroll_units_per_second()
+    slow_rate = teleprompter._scroll_pixels_per_second()
     teleprompter.set_reading_speed(120)
-    normal_rate = teleprompter._scroll_units_per_second()
+    normal_rate = teleprompter._scroll_pixels_per_second()
 
     assert slow_rate > 0
     assert normal_rate == pytest.approx(slow_rate * 2)
