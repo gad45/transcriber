@@ -1,5 +1,7 @@
 """On-screen teleprompter for audio-only recording."""
 
+import re
+
 from PySide6.QtCore import QElapsedTimer, Qt, QTimer, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
@@ -22,7 +24,7 @@ class TeleprompterView(QWidget):
         self.setObjectName("teleprompterView")
 
         self._script = ""
-        self._scroll_speed = 45
+        self._reading_speed = 120
         self._text_size = 27
         self._scroll_remainder = 0.0
         self._elapsed = QElapsedTimer()
@@ -96,9 +98,9 @@ class TeleprompterView(QWidget):
         self._update_speed_label()
 
     @property
-    def scroll_speed(self) -> int:
-        """Get the configured scroll speed in pixels per second."""
-        return self._scroll_speed
+    def reading_speed(self) -> int:
+        """Get the configured script pace in words per minute."""
+        return self._reading_speed
 
     @property
     def text_size(self) -> int:
@@ -121,9 +123,9 @@ class TeleprompterView(QWidget):
             self._show_placeholder()
         self._reset_scroll_position()
 
-    def set_scroll_speed(self, pixels_per_second: int) -> None:
-        """Set the automatic scroll speed in pixels per second."""
-        self._scroll_speed = max(10, min(200, pixels_per_second))
+    def set_reading_speed(self, words_per_minute: int) -> None:
+        """Set the target script pace in words per minute."""
+        self._reading_speed = max(40, min(240, words_per_minute))
         self._update_speed_label()
 
     def set_text_size(self, points: int) -> None:
@@ -179,7 +181,9 @@ class TeleprompterView(QWidget):
         if elapsed_ms <= 0:
             return
 
-        self._scroll_remainder += self._scroll_speed * elapsed_ms / 1000.0
+        self._scroll_remainder += (
+            self._scroll_units_per_second() * elapsed_ms / 1000.0
+        )
         pixels = int(self._scroll_remainder)
         if pixels <= 0:
             return
@@ -197,6 +201,22 @@ class TeleprompterView(QWidget):
         self._scroll_remainder = 0.0
         self._script_view.verticalScrollBar().setValue(0)
 
+    def _scroll_units_per_second(self) -> float:
+        """Convert the target reading pace into QPlainTextEdit scroll units."""
+        word_count = len(re.findall(r"\S+", self._script))
+        if word_count == 0:
+            return 0.0
+
+        visual_line_count = 0
+        block = self._script_view.document().begin()
+        while block.isValid():
+            layout = block.layout()
+            visual_line_count += max(1, layout.lineCount() if layout else 0)
+            block = block.next()
+
+        script_duration_seconds = word_count * 60 / self._reading_speed
+        return visual_line_count / script_duration_seconds
+
     def _show_placeholder(self) -> None:
         self._script_view.setPlainText(
             "Your script will appear here.\n\n"
@@ -205,4 +225,4 @@ class TeleprompterView(QWidget):
         )
 
     def _update_speed_label(self) -> None:
-        self._speed_label.setText(f"{self._scroll_speed} px/s")
+        self._speed_label.setText(f"{self._reading_speed} wpm")

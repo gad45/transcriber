@@ -310,6 +310,80 @@ class FFmpegRecorder(QObject):
             self.recording_error.emit(str(e))
             return False
 
+    def start_audio_recording(
+        self,
+        audio_device_index: int,
+        output_path: Path,
+        audio_sample_rate: int = 48000,
+        audio_channels: int = 2,
+        audio_bitrate: int = 256000,
+    ) -> bool:
+        """Record a microphone input to high-quality AAC without a video source."""
+        if self._state != FFmpegRecorderState.IDLE:
+            return False
+        if audio_device_index < 0:
+            self.recording_error.emit("No audio input device is available for recording.")
+            return False
+
+        cmd = self._build_audio_recording_command(
+            audio_device_index=audio_device_index,
+            output_path=output_path,
+            audio_sample_rate=audio_sample_rate,
+            audio_channels=audio_channels,
+            audio_bitrate=audio_bitrate,
+        )
+
+        try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            self._process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+            self._state = FFmpegRecorderState.RECORDING
+            self._output_path = output_path
+            self._final_output_path = output_path
+            self._remux_audio_encoder = None
+            self._remux_audio_sample_rate = None
+            self._remux_audio_channels = None
+            self._stderr_tail.clear()
+            self._stop_requested = False
+            self._start_time = time.time()
+            self._start_process_watchers()
+            self._duration_timer.start(100)
+            self.recording_started.emit()
+            return True
+        except Exception as exc:
+            self.recording_error.emit(str(exc))
+            return False
+
+    @classmethod
+    def _build_audio_recording_command(
+        cls,
+        audio_device_index: int,
+        output_path: Path,
+        audio_sample_rate: int,
+        audio_channels: int,
+        audio_bitrate: int,
+    ) -> list[str]:
+        """Build the direct CoreAudio-to-AAC command used for audio-only capture."""
+        return [
+            FFMPEG,
+            "-y",
+            "-thread_queue_size", "1024",
+            "-f", "avfoundation",
+            "-i", f":{audio_device_index}",
+            "-c:a", cls._get_best_aac_encoder(),
+            "-b:a", str(audio_bitrate),
+            "-ar", str(audio_sample_rate),
+            "-ac", str(audio_channels),
+            "-movflags", "+faststart",
+            str(output_path),
+        ]
+
     @staticmethod
     def _get_best_aac_encoder() -> str:
         """Pick the best available AAC encoder on this FFmpeg build."""

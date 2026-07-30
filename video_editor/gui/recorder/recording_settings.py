@@ -70,7 +70,7 @@ class RecordingSettingsPanel(QWidget):
         audio_only_changed: Emitted when audio-only recording is enabled/disabled
         teleprompter_enabled_changed: Emitted when the audio teleprompter is shown/hidden
         teleprompter_script_changed: Emitted when the teleprompter script changes
-        teleprompter_speed_changed: Emitted with the scroll speed in pixels per second
+        teleprompter_speed_changed: Emitted with the reading speed in words per minute
         teleprompter_text_size_changed: Emitted with the script font size in points
         teleprompter_auto_start_changed: Emitted when record-triggered scrolling changes
     """
@@ -231,16 +231,17 @@ class RecordingSettingsPanel(QWidget):
         text_size_layout.addRow("Text size:", self._teleprompter_text_size_combo)
         teleprompter_layout.addLayout(text_size_layout)
 
-        speed_layout = QHBoxLayout()
-        speed_layout.addWidget(QLabel("Scroll speed:"))
-        self._teleprompter_speed_slider = QSlider(Qt.Orientation.Horizontal)
-        self._teleprompter_speed_slider.setRange(10, 200)
-        self._teleprompter_speed_slider.setValue(45)
-        self._teleprompter_speed_slider.setToolTip("Set how quickly the script scrolls.")
-        self._teleprompter_speed_label = QLabel("45 px/s")
-        self._teleprompter_speed_label.setMinimumWidth(52)
-        speed_layout.addWidget(self._teleprompter_speed_slider, 1)
-        speed_layout.addWidget(self._teleprompter_speed_label)
+        self._teleprompter_speed_spin = QSpinBox()
+        self._teleprompter_speed_spin.setRange(40, 240)
+        self._teleprompter_speed_spin.setSingleStep(5)
+        self._teleprompter_speed_spin.setValue(120)
+        self._teleprompter_speed_spin.setSuffix(" wpm")
+        self._teleprompter_speed_spin.setToolTip(
+            "Set a precise reading pace. The teleprompter adapts its scroll rate "
+            "to your script and selected text size."
+        )
+        speed_layout = QFormLayout()
+        speed_layout.addRow("Reading speed:", self._teleprompter_speed_spin)
         teleprompter_layout.addLayout(speed_layout)
 
         self._teleprompter_auto_start_check = QCheckBox("Start scrolling when recording starts")
@@ -431,7 +432,7 @@ class RecordingSettingsPanel(QWidget):
         self._teleprompter_text_size_combo.currentIndexChanged.connect(
             self._on_teleprompter_text_size_changed
         )
-        self._teleprompter_speed_slider.valueChanged.connect(self._on_teleprompter_speed_changed)
+        self._teleprompter_speed_spin.valueChanged.connect(self._on_teleprompter_speed_changed)
         self._teleprompter_auto_start_check.toggled.connect(self._on_teleprompter_auto_start_changed)
 
     def _on_screen_changed(self, index: int):
@@ -570,8 +571,7 @@ class RecordingSettingsPanel(QWidget):
             self.teleprompter_script_changed.emit(self._teleprompter_script_edit.toPlainText())
 
     def _on_teleprompter_speed_changed(self, value: int):
-        """Forward the requested script speed to the live teleprompter."""
-        self._teleprompter_speed_label.setText(f"{value} px/s")
+        """Forward the requested reading pace to the live teleprompter."""
         if not self._updating:
             self.teleprompter_speed_changed.emit(value)
 
@@ -612,7 +612,7 @@ class RecordingSettingsPanel(QWidget):
         enabled = self._teleprompter_enabled
         self._teleprompter_script_edit.setEnabled(enabled)
         self._teleprompter_text_size_combo.setEnabled(enabled)
-        self._teleprompter_speed_slider.setEnabled(enabled)
+        self._teleprompter_speed_spin.setEnabled(enabled)
         self._teleprompter_auto_start_check.setEnabled(enabled)
 
     @property

@@ -531,28 +531,25 @@ class RecordingController(QObject):
             return False
 
     def _start_audio_only_recording(self) -> bool:
-        """Start a 48 kHz stereo AAC recording without a video source."""
+        """Start a deterministic 48 kHz, 256 kb/s AAC audio-only recording."""
         try:
             self._stop_audio_monitoring()
-            self._resume_preview_after_audio_only_recording = self._preview_active
-            self._audio_only_recorder_active = True
-            self._screen_capture.setActive(False)
-            self._preview_active = False
-            self._session.setScreenCapture(None)
-
-            self._apply_config()
-            self._configure_audio_only_recorder_format()
-
+            self._session.setAudioInput(None)
+            self._audio_input = None
             output_path = self._get_output_path()
-            self._recorder.setOutputLocation(QUrl.fromLocalFile(str(output_path)))
             self._output_path = output_path
-            self._recorder.record()
-
-            self._set_state(RecordingState.RECORDING)
-            self.recording_started.emit()
-            return True
+            audio_device_index = self._get_ffmpeg_audio_device_index()
+            started = self._ffmpeg_recorder.start_audio_recording(
+                audio_device_index=audio_device_index,
+                output_path=output_path,
+                audio_sample_rate=self._config.audio_sample_rate,
+                audio_channels=2,
+                audio_bitrate=256000,
+            )
+            if not started:
+                self._resume_audio_monitoring_if_needed()
+            return started
         except Exception as e:
-            self._restore_after_audio_only_recording()
             self._resume_audio_monitoring_if_needed()
             self.recording_error.emit(str(e))
             return False
@@ -704,7 +701,11 @@ class RecordingController(QObject):
         """Handle FFmpeg recording stopped."""
         self._set_state(RecordingState.IDLE)
         self._stop_requested = False
-        self._resume_preview_after_external_recording_if_needed()
+        if self._config.audio_only:
+            self._setup_audio_input()
+            self._resume_audio_monitoring_if_needed()
+        else:
+            self._resume_preview_after_external_recording_if_needed()
         # FFmpeg recordings are already cropped, no post-processing needed
         self.recording_stopped.emit(output_path, False)
 
@@ -721,7 +722,11 @@ class RecordingController(QObject):
         """Handle FFmpeg recording error."""
         self._set_state(RecordingState.IDLE)
         self._stop_requested = False
-        self._resume_preview_after_external_recording_if_needed()
+        if self._config.audio_only:
+            self._setup_audio_input()
+            self._resume_audio_monitoring_if_needed()
+        else:
+            self._resume_preview_after_external_recording_if_needed()
         self.recording_error.emit(error)
 
     def _on_native_error(self, error: str):

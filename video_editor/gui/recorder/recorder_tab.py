@@ -296,7 +296,7 @@ class RecorderTab(QWidget):
         self._settings_panel.teleprompter_enabled_changed.connect(self._on_teleprompter_enabled_changed)
         self._settings_panel.teleprompter_script_changed.connect(self._teleprompter.set_script)
         self._settings_panel.teleprompter_text_size_changed.connect(self._teleprompter.set_text_size)
-        self._settings_panel.teleprompter_speed_changed.connect(self._teleprompter.set_scroll_speed)
+        self._settings_panel.teleprompter_speed_changed.connect(self._teleprompter.set_reading_speed)
 
         # Preview
         self._preview.crop_offset_changed.connect(self._on_crop_offset_changed)
