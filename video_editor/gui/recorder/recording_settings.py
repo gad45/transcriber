@@ -41,6 +41,13 @@ QUALITY_OPTIONS = [
     ("Very High", "very_high"),
 ]
 
+TELEPROMPTER_TEXT_SIZE_OPTIONS = [
+    ("Compact (18 pt)", 18),
+    ("Small (22 pt)", 22),
+    ("Medium (27 pt)", 27),
+    ("Large (32 pt)", 32),
+]
+
 
 class RecordingSettingsPanel(QWidget):
     """Settings panel for configuring screen and audio recording.
@@ -64,6 +71,7 @@ class RecordingSettingsPanel(QWidget):
         teleprompter_enabled_changed: Emitted when the audio teleprompter is shown/hidden
         teleprompter_script_changed: Emitted when the teleprompter script changes
         teleprompter_speed_changed: Emitted with the scroll speed in pixels per second
+        teleprompter_text_size_changed: Emitted with the script font size in points
         teleprompter_auto_start_changed: Emitted when record-triggered scrolling changes
     """
 
@@ -78,6 +86,7 @@ class RecordingSettingsPanel(QWidget):
     teleprompter_enabled_changed = Signal(bool)
     teleprompter_script_changed = Signal(str)
     teleprompter_speed_changed = Signal(int)
+    teleprompter_text_size_changed = Signal(int)
     teleprompter_auto_start_changed = Signal(bool)
 
     def __init__(self, parent=None):
@@ -210,6 +219,17 @@ class RecordingSettingsPanel(QWidget):
             "This text is only displayed for you; it is not saved in the recording."
         )
         teleprompter_layout.addWidget(self._teleprompter_script_edit)
+
+        self._teleprompter_text_size_combo = QComboBox()
+        self._teleprompter_text_size_combo.setToolTip(
+            "Choose a smaller type size to fit more script text on screen."
+        )
+        for name, points in TELEPROMPTER_TEXT_SIZE_OPTIONS:
+            self._teleprompter_text_size_combo.addItem(name, points)
+        self._teleprompter_text_size_combo.setCurrentIndex(2)
+        text_size_layout = QFormLayout()
+        text_size_layout.addRow("Text size:", self._teleprompter_text_size_combo)
+        teleprompter_layout.addLayout(text_size_layout)
 
         speed_layout = QHBoxLayout()
         speed_layout.addWidget(QLabel("Scroll speed:"))
@@ -408,6 +428,9 @@ class RecordingSettingsPanel(QWidget):
         self._quality_combo.currentIndexChanged.connect(self._on_quality_changed)
         self._teleprompter_enabled_check.toggled.connect(self._on_teleprompter_enabled_changed)
         self._teleprompter_script_edit.textChanged.connect(self._on_teleprompter_script_changed)
+        self._teleprompter_text_size_combo.currentIndexChanged.connect(
+            self._on_teleprompter_text_size_changed
+        )
         self._teleprompter_speed_slider.valueChanged.connect(self._on_teleprompter_speed_changed)
         self._teleprompter_auto_start_check.toggled.connect(self._on_teleprompter_auto_start_changed)
 
@@ -552,6 +575,12 @@ class RecordingSettingsPanel(QWidget):
         if not self._updating:
             self.teleprompter_speed_changed.emit(value)
 
+    def _on_teleprompter_text_size_changed(self, index: int):
+        """Forward the selected script font size to the live teleprompter."""
+        points = self._teleprompter_text_size_combo.itemData(index)
+        if points is not None and not self._updating:
+            self.teleprompter_text_size_changed.emit(int(points))
+
     def _on_teleprompter_auto_start_changed(self, enabled: bool):
         """Update whether recording begins the script scroll automatically."""
         if self._updating:
@@ -579,9 +608,10 @@ class RecordingSettingsPanel(QWidget):
             )
 
     def _sync_teleprompter_controls(self):
-        """Disable text and speed controls until the teleprompter is enabled."""
+        """Disable script controls until the teleprompter is enabled."""
         enabled = self._teleprompter_enabled
         self._teleprompter_script_edit.setEnabled(enabled)
+        self._teleprompter_text_size_combo.setEnabled(enabled)
         self._teleprompter_speed_slider.setEnabled(enabled)
         self._teleprompter_auto_start_check.setEnabled(enabled)
 

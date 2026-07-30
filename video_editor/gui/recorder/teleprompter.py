@@ -23,6 +23,7 @@ class TeleprompterView(QWidget):
 
         self._script = ""
         self._scroll_speed = 45
+        self._text_size = 27
         self._scroll_remainder = 0.0
         self._elapsed = QElapsedTimer()
         self._scroll_timer = QTimer(self)
@@ -57,7 +58,7 @@ class TeleprompterView(QWidget):
         self._script_view.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
-        self._script_view.setFont(QFont("Avenir Next", 27))
+        self._script_view.setFont(QFont("Avenir Next", self._text_size))
         self._script_view.setStyleSheet(
             "QPlainTextEdit {"
             "background: #171717; color: #f4f4f4; border: 1px solid #3d3d3d; "
@@ -100,6 +101,11 @@ class TeleprompterView(QWidget):
         return self._scroll_speed
 
     @property
+    def text_size(self) -> int:
+        """Get the script font size in points."""
+        return self._text_size
+
+    @property
     def is_scrolling(self) -> bool:
         """Return whether the script is scrolling currently."""
         return self._scroll_timer.isActive()
@@ -119,6 +125,11 @@ class TeleprompterView(QWidget):
         """Set the automatic scroll speed in pixels per second."""
         self._scroll_speed = max(10, min(200, pixels_per_second))
         self._update_speed_label()
+
+    def set_text_size(self, points: int) -> None:
+        """Set the script font size while preserving the current reading position."""
+        self._text_size = max(14, min(48, points))
+        self._script_view.setFont(QFont("Avenir Next", self._text_size))
 
     def start(self) -> bool:
         """Begin scrolling, returning False when there is no script to read."""

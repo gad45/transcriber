@@ -30,6 +30,16 @@ def test_teleprompter_uses_configured_speed_and_can_pause():
     assert teleprompter.is_scrolling is False
 
 
+def test_teleprompter_uses_selected_text_size():
+    _qt_app()
+    teleprompter = TeleprompterView()
+
+    teleprompter.set_text_size(18)
+
+    assert teleprompter.text_size == 18
+    assert teleprompter._script_view.font().pointSize() == 18
+
+
 def test_teleprompter_requires_a_script_before_scrolling():
     _qt_app()
     teleprompter = TeleprompterView()
