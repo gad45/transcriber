@@ -32,6 +32,9 @@ processing.
   the microphone.
 - Screen capture is detached while recording audio only and reattached when
   the take finishes, so no display permission is required for this mode.
+- Video Editor refuses to close while a recording is active. If a previous
+  legacy FFmpeg recorder was left running after a crash, the next launch stops
+  only that app-owned orphan process and lets it finalize its file.
 - Do not route audio-only recording through direct FFmpeg `avfoundation`
   microphone capture. That path was tested for bitrate control but produced
   occasional dropped fragments of spoken words in real recordings.

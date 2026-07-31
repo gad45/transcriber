@@ -114,6 +114,18 @@ class RecordingController(QObject):
         self._setup_capture_session()
         self._connect_signals()
 
+        stale_outputs = FFmpegRecorder.stop_orphaned_recordings()
+        if stale_outputs:
+            paths = "\n".join(str(path) for path in stale_outputs)
+            QTimer.singleShot(
+                0,
+                lambda: self.recording_warning.emit(
+                    "Stopped an unfinished recorder process from a previous app session "
+                    "to prevent continued microphone capture and disk use.\n\n"
+                    f"Finalizing file(s):\n{paths}"
+                ),
+            )
+
     def _setup_capture_session(self):
         """Initialize the capture session with components."""
         self._session.setScreenCapture(self._screen_capture)

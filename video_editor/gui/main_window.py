@@ -1163,6 +1163,17 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close."""
+        if self._recorder_tab.is_recording:
+            QMessageBox.warning(
+                self,
+                "Recording In Progress",
+                "Stop the recording and wait for it to finish before closing Video Editor. "
+                "This ensures the audio file is finalized and prevents a recorder process "
+                "from continuing in the background.",
+            )
+            event.ignore()
+            return
+
         if self._export_thread and self._export_thread.is_alive():
             QMessageBox.warning(
                 self,

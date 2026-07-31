@@ -97,6 +97,11 @@ class RecorderTab(QWidget):
         self._connect_signals()
         QTimer.singleShot(0, self._start_preview)
 
+    @property
+    def is_recording(self) -> bool:
+        """Return whether a capture is active and must be stopped before exit."""
+        return self._controller.is_recording
+
     def _setup_ui(self):
         """Set up the recorder tab UI."""
         layout = QVBoxLayout(self)

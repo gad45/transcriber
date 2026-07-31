@@ -1,5 +1,7 @@
 """FFmpeg-based screen recording with real-time crop."""
 
+import os
+import shlex
 import threading
 import signal
 import subprocess
@@ -93,23 +95,23 @@ class _FFmpegFinalizeWorker:
         if self._process:
             try:
                 # Attempt graceful stop first (may not work for avfoundation)
-                self._process.send_signal(signal.SIGINT)
+                self._signal_process(signal.SIGINT)
                 self._process.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 # Force terminate if graceful stop times out
                 print("[FFmpeg] Graceful stop timed out, terminating...")
                 try:
-                    self._process.terminate()
+                    self._signal_process(signal.SIGTERM)
                     self._process.wait(timeout=5)
                 except Exception:
-                    self._process.kill()
+                    self._signal_process(signal.SIGKILL)
             except Exception as e:
                 print(f"[FFmpeg] Error stopping: {e}")
                 try:
-                    self._process.terminate()
+                    self._signal_process(signal.SIGTERM)
                     self._process.wait(timeout=5)
                 except Exception:
-                    self._process.kill()
+                    self._signal_process(signal.SIGKILL)
 
         if self._output_path and self._output_path.exists():
             output_path = self._output_path
@@ -135,6 +137,18 @@ class _FFmpegFinalizeWorker:
                     warning = message
             return True, output_path, warning, ""
         return False, None, "", "Recording file not created"
+
+    def _signal_process(self, signum: int) -> None:
+        """Signal the recorder's isolated process group when available."""
+        if self._process is None:
+            return
+        if os.name == "posix":
+            try:
+                os.killpg(os.getpgid(self._process.pid), signum)
+                return
+            except (AttributeError, OSError):
+                pass
+        self._process.send_signal(signum)
 
 
 class FFmpegRecorder(QObject):
@@ -280,6 +294,7 @@ class FFmpegRecorder(QObject):
             "-vf", f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y}",
             *encoder_args,
             *audio_args,
+            "-metadata", "comment=video-editor-recorder",
             *container_args,
             str(output_path),
         ]
@@ -292,6 +307,10 @@ class FFmpegRecorder(QObject):
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
+                # Keep the recorder separate from the UI process. This lets the
+                # finalizer terminate the whole recorder group without touching
+                # any unrelated FFmpeg process on the computer.
+                start_new_session=True,
             )
 
             self._state = FFmpegRecorderState.RECORDING
@@ -450,6 +469,84 @@ class FFmpegRecorder(QObject):
         if self._state == FFmpegRecorderState.RECORDING:
             duration = time.time() - self._start_time
             self.duration_changed.emit(duration)
+
+    @classmethod
+    def stop_orphaned_recordings(cls) -> list[Path]:
+        """Stop recorder processes left behind by a previous crashed app session.
+
+        Only orphaned (PPID 1) processes launched from this app's FFmpeg binary
+        are eligible. New screen-recorder commands carry an explicit metadata
+        marker; the narrowly scoped legacy match covers the former audio-only
+        command so it cannot continue consuming disk space after an upgrade.
+        """
+        if os.name != "posix":
+            return []
+
+        try:
+            result = subprocess.run(
+                ["ps", "-axo", "pid=,ppid=,command="],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError:
+            return []
+
+        stopped_outputs: list[Path] = []
+        for pid, output_path in cls._find_orphaned_recordings(result.stdout):
+            try:
+                os.kill(pid, signal.SIGINT)
+                stopped_outputs.append(output_path)
+            except ProcessLookupError:
+                continue
+            except PermissionError:
+                continue
+        return stopped_outputs
+
+    @classmethod
+    def _find_orphaned_recordings(cls, ps_output: str) -> list[tuple[int, Path]]:
+        """Find stale app-owned AVFoundation recorder processes in ``ps`` output."""
+        try:
+            expected_executable = Path(FFMPEG).resolve()
+        except OSError:
+            expected_executable = Path(FFMPEG)
+
+        matches: list[tuple[int, Path]] = []
+        for raw_line in ps_output.splitlines():
+            parts = raw_line.strip().split(maxsplit=2)
+            if len(parts) != 3:
+                continue
+            pid_text, parent_pid_text, command = parts
+            if parent_pid_text != "1":
+                continue
+            try:
+                pid = int(pid_text)
+                # ``ps`` does not quote spaces in executable paths, so strip
+                # the known app binary before asking shlex to parse arguments.
+                expected_prefix = f"{expected_executable} "
+                if not command.startswith(expected_prefix):
+                    continue
+                args = shlex.split(command[len(expected_prefix):])
+            except (ValueError, TypeError):
+                continue
+            if not args or "-f" not in args:
+                continue
+            try:
+                input_format = args[args.index("-f") + 1]
+            except IndexError:
+                continue
+            if input_format != "avfoundation":
+                continue
+
+            marker = "comment=video-editor-recorder" in args
+            legacy_audio_only = (
+                any(value.startswith(":") for value in args)
+                and args[-1].lower().endswith(".m4a")
+                and Path(args[-1]).expanduser().parent == Path.home() / "Movies" / "Recordings"
+            )
+            if marker or legacy_audio_only:
+                matches.append((pid, Path(args[-1]).expanduser()))
+        return matches
 
     @staticmethod
     def get_ffmpeg_audio_devices() -> list[tuple[int, str]]:
