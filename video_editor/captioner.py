@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess
 import re
 import shutil
+import tempfile
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -608,11 +609,265 @@ class Captioner:
             return False
         return filter_name in result.stdout
 
+    def _caption_events_for_preview(
+        self,
+        tokens: list[Token],
+        max_words: int,
+    ) -> list[tuple[float, float, str]]:
+        """Return the caption states shown by the GUI preview.
+
+        The preview presents a fixed-size box, accumulates words within each
+        chunk, and keeps a completed chunk visible for 100 ms.  Keeping this
+        timing logic here makes the export behave the same way instead of
+        approximating the caption layout a second time.
+        """
+        events: list[tuple[float, float, str]] = []
+        previous_end = 0.0
+
+        for chunk in self._chunk_tokens(tokens, max_words):
+            if not chunk:
+                continue
+
+            # The GUI checks chunks in order.  If the next chunk starts while
+            # the prior one is still in its 100 ms grace period, it only becomes
+            # visible after that prior chunk has cleared.
+            chunk_start = max(chunk[0].start, previous_end)
+            chunk_end = max(chunk[-1].end + 0.1, chunk_start + 0.01)
+
+            state_times: list[float] = [chunk_start]
+            for token in chunk:
+                token_time = max(chunk_start, token.start)
+                if token_time not in state_times:
+                    state_times.append(token_time)
+            state_times.sort()
+
+            for index, start_time in enumerate(state_times):
+                end_time = (
+                    state_times[index + 1]
+                    if index + 1 < len(state_times)
+                    else chunk_end
+                )
+                if end_time <= start_time:
+                    continue
+
+                visible_tokens = [
+                    token.text.strip()
+                    for token in chunk
+                    if token.start <= start_time
+                ]
+                if not visible_tokens:
+                    # This can only happen when the first token was delayed by
+                    # an overlapping prior chunk.  At that transition the GUI
+                    # shows every word already reached by the playhead.
+                    visible_tokens = [chunk[0].text.strip()]
+
+                events.append((start_time, end_time, " ".join(visible_tokens)))
+
+            previous_end = chunk_end
+
+        return events
+
+    @staticmethod
+    def _qt_weight_for_caption(font_weight: str):
+        """Map persisted caption weights to the weights used in the preview."""
+        from PySide6.QtGui import QFont
+
+        return {
+            "regular": QFont.Weight.Normal,
+            "medium": QFont.Weight.Medium,
+            "semi-bold": QFont.Weight.DemiBold,
+            "bold": QFont.Weight.Bold,
+            "extra-bold": QFont.Weight.ExtraBold,
+        }.get(font_weight, QFont.Weight.Bold)
+
+    def _render_preview_caption_image(
+        self,
+        image_path: Path,
+        text: str,
+        caption_settings: dict | None,
+        video_width: int,
+        video_height: int,
+    ) -> None:
+        """Render one transparent caption frame using the GUI preview rules."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import (
+            QColor,
+            QFont,
+            QGuiApplication,
+            QImage,
+            QPainter,
+            QTextCharFormat,
+            QTextCursor,
+            QTextDocument,
+            QTextOption,
+        )
+
+        # QFont needs an application instance when this is invoked from the
+        # headless CLI.  The GUI already owns one, so retain only the CLI one.
+        application = QGuiApplication.instance()
+        if application is None:
+            application = QGuiApplication(["video-editor-caption-renderer"])
+            self._caption_render_application = application
+
+        settings = caption_settings or {}
+        font_size = int(settings.get("font_size", self.config.caption_font_size))
+        font_family = str(settings.get("font_family", self.config.caption_font))
+        font_weight = self._normalize_font_weight(settings.get("font_weight", "bold"))
+        text_color = QColor(0, 0, 0) if settings.get("text_color") == "black" else QColor(255, 255, 255)
+        show_background = bool(settings.get("show_background", True))
+        pos_x = float(settings.get("pos_x", 0.5))
+        pos_y = float(settings.get("pos_y", 0.92))
+        box_width = float(settings.get("box_width", 0.6))
+        box_height = float(settings.get("box_height", 0.07))
+
+        box_w = max(1, min(video_width, round(box_width * video_width)))
+        box_h = max(1, min(video_height, round(box_height * video_height)))
+        box_x = round(pos_x * video_width - box_w / 2)
+        box_y = round(pos_y * video_height - box_h)
+        # This is identical to VideoPlayer.update_caption().
+        box_x = max(0, min(box_x, video_width - box_w))
+        box_y = max(0, min(box_y, video_height - box_h))
+
+        image = QImage(video_width, video_height, QImage.Format.Format_ARGB32_Premultiplied)
+        image.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(image)
+        try:
+            if show_background:
+                # The preview uses this fixed semi-transparent black brush for
+                # either text colour, so exports deliberately do the same.
+                painter.fillRect(box_x, box_y, box_w, box_h, QColor(0, 0, 0, 180))
+
+            font = QFont(font_family, font_size)
+            font.setWeight(self._qt_weight_for_caption(font_weight))
+
+            document = QTextDocument()
+            document.setDefaultFont(font)
+            option = document.defaultTextOption()
+            option.setWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+            document.setDefaultTextOption(option)
+            document.setTextWidth(max(1, box_w - 20))
+            document.setPlainText(text)
+
+            cursor = QTextCursor(document)
+            cursor.select(QTextCursor.SelectionType.Document)
+            char_format = QTextCharFormat()
+            char_format.setForeground(text_color)
+            cursor.mergeCharFormat(char_format)
+
+            painter.translate(box_x + 10, box_y + 5)
+            document.drawContents(painter)
+        finally:
+            painter.end()
+
+        if not image.save(str(image_path), "PNG"):
+            raise RuntimeError(f"Could not render caption image: {image_path}")
+
+    def _burn_streaming_captions_preview_renderer(
+        self,
+        video_path: Path,
+        tokens: list[Token],
+        output_path: Path,
+        max_words: int,
+        caption_settings: dict | None,
+        video_width: int,
+        video_height: int,
+    ) -> Path:
+        """Burn captions with Qt when FFmpeg has no text-rendering filter.
+
+        The packaged FFmpeg deliberately stays small and can omit libass and
+        libfreetype.  Unlike the former soft-subtitle fallback, this produces a
+        real video overlay and follows the GUI preview's text and box geometry.
+        """
+        console.print("[dim]Using the preview renderer for burned-in captions[/dim]")
+        events = self._caption_events_for_preview(tokens, max_words)
+        if not events:
+            raise RuntimeError("No caption frames could be generated for this export.")
+
+        with tempfile.TemporaryDirectory(
+            prefix="video_editor_captions_", dir=output_path.parent
+        ) as temp_directory:
+            render_dir = Path(temp_directory)
+            clear_image = render_dir / "clear.png"
+            self._render_preview_caption_image(
+                clear_image, "", {"show_background": False}, video_width, video_height
+            )
+
+            manifest_lines = ["ffconcat version 1.0"]
+
+            def append_frame(filename: str, duration: float) -> None:
+                if duration <= 0:
+                    return
+                manifest_lines.append(f"file '{filename}'")
+                manifest_lines.append(f"duration {duration:.6f}")
+
+            cursor = 0.0
+            for index, (start_time, end_time, text) in enumerate(events):
+                if start_time > cursor:
+                    append_frame(clear_image.name, start_time - cursor)
+
+                frame_image = render_dir / f"caption_{index:05d}.png"
+                self._render_preview_caption_image(
+                    frame_image,
+                    text,
+                    caption_settings,
+                    video_width,
+                    video_height,
+                )
+                append_frame(frame_image.name, end_time - max(cursor, start_time))
+                cursor = max(cursor, end_time)
+
+            # A final transparent frame makes the end-of-caption state explicit
+            # before overlay reaches EOF and passes through the source video.
+            append_frame(clear_image.name, 0.1)
+            manifest_path = render_dir / "captions.ffconcat"
+            manifest_path.write_text("\n".join(manifest_lines) + "\n", encoding="utf-8")
+
+            encoder_args = get_encoder_args(self.encoder_config)
+            filter_complex = (
+                "[1:v]format=rgba,setpts=PTS-STARTPTS[captions];"
+                "[0:v][captions]overlay=0:0:eof_action=pass:repeatlast=0:format=auto[video]"
+            )
+            cmd = [
+                FFMPEG, "-y",
+                "-hide_banner", "-loglevel", "error", "-nostats",
+                "-i", str(video_path),
+                "-f", "concat", "-safe", "0", "-i", manifest_path.name,
+                "-filter_complex", filter_complex,
+                "-map", "[video]",
+                "-map", "0:a?",
+                *encoder_args,
+                "-pix_fmt", "yuv420p",
+                "-c:a", "copy",
+                str(output_path),
+            ]
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                progress.add_task("Encoding video with preview-matched captions...", total=None)
+                result = subprocess.run(
+                    cmd,
+                    cwd=render_dir,
+                    capture_output=True,
+                    text=True,
+                )
+
+            if result.returncode != 0:
+                raise RuntimeError(
+                    "FFmpeg preview caption burning failed: "
+                    f"{result.stderr.strip() or result.stdout.strip()}"
+                )
+
+        console.print(f"[green]✓[/green] Video with burned-in captions saved to {output_path}")
+        return output_path
+
     def _generate_streaming_ass(
         self,
         tokens: list[Token],
         output_path: Path,
-        max_words: int = 20,
+        max_words: int = 15,
         caption_settings: dict | None = None,
         video_width: int = 1920,
         video_height: int = 1080,
@@ -844,16 +1099,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         video_path: Path,
         tokens: list[Token],
         output_path: Path,
-        max_words: int = 20,
+        max_words: int = 15,
         caption_settings: dict = None
     ) -> Path:
         """
         Burn streaming captions into video using FFmpeg.
 
-        Tries multiple approaches in order of preference:
-        1. ASS subtitles with karaoke effect (requires libass)
-        2. drawtext filter (requires libfreetype)
-        3. Falls back to regular SRT-based captions
+        Exports that include GUI caption settings use the Qt preview renderer
+        so their font, weight, fixed box, and placement exactly match Preview.
+        Legacy callers without GUI settings retain the ASS/drawtext paths.
 
         Args:
             video_path: Path to input video
@@ -903,7 +1157,23 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             video_width, video_height = 1920, 1080
             resolution = None
 
-        # Prefer the file-based ASS path. Long videos can produce thousands of
+        # The GUI's fixed caption box is a Qt layout.  ASS and drawtext can
+        # approximate it, but cannot reproduce its geometry and wrapping
+        # exactly.  Use the same Qt rendering primitives whenever the caller
+        # supplied the preview settings, regardless of installed FFmpeg filters.
+        if caption_settings is not None:
+            return self._burn_streaming_captions_preview_renderer(
+                video_path,
+                tokens,
+                output_path,
+                max_words,
+                caption_settings,
+                video_width,
+                video_height,
+            )
+
+        # Prefer the file-based ASS path for legacy/headless callers that have
+        # no GUI appearance to match. Long videos can produce thousands of
         # drawtext filters, which makes the FFmpeg command fragile and slow.
         has_ass = self._check_ffmpeg_filter(" ass ")  # Space-padded to avoid false matches
         has_drawtext = self._check_ffmpeg_filter("drawtext")
@@ -939,19 +1209,20 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             cmd.extend(["-c:a", "copy", str(output_path)])
 
         else:
-            # No suitable filter available
-            console.print("[yellow]Warning: FFmpeg not built with drawtext or ass filter.[/yellow]")
-            console.print("[yellow]Install FFmpeg with libfreetype for streaming captions:[/yellow]")
-            console.print("[dim]  brew install ffmpeg  (includes all filters)[/dim]")
-            console.print("[yellow]Falling back to regular segment-based captions...[/yellow]")
-
-            # Generate SRT from segments (convert tokens to segments)
-            segments = self._tokens_to_segments(tokens, max_words)
-            srt_path = output_path.parent / "captions.srt"
-            self.generate_srt(segments, srt_path)
-
-            # Use soft captions as fallback
-            return self.add_soft_captions(video_path, srt_path, output_path)
+            # Do not silently replace a burn-in export with selectable soft
+            # subtitles.  This happens with the bundled FFmpeg build, which
+            # intentionally has neither libass nor libfreetype.  Rendering the
+            # overlay through Qt preserves the preview's font, weight, box, and
+            # normalized placement before FFmpeg encodes the final video.
+            return self._burn_streaming_captions_preview_renderer(
+                video_path,
+                tokens,
+                output_path,
+                max_words,
+                caption_settings,
+                video_width,
+                video_height,
+            )
 
         # Execute for drawtext path
         with Progress(
