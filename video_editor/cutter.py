@@ -29,6 +29,7 @@ class Cutter:
             use_hardware=config.use_hardware_encoding
         )
         self._has_audio_cache: dict[str, bool] = {}
+        self._has_video_cache: dict[str, bool] = {}
     
     def get_video_duration(self, video_path: Path) -> float:
         """
@@ -104,6 +105,25 @@ class Cutter:
         self._has_audio_cache[key] = has_audio
         return has_audio
 
+    def input_has_video(self, input_path: Path) -> bool:
+        """Return whether an input file contains at least one video stream."""
+        key = str(Path(input_path).resolve())
+        if key in self._has_video_cache:
+            return self._has_video_cache[key]
+
+        cmd = [
+            FFPROBE,
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=codec_type",
+            "-of", "csv=p=0",
+            key,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        has_video = result.returncode == 0 and bool(result.stdout.strip())
+        self._has_video_cache[key] = has_video
+        return has_video
+
     def cut_segment(
         self,
         input_path: Path,
@@ -135,6 +155,9 @@ class Cutter:
         Returns:
             Path to the extracted segment
         """
+        if not self.input_has_video(input_path):
+            return self._cut_audio_segment(input_path, output_path, start, end)
+
         # Single-pass approach using filter chains for trimming and frame freeze.
         # Use input-level -ss/-t to keep decoding bounded for each segment.
         if freeze_last_frame and self.SEGMENT_GAP > 0:
@@ -218,6 +241,36 @@ class Cutter:
             if result.returncode != 0:
                 raise RuntimeError(f"FFmpeg segment extraction failed: {result.stderr}")
 
+        return output_path
+
+    def _cut_audio_segment(
+        self,
+        input_path: Path,
+        output_path: Path,
+        start: float,
+        end: float,
+    ) -> Path:
+        """Extract an audio-only range without creating a synthetic video stream."""
+        duration = end - start
+        cmd = [
+            FFMPEG,
+            "-y",
+            "-hide_banner", "-loglevel", "error", "-nostats",
+            "-ss", str(start),
+            "-t", str(duration),
+            "-i", str(input_path),
+            "-map", "0:a:0",
+            "-c:a", "aac",
+            "-b:a", "256k",
+            "-ar", "48000",
+            "-ac", "2",
+            "-avoid_negative_ts", "make_zero",
+            "-movflags", "+faststart",
+            str(output_path),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg audio segment extraction failed: {result.stderr}")
         return output_path
 
     def create_gap_segment(
@@ -321,21 +374,27 @@ class Cutter:
             "-i", str(concat_file),
         ]
 
-        # Copy video stream, but re-encode audio once after concatenation to
-        # smooth timestamp/encoder-delay discontinuities between segment files.
+        # Video exports copy their pre-encoded video segments and normalize audio
+        # once. Audio-only exports have no video map at all.
+        has_video = bool(segment_paths) and self.input_has_video(segment_paths[0])
         has_audio = bool(segment_paths) and self._input_has_audio(segment_paths[0])
-        cmd.extend(["-map", "0:v:0", "-c:v", "copy"])
+        if has_video:
+            cmd.extend(["-map", "0:v:0", "-c:v", "copy"])
         if has_audio:
+            cmd.extend(["-map", "0:a:0"])
+            if has_video:
+                cmd.extend(["-af", "aresample=async=1:first_pts=0"])
             cmd.extend([
-                "-map", "0:a:0",
-                "-af", "aresample=async=1:first_pts=0",
                 "-c:a", "aac",
                 "-b:a", "256k",
                 "-ar", "48000",
                 "-ac", "2",
             ])
-        else:
+        elif has_video:
             cmd.append("-an")
+        else:
+            raise RuntimeError("Cannot concatenate segments without an audio or video stream.")
+        cmd.extend(["-movflags", "+faststart"])
         cmd.append(str(output_path))
 
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -376,8 +435,10 @@ class Cutter:
         if not ranges:
             raise ValueError("No segments to keep")
 
-        console.print(f"[blue]Cutting {len(ranges)} segments...[/blue]")
-        if crop_filter:
+        has_video = self.input_has_video(input_path)
+        media_label = "video" if has_video else "audio"
+        console.print(f"[blue]Cutting {len(ranges)} {media_label} segments...[/blue]")
+        if crop_filter and has_video:
             console.print(f"[blue]Applying crop: {crop_filter}[/blue]")
 
         # Setup temp directory
@@ -398,16 +459,17 @@ class Cutter:
             task = progress.add_task("Extracting segments", total=len(ranges))
 
             for i, range_ in enumerate(ranges):
-                seg_path = temp_dir / f"segment_{i:04d}.mp4"
+                segment_suffix = ".mp4" if has_video else ".m4a"
+                seg_path = temp_dir / f"segment_{i:04d}{segment_suffix}"
                 # Don't freeze last frame on the final segment (no transition after it)
                 is_last = (i == len(ranges) - 1)
 
                 # Use per-segment crop if available, otherwise use global crop
-                segment_crop = segment_crop_filters.get(i, crop_filter)
+                segment_crop = segment_crop_filters.get(i, crop_filter) if has_video else None
 
                 self.cut_segment(
                     input_path, seg_path, range_.start, range_.end, i,
-                    freeze_last_frame=not is_last,
+                    freeze_last_frame=has_video and not is_last,
                     crop_filter=segment_crop
                 )
                 segment_paths.append(seg_path)
@@ -429,5 +491,5 @@ class Cutter:
                 except OSError:
                     pass  # Directory not empty, leave it
 
-        console.print(f"[green]✓[/green] Video saved to {output_path}")
+        console.print(f"[green]✓[/green] {media_label.capitalize()} saved to {output_path}")
         return output_path

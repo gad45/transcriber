@@ -21,6 +21,11 @@ ffprobe -v error -select_streams a:0 -show_entries \
   stream=codec_name,sample_rate,channels,bit_rate -of default=nw=1 recording.m4a
 ```
 
+Audio-only takes can also be opened in the Editor and exported after removing
+unwanted ranges. The Export action automatically offers an `.m4a` output,
+concatenates only the kept audio ranges, and skips video-only crop and caption
+processing.
+
 ### Reliability rules
 
 - The input-level meter is stopped before recording so it does not compete for

@@ -987,7 +987,7 @@ class MainWindow(QMainWindow):
             self.setWindowTitle(f"Video Editor - {path}")
 
     def _export_video(self):
-        """Export the edited video."""
+        """Export the edited recording."""
         if not self._session:
             return
 
@@ -995,17 +995,23 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Export In Progress", "Wait for the current export to finish.")
             return
 
+        source_has_video = Cutter(self._config).input_has_video(self._session.video_path)
+        default_suffix = ".mp4" if source_has_video else ".m4a"
+        title = "Export Video" if source_has_video else "Export Audio"
+        file_filter = "MP4 Video (*.mp4)" if source_has_video else "M4A Audio (*.m4a);;MP4 Audio (*.mp4)"
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "Export Video",
-            str(self._session.video_path.with_suffix("")) + "_edited.mp4",
-            "MP4 Video (*.mp4)"
+            title,
+            str(self._session.video_path.with_suffix("")) + f"_edited{default_suffix}",
+            file_filter,
         )
         if not path:
             return
 
-        if not path.endswith(".mp4"):
+        if source_has_video and not path.endswith(".mp4"):
             path += ".mp4"
+        elif not source_has_video and Path(path).suffix.lower() not in {".m4a", ".mp4"}:
+            path += ".m4a"
 
         output_path = Path(path).resolve()
         session_snapshot = copy.deepcopy(self._session)
@@ -1066,23 +1072,23 @@ class MainWindow(QMainWindow):
             config.caption_vertical_offset = (1.0 - caption_settings.pos_y) * 1080
 
         cutter = Cutter(config)
-        captioner = Captioner(config)
+        source_has_video = cutter.input_has_video(session.video_path)
 
         keep_ranges = session.get_final_keep_ranges(
             config.segment_start_buffer,
             config.segment_end_buffer
         )
 
-        self._export_progress_updated.emit("Cutting video...")
+        self._export_progress_updated.emit("Cutting video..." if source_has_video else "Cutting audio...")
 
         crop_filter = None
         segment_crop_filters = None
 
-        if session.crop_config and not session.crop_config.is_default:
+        if source_has_video and session.crop_config and not session.crop_config.is_default:
             video_w, video_h = cutter.get_video_dimensions(session.video_path)
             crop_filter = session.crop_config.to_ffmpeg_filter(video_w, video_h)
 
-        if session.segment_crop_overrides:
+        if source_has_video and session.segment_crop_overrides:
             video_w, video_h = cutter.get_video_dimensions(session.video_path)
             segment_crop_filters = {
                 idx: crop.to_ffmpeg_filter(video_w, video_h)
@@ -1092,7 +1098,8 @@ class MainWindow(QMainWindow):
             if not segment_crop_filters:
                 segment_crop_filters = None
 
-        with tempfile.NamedTemporaryFile(prefix="video_editor_export_", suffix=".mp4", delete=False) as tmp_file:
+        temp_suffix = ".mp4" if source_has_video else ".m4a"
+        with tempfile.NamedTemporaryFile(prefix="video_editor_export_", suffix=temp_suffix, delete=False) as tmp_file:
             temp_cut = Path(tmp_file.name)
 
         temp_cut.unlink(missing_ok=True)
@@ -1106,11 +1113,12 @@ class MainWindow(QMainWindow):
                 segment_crop_filters=segment_crop_filters
             )
 
-            self._export_progress_updated.emit("Adding captions...")
+            self._export_progress_updated.emit("Adding captions..." if source_has_video else "Finalizing audio export...")
 
             tokens = session.get_final_tokens()
 
-            if tokens and session.caption_settings.enabled:
+            if source_has_video and tokens and session.caption_settings.enabled:
+                captioner = Captioner(config)
                 adjusted_tokens = _adjust_tokens_for_cuts(tokens, keep_ranges, Cutter.SEGMENT_GAP)
                 captioner.burn_streaming_captions(
                     temp_cut,

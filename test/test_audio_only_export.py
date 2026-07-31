@@ -1,0 +1,103 @@
+import json
+import subprocess
+from pathlib import Path
+
+from video_editor.analyzer import TimeRange
+from video_editor.config import Config
+from video_editor.cutter import Cutter
+from video_editor.export_pipeline import export_project
+from video_editor.project_io import build_project_payload, load_project, write_project
+from video_editor.runtime_paths import ffmpeg_executable, ffprobe_executable
+
+
+def _probe_stream_types(media_path: Path) -> list[str]:
+    result = subprocess.run(
+        [
+            ffprobe_executable(),
+            "-v", "error",
+            "-show_entries", "stream=codec_type",
+            "-of", "json",
+            str(media_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return [stream["codec_type"] for stream in json.loads(result.stdout)["streams"]]
+
+
+def test_audio_only_cut_exports_m4a_without_a_video_stream(tmp_path: Path):
+    source_path = tmp_path / "source.m4a"
+    output_path = tmp_path / "edited.m4a"
+    subprocess.run(
+        [
+            ffmpeg_executable(),
+            "-y",
+            "-f", "lavfi",
+            "-i", "sine=frequency=1000:sample_rate=48000:duration=3",
+            "-c:a", "aac",
+            "-b:a", "256k",
+            str(source_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    temp_dir = tmp_path / "temp"
+    temp_dir.mkdir()
+    cutter = Cutter(Config(temp_dir=temp_dir))
+    result_path = cutter.cut_video(
+        source_path,
+        [TimeRange(0.0, 0.75), TimeRange(1.25, 2.5)],
+        output_path,
+    )
+
+    assert result_path == output_path
+    assert _probe_stream_types(output_path) == ["audio"]
+    assert cutter.get_video_duration(output_path) > 1.9
+
+
+def test_audio_only_project_export_skips_video_only_caption_processing(tmp_path: Path, monkeypatch):
+    source_path = tmp_path / "source.m4a"
+    project_path = tmp_path / "source.vedproj"
+    output_path = tmp_path / "edited.m4a"
+    subprocess.run(
+        [
+            ffmpeg_executable(),
+            "-y",
+            "-f", "lavfi",
+            "-i", "sine=frequency=440:sample_rate=48000:duration=2",
+            "-c:a", "aac",
+            str(source_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    write_project(
+        project_path,
+        build_project_payload(
+            video_path=source_path,
+            video_duration=2.0,
+            segments=[],
+            tokens=[],
+            analyzed=[],
+            keep_ranges=[TimeRange(0.0, 1.5)],
+        ),
+    )
+
+    def fail_if_captioner_is_created(*args, **kwargs):
+        raise AssertionError("Audio-only export must not invoke the captioner")
+
+    monkeypatch.setattr("video_editor.export_pipeline.Captioner", fail_if_captioner_is_created)
+    temp_dir = tmp_path / "project_temp"
+    temp_dir.mkdir()
+    result_path = export_project(
+        load_project(project_path),
+        output_path,
+        config=Config(temp_dir=temp_dir),
+    )
+
+    assert result_path == output_path
+    assert _probe_stream_types(output_path) == ["audio"]

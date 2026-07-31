@@ -136,17 +136,18 @@ def export_project(
     _apply_caption_settings(config, project.caption_settings)
 
     cutter = Cutter(config)
-    captioner = Captioner(config)
+    source_has_video = cutter.input_has_video(source_path)
     keep_ranges = get_final_keep_ranges(
         project,
         start_buffer=config.segment_start_buffer,
         end_buffer=config.segment_end_buffer,
     )
-    crop_filter = crop_filter_from_project(project, cutter)
+    crop_filter = crop_filter_from_project(project, cutter) if source_has_video else None
 
-    if no_captions or not project.caption_settings.get("enabled", True):
+    if not source_has_video or no_captions or not project.caption_settings.get("enabled", True):
         return cutter.cut_video(source_path, keep_ranges, output_path, crop_filter=crop_filter)
 
+    captioner = Captioner(config)
     with tempfile.NamedTemporaryFile(prefix="video_editor_codex_", suffix=".mp4", delete=False) as temp_file:
         temp_cut = Path(temp_file.name)
     temp_cut.unlink(missing_ok=True)
