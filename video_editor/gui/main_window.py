@@ -6,7 +6,7 @@ import tempfile
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Slot, QTimer, Signal
+from PySide6.QtCore import Qt, Slot, QTimer, Signal, QStandardPaths
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QMenuBar, QMenu, QToolBar, QPushButton, QLabel, QStatusBar,
@@ -22,6 +22,12 @@ from .models import EditSession, CropConfig, CaptionSettings, RecordingConfig
 from .caption_settings import CaptionSettingsPanel
 from .settings_dialog import SettingsDialog
 from .recorder import RecorderTab
+from .file_dialogs import (
+    MEDIA_FILE_FILTER,
+    PROJECT_FILE_FILTER,
+    suggested_project_path,
+    with_project_extension,
+)
 from ..transcriber import Transcriber, Segment
 from ..analyzer import Analyzer, AnalyzedSegment, SegmentAction
 from ..cutter import Cutter
@@ -131,8 +137,8 @@ class MainWindow(QMainWindow):
 
     def _setup_toolbar(self):
         """Set up the toolbar buttons."""
-        # Open Video button
-        self._open_btn = QPushButton("Open Video")
+        # Open media button
+        self._open_btn = QPushButton("Open Media")
         self._toolbar.addWidget(self._open_btn)
 
         self._toolbar.addSeparator()
@@ -209,7 +215,7 @@ class MainWindow(QMainWindow):
         # File menu
         file_menu = menubar.addMenu("File")
 
-        open_action = file_menu.addAction("Open Video...")
+        open_action = file_menu.addAction("Open Media...")
         open_action.setShortcut(QKeySequence.StandardKey.Open)
         open_action.triggered.connect(self._open_video)
 
@@ -471,7 +477,7 @@ class MainWindow(QMainWindow):
     # Private methods
 
     def _load_video(self, path: Path):
-        """Load a video file and prepare for editing."""
+        """Load a video or audio file and prepare for editing."""
         path = Path(path)
         if not path.exists():
             QMessageBox.critical(self, "Error", f"File not found: {path}")
@@ -490,6 +496,7 @@ class MainWindow(QMainWindow):
             video_duration=0,  # Will be updated when duration is known
             crop_config=crop_config,
         )
+        self._project_path = None
         self._video_player.set_crop_config(crop_config)
         self._unsaved_changes = False
 
@@ -914,12 +921,12 @@ class MainWindow(QMainWindow):
     # File operations
 
     def _open_video(self):
-        """Open a video file dialog."""
+        """Open a supported video or audio file dialog."""
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Open Video",
+            "Open Media",
             "",
-            "Video Files (*.mp4 *.mov *.avi *.mkv);;All Files (*)"
+            MEDIA_FILE_FILTER,
         )
         if path:
             self._load_video(Path(path))
@@ -962,10 +969,38 @@ class MainWindow(QMainWindow):
             return
 
         if self._project_path:
-            self._session.save(self._project_path)
-            self._unsaved_changes = False
+            self._save_project_to(self._project_path)
         else:
             self._save_project_as()
+
+    def _suggested_project_path(self) -> Path:
+        """Return a safe initial location for the project save dialog."""
+        if self._project_path:
+            return self._project_path
+
+        documents = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation
+        )
+        fallback = Path(documents) if documents else Path.home() / "Documents"
+        return suggested_project_path(self._session.video_path, fallback)
+
+    def _save_project_to(self, path: Path) -> bool:
+        """Save the active session and make success or failure visible."""
+        try:
+            self._session.save(path)
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Project Save Failed",
+                f"The project could not be saved to:\n{path}\n\n{exc}",
+            )
+            return False
+
+        self._project_path = path
+        self._unsaved_changes = False
+        self.setWindowTitle(f"Video Editor - {path}")
+        self.statusBar().showMessage(f"Project saved: {path}", 8000)
+        return True
 
     def _save_project_as(self):
         """Save the project with a new name."""
@@ -975,16 +1010,11 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Save Project",
-            "",
-            "Video Editor Projects (*.vedproj)"
+            str(self._suggested_project_path()),
+            PROJECT_FILE_FILTER,
         )
         if path:
-            if not path.endswith(".vedproj"):
-                path += ".vedproj"
-            self._session.save(Path(path))
-            self._project_path = Path(path)
-            self._unsaved_changes = False
-            self.setWindowTitle(f"Video Editor - {path}")
+            self._save_project_to(with_project_extension(path))
 
     def _export_video(self):
         """Export the edited recording."""
