@@ -3,7 +3,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QFormLayout
 
 from video_editor.gui.recorder.recording_settings import RecordingSettingsPanel
 from video_editor.gui.recorder.teleprompter import TeleprompterView
@@ -70,6 +70,36 @@ def test_teleprompter_reading_speed_control_emits_an_exact_wpm_value():
 
     assert settings._teleprompter_speed_spin.suffix() == " wpm"
     assert speeds[-1] == 75
+
+
+def test_settings_forms_wrap_fields_in_a_narrow_sidebar():
+    app = _qt_app()
+    settings = RecordingSettingsPanel()
+    settings.resize(320, 1200)
+    settings.show()
+    settings._audio_only_check.setChecked(True)
+    settings._teleprompter_enabled_check.setChecked(True)
+    app.processEvents()
+
+    forms = settings.findChildren(QFormLayout)
+    assert forms
+    assert all(
+        form.rowWrapPolicy() == QFormLayout.RowWrapPolicy.WrapLongRows
+        for form in forms
+    )
+
+    if settings._macos_audio_hint is not None:
+        assert (
+            settings._audio_device_combo.geometry().bottom()
+            < settings._macos_audio_hint.geometry().top()
+        )
+
+    assert (
+        settings._teleprompter_text_size_combo.geometry().bottom()
+        < settings._teleprompter_speed_spin.geometry().top()
+    )
+
+    settings.close()
 
 
 def test_teleprompter_requires_a_script_before_scrolling():

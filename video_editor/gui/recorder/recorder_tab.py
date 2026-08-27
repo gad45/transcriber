@@ -7,7 +7,7 @@ from datetime import datetime
 
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
+    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QScrollArea, QFrame,
     QToolBar, QPushButton, QLabel, QMessageBox,
     QProgressDialog, QStackedWidget
 )
@@ -139,11 +139,20 @@ class RecorderTab(QWidget):
 
         # Settings panel (right side)
         self._settings_panel = RecordingSettingsPanel()
-        self._settings_panel.setMinimumWidth(280)
-        self._settings_panel.setMaximumWidth(350)
-        splitter.addWidget(self._settings_panel)
+        self._settings_scroll = QScrollArea()
+        self._settings_scroll.setWidgetResizable(True)
+        self._settings_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._settings_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self._settings_scroll.setMinimumWidth(320)
+        self._settings_scroll.setMaximumWidth(420)
+        self._settings_scroll.setWidget(self._settings_panel)
+        splitter.addWidget(self._settings_scroll)
 
-        splitter.setSizes([700, 300])
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 0)
+        splitter.setSizes([700, 380])
         layout.addWidget(splitter, 1)
 
         # Status bar

@@ -49,6 +49,16 @@ TELEPROMPTER_TEXT_SIZE_OPTIONS = [
 ]
 
 
+def _responsive_form_layout(parent: QWidget | None = None) -> QFormLayout:
+    """Create a form that wraps fields instead of clipping narrow sidebars."""
+    layout = QFormLayout(parent)
+    layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+    layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+    layout.setHorizontalSpacing(12)
+    layout.setVerticalSpacing(8)
+    return layout
+
+
 class RecordingSettingsPanel(QWidget):
     """Settings panel for configuring screen and audio recording.
 
@@ -109,7 +119,7 @@ class RecordingSettingsPanel(QWidget):
 
         # Screen settings group
         self._screen_group = QGroupBox("Screen")
-        screen_layout = QFormLayout(self._screen_group)
+        screen_layout = _responsive_form_layout(self._screen_group)
 
         self._screen_combo = QComboBox()
         self._screen_combo.setToolTip("Select which screen to record")
@@ -160,7 +170,7 @@ class RecordingSettingsPanel(QWidget):
         audio_layout.addWidget(self._audio_enabled_check)
 
         # Audio device selection
-        device_layout = QFormLayout()
+        device_layout = _responsive_form_layout()
         self._audio_device_combo = QComboBox()
         self._audio_device_combo.setToolTip(
             "Select the microphone or input device to record."
@@ -227,7 +237,7 @@ class RecordingSettingsPanel(QWidget):
         for name, points in TELEPROMPTER_TEXT_SIZE_OPTIONS:
             self._teleprompter_text_size_combo.addItem(name, points)
         self._teleprompter_text_size_combo.setCurrentIndex(2)
-        text_size_layout = QFormLayout()
+        text_size_layout = _responsive_form_layout()
         text_size_layout.addRow("Text size:", self._teleprompter_text_size_combo)
         teleprompter_layout.addLayout(text_size_layout)
 
@@ -240,7 +250,7 @@ class RecordingSettingsPanel(QWidget):
             "Set a precise reading pace. The teleprompter adapts its scroll rate "
             "to your script and selected text size."
         )
-        speed_layout = QFormLayout()
+        speed_layout = _responsive_form_layout()
         speed_layout.addRow("Reading speed:", self._teleprompter_speed_spin)
         teleprompter_layout.addLayout(speed_layout)
 
@@ -252,7 +262,7 @@ class RecordingSettingsPanel(QWidget):
 
         # Output settings group
         output_group = QGroupBox("Output")
-        output_layout = QFormLayout(output_group)
+        output_layout = _responsive_form_layout(output_group)
 
         # Output directory
         dir_layout = QHBoxLayout()
