@@ -6,6 +6,8 @@ from video_editor.analyzer import TimeRange
 from video_editor.config import Config
 from video_editor.cutter import Cutter
 from video_editor.export_pipeline import export_project
+from video_editor.gui.models import EditSession
+from video_editor.gui.rendering import render_edit_session
 from video_editor.project_io import build_project_payload, load_project, write_project
 from video_editor.runtime_paths import ffmpeg_executable, ffprobe_executable
 
@@ -55,7 +57,7 @@ def test_audio_only_cut_exports_m4a_without_a_video_stream(tmp_path: Path):
 
     assert result_path == output_path
     assert _probe_stream_types(output_path) == ["audio"]
-    assert cutter.get_video_duration(output_path) > 1.9
+    assert abs(cutter.get_video_duration(output_path) - 2.0) < 0.03
 
 
 def test_audio_only_project_export_skips_video_only_caption_processing(tmp_path: Path, monkeypatch):
@@ -101,3 +103,38 @@ def test_audio_only_project_export_skips_video_only_caption_processing(tmp_path:
 
     assert result_path == output_path
     assert _probe_stream_types(output_path) == ["audio"]
+
+
+def test_gui_render_uses_the_same_single_pass_audio_timeline(tmp_path: Path):
+    source_path = tmp_path / "source.m4a"
+    output_path = tmp_path / "preview.m4a"
+    subprocess.run(
+        [
+            ffmpeg_executable(),
+            "-y",
+            "-f", "lavfi",
+            "-i", "sine=frequency=600:sample_rate=48000:duration=3",
+            "-c:a", "aac",
+            str(source_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    session = EditSession(
+        video_path=source_path,
+        video_duration=3.0,
+        original_keep_ranges=[TimeRange(0.0, 0.75), TimeRange(1.25, 2.5)],
+    )
+    messages = []
+
+    result_path = render_edit_session(
+        session,
+        Config(temp_dir=tmp_path / "temp"),
+        output_path,
+        messages.append,
+    )
+
+    assert result_path == output_path
+    assert abs(Cutter(Config()).get_video_duration(output_path) - 2.0) < 0.03
+    assert messages == ["Cutting audio...", "Finalizing export..."]

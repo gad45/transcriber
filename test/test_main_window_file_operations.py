@@ -113,9 +113,14 @@ def test_loading_new_media_clears_an_old_project_destination(tmp_path: Path):
         _process_btn = Control()
         _status_label = Control()
         _project_path = tmp_path / "old-project.vedproj"
+        _preview_generation = 0
+        _preview_path = None
 
         def setWindowTitle(self, title):
             self.title = title
+
+        def _cleanup_preview_path(self):
+            MainWindow._cleanup_preview_path(self)
 
     window = Window()
 
@@ -171,3 +176,67 @@ def test_save_failure_is_reported_and_does_not_mark_project_saved(monkeypatch, t
             f"The project could not be saved to:\n{tmp_path / 'video2.vedproj'}\n\nnot writable",
         )
     ]
+
+
+def test_preview_button_starts_rendering_the_edited_session():
+    class Button:
+        def setChecked(self, checked):
+            self.checked = checked
+
+    class Window:
+        _session = object()
+        _view_original_btn = Button()
+        _view_preview_btn = Button()
+        preview_started = False
+
+        def _start_preview_render(self):
+            self.preview_started = True
+
+    window = Window()
+
+    MainWindow._on_view_preview(window)
+
+    assert window._view_original_btn.checked is False
+    assert window._view_preview_btn.checked is True
+    assert window.preview_started is True
+
+
+def test_completed_preview_replaces_the_original_media_in_player(tmp_path: Path):
+    old_preview = tmp_path / "old.m4a"
+    new_preview = tmp_path / "edited.m4a"
+    old_preview.touch()
+    new_preview.touch()
+
+    class Button:
+        def setEnabled(self, enabled):
+            self.enabled = enabled
+
+    class Player:
+        def load_video(self, path):
+            self.loaded_path = path
+
+    class Status:
+        def setText(self, text):
+            self.text = text
+
+    class Window:
+        _preview_generation = 3
+        _preview_thread = object()
+        _preview_path = old_preview
+        _session = object()
+        _view_preview_btn = Button()
+        _video_player = Player()
+        _status_label = Status()
+
+        def _cleanup_preview_path(self):
+            MainWindow._cleanup_preview_path(self)
+
+    window = Window()
+
+    MainWindow._on_preview_finished(window, True, (3, new_preview))
+
+    assert old_preview.exists() is False
+    assert window._preview_path == new_preview
+    assert window._video_player.loaded_path == new_preview
+    assert window._view_preview_btn.enabled is True
+    assert "Previewing edited media" in window._status_label.text

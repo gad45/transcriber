@@ -1,7 +1,6 @@
 """Main window for the video editor GUI."""
 
 import copy
-import shutil
 import tempfile
 import threading
 from pathlib import Path
@@ -28,10 +27,10 @@ from .file_dialogs import (
     suggested_project_path,
     with_project_extension,
 )
+from .rendering import render_edit_session
 from ..transcriber import Transcriber, Segment
 from ..analyzer import Analyzer, AnalyzedSegment, SegmentAction
 from ..cutter import Cutter
-from ..captioner import Captioner
 from ..config import Config
 from ..project_io import infer_recording_crop_config
 
@@ -50,6 +49,7 @@ class MainWindow(QMainWindow):
 
     _export_progress_updated = Signal(str)
     _export_finished = Signal(bool, object)
+    _preview_finished = Signal(bool, object)
 
     def __init__(self, video_path: Path | None = None, parent=None):
         super().__init__(parent)
@@ -60,6 +60,9 @@ class MainWindow(QMainWindow):
         self._unsaved_changes = False
         self._export_thread: threading.Thread | None = None
         self._export_progress_dialog: QProgressDialog | None = None
+        self._preview_thread: threading.Thread | None = None
+        self._preview_path: Path | None = None
+        self._preview_generation = 0
 
         # Load API keys from settings file into environment
         SettingsDialog.load_settings_to_env()
@@ -369,6 +372,7 @@ class MainWindow(QMainWindow):
         # Background export
         self._export_progress_updated.connect(self._on_export_progress_updated)
         self._export_finished.connect(self._on_export_finished)
+        self._preview_finished.connect(self._on_preview_finished)
 
     def _apply_dark_theme(self):
         """Apply dark theme styling."""
@@ -483,7 +487,9 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", f"File not found: {path}")
             return
 
+        self._preview_generation += 1
         self._video_player.load_video(path)
+        self._cleanup_preview_path()
         self.setWindowTitle(f"Video Editor - {path.name}")
         self._process_btn.setEnabled(True)
 
@@ -728,17 +734,109 @@ class MainWindow(QMainWindow):
     @Slot()
     def _on_view_original(self):
         """Switch to original video view."""
+        self._preview_generation += 1
         self._view_original_btn.setChecked(True)
         self._view_preview_btn.setChecked(False)
         if self._session:
             self._video_player.load_video(self._session.video_path)
+        self._cleanup_preview_path()
 
     @Slot()
     def _on_view_preview(self):
         """Generate and show preview of edited video."""
         self._view_original_btn.setChecked(False)
         self._view_preview_btn.setChecked(True)
-        # TODO: Generate preview video and load it
+        if self._session:
+            self._start_preview_render()
+
+    def _start_preview_render(self) -> None:
+        """Render the current edited session in the background for playback."""
+        if self._preview_thread and self._preview_thread.is_alive():
+            self._status_label.setText("Edited preview is already rendering...")
+            return
+        if self._export_thread and self._export_thread.is_alive():
+            QMessageBox.information(
+                self,
+                "Export In Progress",
+                "Wait for the current export to finish before generating a preview.",
+            )
+            self._view_original_btn.setChecked(True)
+            self._view_preview_btn.setChecked(False)
+            return
+
+        self._preview_generation += 1
+        generation = self._preview_generation
+        session_snapshot = copy.deepcopy(self._session)
+        config_snapshot = copy.deepcopy(self._config)
+        source_has_video = Cutter(config_snapshot).input_has_video(session_snapshot.video_path)
+        suffix = ".mp4" if source_has_video else ".m4a"
+        with tempfile.NamedTemporaryFile(
+            prefix="video_editor_preview_",
+            suffix=suffix,
+            delete=False,
+        ) as temp_file:
+            preview_path = Path(temp_file.name)
+        preview_path.unlink(missing_ok=True)
+
+        self._view_preview_btn.setEnabled(False)
+        self._status_label.setText("Generating edited preview...")
+
+        def render_preview() -> None:
+            try:
+                result_path = self._run_export_job(
+                    session_snapshot,
+                    config_snapshot,
+                    preview_path,
+                )
+                self._preview_finished.emit(True, (generation, result_path))
+            except Exception as exc:
+                preview_path.unlink(missing_ok=True)
+                self._preview_finished.emit(False, (generation, str(exc)))
+
+        self._preview_thread = threading.Thread(
+            target=render_preview,
+            name="edited-preview-render",
+            daemon=True,
+        )
+        self._preview_thread.start()
+
+    @Slot(bool, object)
+    def _on_preview_finished(self, success: bool, payload: object) -> None:
+        """Load a completed edited preview unless the request became stale."""
+        generation, result = payload
+        self._preview_thread = None
+        self._view_preview_btn.setEnabled(self._session is not None)
+
+        if generation != self._preview_generation:
+            if success:
+                Path(result).unlink(missing_ok=True)
+            return
+
+        if not success:
+            self._view_original_btn.setChecked(True)
+            self._view_preview_btn.setChecked(False)
+            self._status_label.setText("Preview failed")
+            QMessageBox.critical(self, "Preview Failed", f"Could not generate preview: {result}")
+            return
+
+        previous_preview = self._preview_path
+        self._preview_path = Path(result)
+        self._video_player.load_video(self._preview_path)
+        if previous_preview and previous_preview != self._preview_path:
+            try:
+                previous_preview.unlink(missing_ok=True)
+            except OSError:
+                pass
+        self._status_label.setText(f"Previewing edited media: {self._preview_path.name}")
+
+    def _cleanup_preview_path(self) -> None:
+        """Remove the previous temporary edited preview, if one exists."""
+        if self._preview_path:
+            try:
+                self._preview_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            self._preview_path = None
 
     # Crop controls
 
@@ -1021,6 +1119,14 @@ class MainWindow(QMainWindow):
         if not self._session:
             return
 
+        if self._preview_thread and self._preview_thread.is_alive():
+            QMessageBox.information(
+                self,
+                "Preview In Progress",
+                "Wait for the edited preview to finish before exporting.",
+            )
+            return
+
         if self._export_thread and self._export_thread.is_alive():
             QMessageBox.information(self, "Export In Progress", "Wait for the current export to finish.")
             return
@@ -1078,92 +1184,12 @@ class MainWindow(QMainWindow):
 
     def _run_export_job(self, session: EditSession, config: Config, output_path: Path) -> Path:
         """Run the export pipeline outside the UI thread."""
-        from ..main import _adjust_tokens_for_cuts
-
-        if output_path == session.video_path.resolve():
-            raise RuntimeError("Choose a different output path than the source video.")
-
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Apply caption settings to config before export.
-        caption_settings = session.caption_settings
-        config.caption_font_size = caption_settings.font_size
-        config.caption_font = caption_settings.font_family
-
-        # Convert normalized position to old-style position/offset for FFmpeg.
-        if caption_settings.pos_y < 0.35:
-            config.caption_position = "top"
-            config.caption_vertical_offset = caption_settings.pos_y * 1080
-        elif caption_settings.pos_y < 0.65:
-            config.caption_position = "center"
-            config.caption_vertical_offset = 60.0
-        else:
-            config.caption_position = "bottom"
-            config.caption_vertical_offset = (1.0 - caption_settings.pos_y) * 1080
-
-        cutter = Cutter(config)
-        source_has_video = cutter.input_has_video(session.video_path)
-
-        keep_ranges = session.get_final_keep_ranges(
-            config.segment_start_buffer,
-            config.segment_end_buffer
+        return render_edit_session(
+            session,
+            config,
+            output_path,
+            self._export_progress_updated.emit,
         )
-
-        self._export_progress_updated.emit("Cutting video..." if source_has_video else "Cutting audio...")
-
-        crop_filter = None
-        segment_crop_filters = None
-
-        if source_has_video and session.crop_config and not session.crop_config.is_default:
-            video_w, video_h = cutter.get_video_dimensions(session.video_path)
-            crop_filter = session.crop_config.to_ffmpeg_filter(video_w, video_h)
-
-        if source_has_video and session.segment_crop_overrides:
-            video_w, video_h = cutter.get_video_dimensions(session.video_path)
-            segment_crop_filters = {
-                idx: crop.to_ffmpeg_filter(video_w, video_h)
-                for idx, crop in session.segment_crop_overrides.items()
-                if not crop.is_default
-            }
-            if not segment_crop_filters:
-                segment_crop_filters = None
-
-        temp_suffix = ".mp4" if source_has_video else ".m4a"
-        with tempfile.NamedTemporaryFile(prefix="video_editor_export_", suffix=temp_suffix, delete=False) as tmp_file:
-            temp_cut = Path(tmp_file.name)
-
-        temp_cut.unlink(missing_ok=True)
-
-        try:
-            cutter.cut_video(
-                session.video_path,
-                keep_ranges,
-                temp_cut,
-                crop_filter=crop_filter,
-                segment_crop_filters=segment_crop_filters
-            )
-
-            self._export_progress_updated.emit("Adding captions..." if source_has_video else "Finalizing audio export...")
-
-            tokens = session.get_final_tokens()
-
-            if source_has_video and tokens and session.caption_settings.enabled:
-                captioner = Captioner(config)
-                adjusted_tokens = _adjust_tokens_for_cuts(tokens, keep_ranges, Cutter.SEGMENT_GAP)
-                captioner.burn_streaming_captions(
-                    temp_cut,
-                    adjusted_tokens,
-                    output_path,
-                    max_words=config.max_caption_words,
-                    caption_settings=session.caption_settings.to_dict()
-                )
-            else:
-                self._export_progress_updated.emit("Finalizing export...")
-                shutil.move(str(temp_cut), str(output_path))
-
-            return output_path
-        finally:
-            temp_cut.unlink(missing_ok=True)
 
     @Slot(str)
     def _on_export_progress_updated(self, label: str) -> None:
@@ -1213,6 +1239,15 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
 
+        if self._preview_thread and self._preview_thread.is_alive():
+            QMessageBox.warning(
+                self,
+                "Preview In Progress",
+                "Wait for the edited preview to finish before closing the editor.",
+            )
+            event.ignore()
+            return
+
         if self._unsaved_changes:
             reply = QMessageBox.question(
                 self,
@@ -1231,6 +1266,9 @@ class MainWindow(QMainWindow):
                 event.ignore()
         else:
             event.accept()
+
+        if event.isAccepted():
+            self._cleanup_preview_path()
 
     # Tab handling
 

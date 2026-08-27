@@ -273,6 +273,56 @@ class Cutter:
             raise RuntimeError(f"FFmpeg audio segment extraction failed: {result.stderr}")
         return output_path
 
+    def _cut_audio_ranges_single_pass(
+        self,
+        input_path: Path,
+        ranges: list[TimeRange],
+        output_path: Path,
+    ) -> Path:
+        """Trim and concatenate audio ranges before performing one AAC encode.
+
+        Encoding each range separately introduces AAC priming at every cut and
+        degrades the signal again during final concatenation. A single filter
+        graph keeps all intermediate audio uncompressed and adds encoder delay
+        only once at the final output boundary.
+        """
+        filter_parts = []
+        output_labels = []
+        for index, time_range in enumerate(ranges):
+            label = f"a{index}"
+            filter_parts.append(
+                f"[0:a:0]atrim=start={time_range.start:.9f}:end={time_range.end:.9f},"
+                f"asetpts=PTS-STARTPTS[{label}]"
+            )
+            output_labels.append(f"[{label}]")
+
+        if len(output_labels) == 1:
+            output_label = output_labels[0]
+        else:
+            output_label = "[audio]"
+            filter_parts.append(
+                f"{''.join(output_labels)}concat=n={len(output_labels)}:v=0:a=1{output_label}"
+            )
+
+        cmd = [
+            FFMPEG,
+            "-y",
+            "-hide_banner", "-loglevel", "error", "-nostats",
+            "-i", str(input_path),
+            "-filter_complex", ";".join(filter_parts),
+            "-map", output_label,
+            "-c:a", "aac",
+            "-b:a", "256k",
+            "-ar", "48000",
+            "-ac", "2",
+            "-movflags", "+faststart",
+            str(output_path),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg single-pass audio export failed: {result.stderr}")
+        return output_path
+
     def create_gap_segment(
         self,
         reference_video: Path,
@@ -438,6 +488,12 @@ class Cutter:
         has_video = self.input_has_video(input_path)
         media_label = "video" if has_video else "audio"
         console.print(f"[blue]Cutting {len(ranges)} {media_label} segments...[/blue]")
+
+        if not has_video:
+            result = self._cut_audio_ranges_single_pass(input_path, ranges, output_path)
+            console.print(f"[green]✓[/green] Audio saved to {output_path}")
+            return result
+
         if crop_filter and has_video:
             console.print(f"[blue]Applying crop: {crop_filter}[/blue]")
 
