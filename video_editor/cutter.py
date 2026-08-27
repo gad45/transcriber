@@ -132,7 +132,8 @@ class Cutter:
         end: float,
         index: int,
         freeze_last_frame: bool = True,
-        crop_filter: str | None = None
+        crop_filter: str | None = None,
+        include_audio: bool = True,
     ) -> Path:
         """
         Extract a single segment from the video with precise timing.
@@ -151,6 +152,7 @@ class Cutter:
             index: Segment index for logging
             freeze_last_frame: Whether to freeze last frame for gap duration
             crop_filter: Optional FFmpeg crop filter string (e.g., "crop=1280:720:320:180")
+            include_audio: Whether to encode the segment's audio stream
 
         Returns:
             Path to the extracted segment
@@ -179,7 +181,7 @@ class Cutter:
                 "-i", str(input_path),
             ]
 
-            if has_audio:
+            if has_audio and include_audio:
                 cmd.extend([
                     "-vf", video_filter,
                     "-af", f"atrim=duration={duration},asetpts=PTS-STARTPTS",
@@ -225,7 +227,7 @@ class Cutter:
                 *encoder_args,
                 "-avoid_negative_ts", "make_zero",
             ])
-            if has_audio:
+            if has_audio and include_audio:
                 cmd.extend([
                     "-c:a", "aac",
                     "-b:a", "256k",
@@ -278,6 +280,7 @@ class Cutter:
         input_path: Path,
         ranges: list[TimeRange],
         output_path: Path,
+        gap_duration: float = 0.0,
     ) -> Path:
         """Trim and concatenate audio ranges before performing one AAC encode.
 
@@ -292,9 +295,16 @@ class Cutter:
             label = f"a{index}"
             filter_parts.append(
                 f"[0:a:0]atrim=start={time_range.start:.9f}:end={time_range.end:.9f},"
-                f"asetpts=PTS-STARTPTS[{label}]"
+                "asetpts=PTS-STARTPTS,aresample=48000,"
+                f"aformat=sample_fmts=fltp:channel_layouts=stereo[{label}]"
             )
             output_labels.append(f"[{label}]")
+            if gap_duration > 0 and index < len(ranges) - 1:
+                gap_label = f"gap{index}"
+                filter_parts.append(
+                    f"anullsrc=r=48000:cl=stereo:d={gap_duration:.9f}[{gap_label}]"
+                )
+                output_labels.append(f"[{gap_label}]")
 
         if len(output_labels) == 1:
             output_label = output_labels[0]
@@ -321,6 +331,31 @@ class Cutter:
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"FFmpeg single-pass audio export failed: {result.stderr}")
+        return output_path
+
+    def _mux_video_and_audio(
+        self,
+        video_path: Path,
+        audio_path: Path,
+        output_path: Path,
+    ) -> Path:
+        """Mux already-rendered video and single-pass audio without re-encoding."""
+        cmd = [
+            FFMPEG,
+            "-y",
+            "-hide_banner", "-loglevel", "error", "-nostats",
+            "-i", str(video_path),
+            "-i", str(audio_path),
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-c:v", "copy",
+            "-c:a", "copy",
+            "-movflags", "+faststart",
+            str(output_path),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg video/audio mux failed: {result.stderr}")
         return output_path
 
     def create_gap_segment(
@@ -392,7 +427,8 @@ class Cutter:
     def concatenate_segments(
         self,
         segment_paths: list[Path],
-        output_path: Path
+        output_path: Path,
+        include_audio: bool = True,
     ) -> Path:
         """
         Concatenate multiple video segments into one.
@@ -403,6 +439,7 @@ class Cutter:
         Args:
             segment_paths: List of paths to segment files
             output_path: Path for the concatenated output
+            include_audio: Whether to concatenate and encode segment audio
 
         Returns:
             Path to the concatenated video
@@ -427,7 +464,11 @@ class Cutter:
         # Video exports copy their pre-encoded video segments and normalize audio
         # once. Audio-only exports have no video map at all.
         has_video = bool(segment_paths) and self.input_has_video(segment_paths[0])
-        has_audio = bool(segment_paths) and self._input_has_audio(segment_paths[0])
+        has_audio = (
+            include_audio
+            and bool(segment_paths)
+            and self._input_has_audio(segment_paths[0])
+        )
         if has_video:
             cmd.extend(["-map", "0:v:0", "-c:v", "copy"])
         if has_audio:
@@ -526,7 +567,8 @@ class Cutter:
                 self.cut_segment(
                     input_path, seg_path, range_.start, range_.end, i,
                     freeze_last_frame=has_video and not is_last,
-                    crop_filter=segment_crop
+                    crop_filter=segment_crop,
+                    include_audio=False,
                 )
                 segment_paths.append(seg_path)
                 progress.update(task, advance=1)
@@ -534,13 +576,37 @@ class Cutter:
         # Concatenate all segments
         console.print("[blue]Concatenating segments...[/blue]")
 
-        self.concatenate_segments(segment_paths, output_path)
+        intermediate_paths: list[Path] = []
+        if self._input_has_audio(input_path):
+            video_only_path = temp_dir / "concatenated_video.mp4"
+            audio_path = temp_dir / "single_pass_audio.m4a"
+            intermediate_paths.extend((video_only_path, audio_path))
+            self.concatenate_segments(
+                segment_paths,
+                video_only_path,
+                include_audio=False,
+            )
+            self._cut_audio_ranges_single_pass(
+                input_path,
+                ranges,
+                audio_path,
+                gap_duration=self.SEGMENT_GAP,
+            )
+            self._mux_video_and_audio(video_only_path, audio_path, output_path)
+        else:
+            self.concatenate_segments(
+                segment_paths,
+                output_path,
+                include_audio=False,
+            )
 
         # Clean up temp segments
         if not self.config.keep_temp:
             for seg_path in segment_paths:
                 if seg_path.exists():
                     seg_path.unlink()
+            for intermediate_path in intermediate_paths:
+                intermediate_path.unlink(missing_ok=True)
             if temp_dir.exists():
                 try:
                     temp_dir.rmdir()
